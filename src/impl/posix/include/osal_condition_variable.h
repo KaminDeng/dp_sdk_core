@@ -6,6 +6,7 @@
 
 #include <pthread.h>
 
+#include <atomic>
 #include <chrono>
 
 #include "interface_condition_variable.h"
@@ -16,7 +17,7 @@ namespace osal {
 
 class OSALConditionVariable : public IConditionVariable {
 public:
-    OSALConditionVariable() : waitCount(0) {
+    OSALConditionVariable() {
         if (pthread_cond_init(&cond_, nullptr) != 0) {
             OSAL_LOGE("Failed to initialize condition variable\n");
         } else {
@@ -90,11 +91,11 @@ public:
         }
     }
 
-    int getWaitCount() const override { return waitCount; }
+    int getWaitCount() const override { return waitCount.load(); }
 
 private:
     pthread_cond_t cond_;
-    mutable int waitCount;  // 当前等待线程数
+    mutable std::atomic<int> waitCount{0};  // 当前等待线程数（原子，防止多线程竞争）
 };
 
 }  // namespace osal
