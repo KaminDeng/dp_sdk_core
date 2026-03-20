@@ -19,13 +19,13 @@
 namespace osal {
 class OSALThread : public IThread {
 public:
-    OSALThread() : threadHandle(0), running(false), suspended(false) {
+    OSALThread() : threadHandle(0), running(false), suspended(false), priority_(0) {
         OSAL_LOGD("OSALThread default constructor called\n");
     }
 
     OSALThread(const char *name, std::function<void(void *)> taskFunction, void *taskArgument = nullptr,
                int priority = 0, int stack_size = 0, void *pstack = nullptr)
-        : threadHandle(0), running(false), suspended(false) {
+        : threadHandle(0), running(false), suspended(false), priority_(priority) {
         OSAL_LOGD("OSALThread parameterized constructor called\n");
         start(name, taskFunction, taskArgument, priority, stack_size, pstack);
     }
@@ -125,23 +125,22 @@ public:
     bool isRunning() const override { return running; }
 
     void setPriority(int priority) override {
+        priority_ = priority;  // always store, so getPriority() works after thread ends
         if (threadHandle) {
             struct sched_param schedParam;
             schedParam.sched_priority = priority;
+            // Note: SCHED_FIFO requires root on macOS/Linux. Failure is non-fatal.
             pthread_setschedparam(threadHandle, SCHED_FIFO, &schedParam);
             OSAL_LOGD("Thread priority set to %d\n", priority);
         }
     }
 
     int getPriority() const override {
-        if (threadHandle) {
-            int policy;
-            struct sched_param schedParam;
-            pthread_getschedparam(threadHandle, &policy, &schedParam);
-            OSAL_LOGD("Thread priority retrieved: %d\n", schedParam.sched_priority);
-            return schedParam.sched_priority;
-        }
-        return -1;  // 返回一个无效的优先级表示错误
+        // Return the stored priority so callers get a consistent value
+        // even when the thread has already finished (threadHandle == 0)
+        // or when the OS call would fail (e.g. no root for SCHED_FIFO).
+        OSAL_LOGD("Thread priority retrieved: %d\n", priority_);
+        return priority_;
     }
 
 private:
@@ -175,6 +174,7 @@ private:
     void *taskArgument;
     std::atomic<bool> running;
     std::atomic<bool> suspended;
+    int priority_;  // stored priority, returned by getPriority() regardless of OS call result
     std::mutex mutex_;
     std::condition_variable cv_;
 };

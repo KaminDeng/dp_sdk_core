@@ -40,10 +40,16 @@ public:
         }
 
         freeList_ = reinterpret_cast<void **>(pool_);
+        // Build the free-list: write the address of the NEXT block at the
+        // START of EACH block (step by blockSize_, not by sizeof(void*)).
         for (size_t i = 0; i < blockCount_ - 1; ++i) {
-            freeList_[i] = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(pool_) + (i + 1) * blockSize_);
+            void **slot = reinterpret_cast<void **>(reinterpret_cast<uint8_t *>(pool_) + i * blockSize_);
+            *slot = reinterpret_cast<uint8_t *>(pool_) + (i + 1) * blockSize_;
         }
-        freeList_[blockCount_ - 1] = nullptr;
+        // Last block's next pointer is nullptr
+        void **lastSlot =
+            reinterpret_cast<void **>(reinterpret_cast<uint8_t *>(pool_) + (blockCount_ - 1) * blockSize_);
+        *lastSlot = nullptr;
 
         OSAL_LOGD("MemoryPool initialized with block size: %zu, block count: %zu.", blockSize_, blockCount_);
         return true;
