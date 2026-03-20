@@ -3,6 +3,7 @@
 //
 #include "osal_thread_pool.h"
 
+#include <algorithm>
 #include <functional>
 
 #include "osal_thread.h"
@@ -40,16 +41,14 @@ bool OSALThreadPool::OSALAddTread() {
 }
 
 bool OSALThreadPool::OSALDelTread() {
-    bool result = false;
-    for (auto &thread : threads_) {
-        if (!thread->isRunning()) {
-            thread->stop();
-            threads_.erase(std::remove(threads_.begin(), threads_.end(), thread), threads_.end());
-            result = true;
-            break;
-        }
+    auto it = std::find_if(threads_.begin(), threads_.end(),
+                           [](const std::shared_ptr<OSALThread> &t) { return !t->isRunning(); });
+    if (it != threads_.end()) {
+        (*it)->stop();
+        threads_.erase(it);
+        return true;
     }
-    return result;
+    return false;
 }
 
 void OSALThreadPool::stop() {

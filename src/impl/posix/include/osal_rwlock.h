@@ -4,6 +4,7 @@
 #ifndef __OSAL_RWLOCK_H__
 #define __OSAL_RWLOCK_H__
 
+#include <atomic>
 #include <chrono>
 #include <shared_mutex>
 
@@ -20,6 +21,7 @@ public:
 
     void readLock() override {
         sharedMutex_.lock_shared();
+        readCount_.fetch_add(1);
         OSAL_LOGD("Read lock acquired\n");
     }
 
@@ -36,12 +38,14 @@ public:
     }
 
     void readUnlock() override {
+        readCount_.fetch_sub(1);
         sharedMutex_.unlock_shared();
         OSAL_LOGD("Read lock released\n");
     }
 
     void writeLock() override {
         sharedMutex_.lock();
+        writeLocked_.store(true);
         OSAL_LOGD("Write lock acquired\n");
     }
 
@@ -58,25 +62,18 @@ public:
     }
 
     void writeUnlock() override {
+        writeLocked_.store(false);
         sharedMutex_.unlock();
         OSAL_LOGD("Write lock released\n");
     }
 
-    size_t getReadLockCount() const override {
-        // 这个功能在标准库中没有直接支持，通常需要自定义实现。
-        // 这里仅作为示例，返回0。
-        OSAL_LOGD("Requested read lock count\n");
-        return 0;
-    }
+    size_t getReadLockCount() const override { return readCount_.load(); }
 
-    bool isWriteLocked() const override {
-        // 这个功能在标准库中没有直接支持，通常需要自定义实现。
-        // 这里仅作为示例，返回false。
-        OSAL_LOGD("Requested write lock status\n");
-        return false;
-    }
+    bool isWriteLocked() const override { return writeLocked_.load(); }
 
 private:
+    std::atomic<size_t> readCount_{0};
+    std::atomic<bool> writeLocked_{false};
     mutable std::shared_timed_mutex sharedMutex_;
 };
 

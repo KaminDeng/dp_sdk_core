@@ -68,8 +68,16 @@ TEST(OSALRWLockTest, TestOSALRWLockWriteLockFor) {
 
 TEST(OSALRWLockTest, TestOSALRWLockGetReadLockCount) {
 #if (TestOSALRWLockGetReadLockCountEnabled)
-    osal::OSALRWLock rwlock;
-    EXPECT_EQ(rwlock.getReadLockCount(), 0);
+    OSALRWLock rwlock;
+    EXPECT_EQ(rwlock.getReadLockCount(), 0u);
+    rwlock.readLock();
+    EXPECT_EQ(rwlock.getReadLockCount(), 1u);
+    rwlock.readLock();
+    EXPECT_EQ(rwlock.getReadLockCount(), 2u);
+    rwlock.readUnlock();
+    EXPECT_EQ(rwlock.getReadLockCount(), 1u);
+    rwlock.readUnlock();
+    EXPECT_EQ(rwlock.getReadLockCount(), 0u);
 #else
     GTEST_SKIP();
 #endif
@@ -77,7 +85,11 @@ TEST(OSALRWLockTest, TestOSALRWLockGetReadLockCount) {
 
 TEST(OSALRWLockTest, TestOSALRWLockIsWriteLocked) {
 #if (TestOSALRWLockIsWriteLockedEnabled)
-    osal::OSALRWLock rwlock;
+    OSALRWLock rwlock;
+    EXPECT_FALSE(rwlock.isWriteLocked());
+    rwlock.writeLock();
+    EXPECT_TRUE(rwlock.isWriteLocked());
+    rwlock.writeUnlock();
     EXPECT_FALSE(rwlock.isWriteLocked());
 #else
     GTEST_SKIP();
