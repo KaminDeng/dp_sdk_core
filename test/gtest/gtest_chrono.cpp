@@ -1,12 +1,11 @@
 #include "gtest/gtest.h"
 #include "osal_chrono.h"
 #include "osal_system.h"
-#include "osal_test_framework_config.h"
 
 using namespace osal;
 
 TEST(OSALChronoTest, TestOSALChronoNow) {
-#if (TestOSALChronoNowEnabled)
+#if (OSAL_TEST_CHRONO_ENABLED || OSAL_TEST_ALL)
     auto timePoint1 = OSALChrono::getInstance().now();
     // 如果系统启动时时间为0, 可能会测试失败
     if (timePoint1 < 1000) {
@@ -23,7 +22,7 @@ TEST(OSALChronoTest, TestOSALChronoNow) {
 }
 
 TEST(OSALChronoTest, TestOSALChronoElapsed) {
-#if (TestOSALChronoElapsedEnabled)
+#if (OSAL_TEST_CHRONO_ENABLED || OSAL_TEST_ALL)
     auto timePoint1 = OSALChrono::getInstance().now();
     OSALSystem::getInstance().sleep_ms(15);
     auto timePoint2 = OSALChrono::getInstance().now();
@@ -35,7 +34,7 @@ TEST(OSALChronoTest, TestOSALChronoElapsed) {
 }
 
 TEST(OSALChronoTest, TestOSALChronoToTimeT) {
-#if (TestOSALChronoToTimeTEnabled)
+#if (OSAL_TEST_CHRONO_ENABLED || OSAL_TEST_ALL)
     auto timePoint = OSALChrono::getInstance().now();
     std::time_t time = OSALChrono::getInstance().to_time_t(timePoint);
     EXPECT_TRUE(time > 0);
@@ -45,7 +44,7 @@ TEST(OSALChronoTest, TestOSALChronoToTimeT) {
 }
 
 TEST(OSALChronoTest, TestOSALChronoFromTimeT) {
-#if (TestOSALChronoFromTimeTEnabled)
+#if (OSAL_TEST_CHRONO_ENABLED || OSAL_TEST_ALL)
     std::time_t time = OSALChrono::getInstance().to_time_t(OSALChrono::getInstance().now());
     auto timePoint = OSALChrono::getInstance().from_time_t(time);
     EXPECT_TRUE(timePoint > 0);
@@ -55,7 +54,7 @@ TEST(OSALChronoTest, TestOSALChronoFromTimeT) {
 }
 
 TEST(OSALChronoTest, TestOSALChronoToString) {
-#if (TestOSALChronoToStringEnabled)
+#if (OSAL_TEST_CHRONO_ENABLED || OSAL_TEST_ALL)
     auto timePoint = OSALChrono::getInstance().now();
     std::string timeString = OSALChrono::getInstance().to_string(timePoint);
     EXPECT_TRUE(!timeString.empty());

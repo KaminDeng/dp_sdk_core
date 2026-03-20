@@ -3,13 +3,12 @@
 #include "gtest/gtest.h"
 #include "osal_chrono.h"
 #include "osal_system.h"
-#include "osal_test_framework_config.h"
 #include "osal_thread_pool.h"
 
 using namespace osal;
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolStartStop) {
-#if (TestOSALThreadPoolStartStopEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.start(4, 0, 1024);
     ASSERT_TRUE(threadPool.isStarted());
@@ -30,7 +29,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolStartStop) {
 }
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolSuspendResume) {
-#if (TestOSALThreadPoolSuspendResumeEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.start(4, 0, 1024);
     ASSERT_TRUE(threadPool.isStarted());
@@ -50,7 +49,7 @@ auto task = [](void *arg) {
 };
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolSubmitTask) {
-#if (TestOSALThreadPoolSubmitTaskEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.start(4, 0, 1024);
 
@@ -66,7 +65,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolSubmitTask) {
 }
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolSetPriority) {
-#if (TestOSALThreadPoolSetPriorityEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.setPriority(5);
     ASSERT_EQ(threadPool.getPriority(), 5);
@@ -76,7 +75,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolSetPriority) {
 }
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolGetTaskQueueSize) {
-#if (TestOSALThreadPoolGetTaskQueueSizeEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.start(4, 0, 1024);
 
@@ -96,7 +95,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolGetTaskQueueSize) {
 }
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolGetActiveThreadCount) {
-#if (TestOSALThreadPoolGetActiveThreadCountEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.start(4, 0, 1024);
     ASSERT_EQ(threadPool.getActiveThreadCount(), 0);
@@ -118,7 +117,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolGetActiveThreadCount) {
 }
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolCancelTask) {
-#if (TestOSALThreadPoolCancelTaskEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.start(4, 0, 1024);
 
@@ -146,7 +145,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolCancelTask) {
 }
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolSetTaskFailureCallback) {
-#if (TestOSALThreadPoolSetTaskFailureCallbackEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.start(4, 0, 1024);
 
@@ -166,7 +165,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolSetTaskFailureCallback) {
 }
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolSetMaxThreads) {
-#if (TestOSALThreadPoolSetMaxThreadsEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.start(2, 0, 1024);
     ASSERT_EQ(threadPool.getMinThreads(), 2);
@@ -191,7 +190,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolSetMaxThreads) {
 }
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolSetMinThreads) {
-#if (TestOSALThreadPoolSetMinThreadsEnabled)
+#if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
     osal::OSALThreadPool threadPool;
     threadPool.setMinThreads(2);
     ASSERT_EQ(threadPool.getMinThreads(), 2);

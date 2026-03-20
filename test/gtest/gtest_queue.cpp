@@ -1,11 +1,10 @@
 #include "gtest/gtest.h"
 #include "osal_queue.h"
-#include "osal_test_framework_config.h"
 
 using namespace osal;
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueSendReceive) {
-#if (TestOSALMessageQueueSendReceiveEnabled)
+#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
     osal::OSALMessageQueue<int> queue;
     queue.send(42);
     int message = queue.receive();
@@ -16,7 +15,7 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueSendReceive) {
 }
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueTryReceive) {
-#if (TestOSALMessageQueueTryReceiveEnabled)
+#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
     osal::OSALMessageQueue<int> queue;
     int message;
     EXPECT_FALSE(queue.tryReceive(message));
@@ -29,7 +28,7 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueTryReceive) {
 }
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueReceiveFor) {
-#if (TestOSALMessageQueueReceiveForEnabled)
+#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
     osal::OSALMessageQueue<int> queue;
     int message;
     EXPECT_FALSE(queue.receiveFor(message, 100));
@@ -42,7 +41,7 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueReceiveFor) {
 }
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueSize) {
-#if (TestOSALMessageQueueSizeEnabled)
+#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
     osal::OSALMessageQueue<int> queue;
     EXPECT_EQ(queue.size(), 0);
     queue.send(42);
@@ -55,7 +54,7 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueSize) {
 }
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueClear) {
-#if (TestOSALMessageQueueClearEnabled)
+#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
     osal::OSALMessageQueue<int> queue;
     queue.send(42);
     queue.send(43);

@@ -8,13 +8,12 @@
 
 #include "osal_chrono.h"
 #include "osal_system.h"
-#include "osal_test_framework_config.h"
 #include "osal_thread.h"
 
 using namespace osal;
 
 TEST(OSALThreadTest, TestOSALThreadStart) {
-#if (TestOSALThreadStartEnabled)
+#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
     std::atomic<int> taskExecuted(1);
 
@@ -43,7 +42,7 @@ TEST(OSALThreadTest, TestOSALThreadStart) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadStop) {
-#if (TestOSALThreadStopEnabled)
+#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
@@ -60,7 +59,7 @@ TEST(OSALThreadTest, TestOSALThreadStop) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadStopIdempotent) {
-#if (TestOSALThreadStopEnabled)
+#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
@@ -78,7 +77,7 @@ TEST(OSALThreadTest, TestOSALThreadStopIdempotent) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadJoin) {
-#if (TestOSALThreadJoinEnabled)
+#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
@@ -95,7 +94,7 @@ TEST(OSALThreadTest, TestOSALThreadJoin) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadDetach) {
-#if (TestOSALThreadDetachEnabled)
+#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
@@ -119,7 +118,7 @@ TEST(OSALThreadTest, TestOSALThreadDetach) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadIsRunning) {
-#if (TestOSALThreadIsRunningEnabled)
+#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
@@ -143,7 +142,7 @@ TEST(OSALThreadTest, TestOSALThreadIsRunning) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadSetAndGetPriority) {
-#if (TestOSALThreadSetAndGetPriorityEnabled)
+#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
@@ -177,7 +176,7 @@ TEST(OSALThreadTest, TestOSALThreadSetAndGetPriority) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadSuspendAndResume) {
-#if (TestOSALThreadSuspendAndResumeEnabled)
+#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 

@@ -2,13 +2,12 @@
 
 #include "gtest/gtest.h"
 #include "osal_lockguard.h"
-#include "osal_test_framework_config.h"
 #include "osal_thread.h"
 
 using namespace osal;
 
 TEST(OSALLockGuardTest, TestOSALLockGuardConstructor) {
-#if (TestOSALLockGuardConstructorEnabled)
+#if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
     osal::OSALMutex mutex;
     {
         osal::OSALLockGuard lockGuard(mutex);
@@ -20,7 +19,7 @@ TEST(OSALLockGuardTest, TestOSALLockGuardConstructor) {
 }
 
 TEST(OSALLockGuardTest, TestOSALLockGuardDestructor) {
-#if (TestOSALLockGuardDestructorEnabled)
+#if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
     osal::OSALMutex mutex;
     {
         osal::OSALLockGuard lockGuard(mutex);
@@ -36,7 +35,7 @@ TEST(OSALLockGuardTest, TestOSALLockGuardDestructor) {
 }
 
 TEST(OSALLockGuardTest, TestOSALLockGuardIsLocked) {
-#if (TestOSALLockGuardIsLockedEnabled)
+#if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
     osal::OSALMutex mutex;
     osal::OSALLockGuard lockGuard(mutex);
     EXPECT_TRUE(lockGuard.isLocked());
@@ -46,7 +45,7 @@ TEST(OSALLockGuardTest, TestOSALLockGuardIsLocked) {
 }
 
 TEST(OSALLockGuardTest, TestOSALLockGuardMultiThread) {
-#if (TestOSALLockGuardMultiThreadEnabled)
+#if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
     osal::OSALMutex mutex;
     std::atomic<bool> taskExecuted(false);

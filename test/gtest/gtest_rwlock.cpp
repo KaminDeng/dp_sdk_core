@@ -1,11 +1,10 @@
 #include "gtest/gtest.h"
 #include "osal_rwlock.h"
-#include "osal_test_framework_config.h"
 
 using namespace osal;
 
 TEST(OSALRWLockTest, TestOSALRWLockReadLock) {
-#if (TestOSALRWLockReadLockEnabled)
+#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALRWLock rwlock;
     rwlock.readLock();
     EXPECT_TRUE(rwlock.tryReadLock());
@@ -16,7 +15,7 @@ TEST(OSALRWLockTest, TestOSALRWLockReadLock) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockTryReadLock) {
-#if (TestOSALRWLockTryReadLockEnabled)
+#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALRWLock rwlock;
     EXPECT_TRUE(rwlock.tryReadLock());
     rwlock.readUnlock();
@@ -26,7 +25,7 @@ TEST(OSALRWLockTest, TestOSALRWLockTryReadLock) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockReadLockFor) {
-#if (TestOSALRWLockReadLockForEnabled)
+#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALRWLock rwlock;
     EXPECT_TRUE(rwlock.readLockFor(500));
     rwlock.readUnlock();
@@ -36,7 +35,7 @@ TEST(OSALRWLockTest, TestOSALRWLockReadLockFor) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockWriteLock) {
-#if (TestOSALRWLockWriteLockEnabled)
+#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALRWLock rwlock;
     rwlock.writeLock();
     EXPECT_FALSE(rwlock.tryWriteLock());
@@ -47,7 +46,7 @@ TEST(OSALRWLockTest, TestOSALRWLockWriteLock) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockTryWriteLock) {
-#if (TestOSALRWLockTryWriteLockEnabled)
+#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALRWLock rwlock;
     EXPECT_TRUE(rwlock.tryWriteLock());
     rwlock.writeUnlock();
@@ -57,7 +56,7 @@ TEST(OSALRWLockTest, TestOSALRWLockTryWriteLock) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockWriteLockFor) {
-#if (TestOSALRWLockWriteLockForEnabled)
+#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALRWLock rwlock;
     EXPECT_TRUE(rwlock.writeLockFor(500));
     rwlock.writeUnlock();
@@ -67,7 +66,7 @@ TEST(OSALRWLockTest, TestOSALRWLockWriteLockFor) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockGetReadLockCount) {
-#if (TestOSALRWLockGetReadLockCountEnabled)
+#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
     OSALRWLock rwlock;
     EXPECT_EQ(rwlock.getReadLockCount(), 0u);
     rwlock.readLock();
@@ -84,7 +83,7 @@ TEST(OSALRWLockTest, TestOSALRWLockGetReadLockCount) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockIsWriteLocked) {
-#if (TestOSALRWLockIsWriteLockedEnabled)
+#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
     OSALRWLock rwlock;
     EXPECT_FALSE(rwlock.isWriteLocked());
     rwlock.writeLock();

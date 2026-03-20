@@ -4,14 +4,13 @@
 
 #include "osal_mutex.h"
 #include "osal_system.h"
-#include "osal_test_framework_config.h"
 #include "osal_thread.h"
 
 // 使用命名空间以避免在每个调用中使用完整的命名空间路径
 using namespace osal;
 
 TEST(OSALMutexTest, TestOSALMutexLock) {
-#if (TestOSALMutexLockEnabled)
+#if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
     OSALMutex mutex;
     EXPECT_TRUE(mutex.lock());
     EXPECT_TRUE(mutex.unlock());
@@ -25,7 +24,7 @@ TEST(OSALMutexTest, TestOSALMutexLock) {
 }
 
 TEST(OSALMutexTest, TestOSALMutexUnlock) {
-#if (TestOSALMutexUnlockEnabled)
+#if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
     OSALMutex mutex;
     EXPECT_TRUE(mutex.lock());
     EXPECT_TRUE(mutex.unlock());
@@ -38,7 +37,7 @@ TEST(OSALMutexTest, TestOSALMutexUnlock) {
 }
 
 TEST(OSALMutexTest, TestOSALMutexTryLock) {
-#if (TestOSALMutexTryLockEnabled)
+#if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
     OSALMutex mutex;
 
     // 在同一个线程中测试递归锁的行为
@@ -83,7 +82,7 @@ TEST(OSALMutexTest, TestOSALMutexTryLock) {
 }
 
 TEST(OSALMutexTest, TestOSALMutexTryLockFor) {
-#if (TestOSALMutexTryLockForEnabled)
+#if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
     OSALMutex mutex;
 
     // 在同一个线程中测试递归锁的行为
@@ -128,7 +127,7 @@ TEST(OSALMutexTest, TestOSALMutexTryLockFor) {
 }
 
 TEST(OSALMutexTest, TestOSALMutexLockAndUnlock) {
-#if (TestOSALMutexLockAndUnlockEnabled)
+#if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
     OSALMutex mutex;
     std::atomic<bool> taskExecuted(false);
 

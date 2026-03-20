@@ -4,13 +4,12 @@
 #include "osal_condition_variable.h"
 #include "osal_mutex.h"
 #include "osal_system.h"
-#include "osal_test_framework_config.h"
 #include "osal_thread.h"
 
 using namespace osal;
 
 TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitAndNotifyOne) {
-#if (TestOSALConditionVariableWaitAndNotifyOneEnabled)
+#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
     osal::OSALMutex mutex;
     osal::OSALConditionVariable condVar;
 
@@ -37,7 +36,7 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitAndNotifyOne) {
 }
 
 TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitForTimeout) {
-#if (TestOSALConditionVariableWaitForTimeoutEnabled)
+#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
     osal::OSALMutex mutex;
     osal::OSALConditionVariable condVar;
 
@@ -64,7 +63,7 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitForTimeout) {
 }
 
 TEST(OSALConditionVariableTest, TestOSALConditionVariableNotifyAll) {
-#if (TestOSALConditionVariableNotifyAllEnabled)
+#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
     osal::OSALMutex mutex;
     osal::OSALConditionVariable condVar;
     std::atomic<int> taskExecutedCount(0);
@@ -100,7 +99,7 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableNotifyAll) {
 }
 
 TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitCount) {
-#if (TestOSALConditionVariableWaitCountEnabled)
+#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
     OSALConditionVariable condVar;
     OSALMutex mutex;
     std::atomic<int> readyCount(0);

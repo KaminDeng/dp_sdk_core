@@ -3,12 +3,11 @@
 
 #include "gtest/gtest.h"
 #include "osal_memory_manager.h"
-#include "osal_test_framework_config.h"
 
 using namespace osal;
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocate) {
-#if (TestOSALMemoryManagerAllocateEnabled)
+#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
     OSALMemoryManager mm(128, 10);
     void *ptr = mm.allocate(50);
     ASSERT_NE(ptr, nullptr);
@@ -23,7 +22,7 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocate) {
 }
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerDeallocate) {
-#if (TestOSALMemoryManagerDeallocateEnabled)
+#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
     OSALMemoryManager mm(128, 10);
     // Exhaust all blocks
     void *ptrs[10];
@@ -47,7 +46,7 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerDeallocate) {
 }
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerReallocate) {
-#if (TestOSALMemoryManagerReallocateEnabled)
+#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
     OSALMemoryManager mm(128, 10);
     void *ptr = mm.allocate(50);
     ASSERT_NE(ptr, nullptr);
@@ -66,7 +65,7 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerReallocate) {
 }
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateAligned) {
-#if (TestOSALMemoryManagerAllocateAlignedEnabled)
+#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
     // Use block size large enough for metadata + alignment + data
     // 2*sizeof(uintptr_t)=16 + 63 padding + 30 data = 109 bytes minimum → use 256
     OSALMemoryManager mm(256, 10);
@@ -91,7 +90,7 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateAligned) {
 }
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerGetAllocatedSize) {
-#if (TestOSALMemoryManagerGetAllocatedSizeEnabled)
+#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
     // getAllocatedSize() takes no arguments — returns blockSize_
     OSALMemoryManager mm(128, 10);
     EXPECT_EQ(mm.getAllocatedSize(), 128u);

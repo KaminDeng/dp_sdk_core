@@ -1,11 +1,10 @@
 #include "gtest/gtest.h"
 #include "osal_semaphore.h"
-#include "osal_test_framework_config.h"
 
 using namespace osal;
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreInit) {
-#if (TestOSALSemaphoreInitEnabled)
+#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
     osal::OSALSemaphore semaphore;
     semaphore.init(5);
     EXPECT_EQ(semaphore.getValue(), 5);
@@ -15,7 +14,7 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreInit) {
 }
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreWaitSignal) {
-#if (TestOSALSemaphoreWaitSignalEnabled)
+#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
     osal::OSALSemaphore semaphore;
     semaphore.init(1);
     semaphore.wait();
@@ -28,7 +27,7 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreWaitSignal) {
 }
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreTryWait) {
-#if (TestOSALSemaphoreTryWaitEnabled)
+#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
     osal::OSALSemaphore semaphore;
     semaphore.init(1);
     EXPECT_TRUE(semaphore.tryWait());
@@ -41,7 +40,7 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreTryWait) {
 }
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreTryWaitFor) {
-#if (TestOSALSemaphoreTryWaitForEnabled)
+#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
     osal::OSALSemaphore semaphore;
     semaphore.init(1);
     EXPECT_TRUE(semaphore.tryWaitFor(500));
@@ -54,7 +53,7 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreTryWaitFor) {
 }
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreGetValue) {
-#if (TestOSALSemaphoreGetValueEnabled)
+#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
     osal::OSALSemaphore semaphore;
     semaphore.init(3);
     EXPECT_EQ(semaphore.getValue(), 3);

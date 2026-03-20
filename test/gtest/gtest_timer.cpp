@@ -2,13 +2,12 @@
 
 #include "gtest/gtest.h"
 #include "osal_system.h"
-#include "osal_test_framework_config.h"
 #include "osal_timer.h"
 
 using namespace osal;
 
 TEST(OSALTimerTest, TestOSALTimerRepeat) {
-#if (TestOSALTimerRepeatEnabled)
+#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
     osal::OSALTimer timer;
     std::atomic<int> count(0);
 
@@ -23,7 +22,7 @@ TEST(OSALTimerTest, TestOSALTimerRepeat) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerStart) {
-#if (TestOSALTimerStartEnabled)
+#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
     osal::OSALTimer timer;
     std::atomic<bool> callbackExecuted(false);
 
@@ -39,7 +38,7 @@ TEST(OSALTimerTest, TestOSALTimerStart) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerStop) {
-#if (TestOSALTimerStopEnabled)
+#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
     osal::OSALTimer timer;
     std::atomic<bool> callbackExecuted(false);
 
@@ -55,7 +54,7 @@ TEST(OSALTimerTest, TestOSALTimerStop) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerIsRunning) {
-#if (TestOSALTimerIsRunningEnabled)
+#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
     osal::OSALTimer timer;
 
     EXPECT_FALSE(timer.isRunning());
@@ -71,7 +70,7 @@ TEST(OSALTimerTest, TestOSALTimerIsRunning) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerGetRemainingTime) {
-#if (TestOSALTimerGetRemainingTimeEnabled)
+#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
     osal::OSALTimer timer;
 
     timer.start(200, false, []() {});
@@ -87,7 +86,7 @@ TEST(OSALTimerTest, TestOSALTimerGetRemainingTime) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerReset) {
-#if (TestOSALTimerResetEnabled)
+#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
     osal::OSALTimer timer;
     std::atomic<bool> callbackExecuted(false);
 

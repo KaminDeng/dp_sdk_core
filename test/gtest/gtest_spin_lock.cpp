@@ -4,13 +4,12 @@
 
 #include "osal_spin_lock.h"
 #include "osal_system.h"
-#include "osal_test_framework_config.h"
 #include "osal_thread.h"
 
 using namespace osal;
 
 TEST(TestOSALSpinLock, Lock) {
-#if (TestOSALSpinLockLockEnabled)
+#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALSpinLock spinlock;
     spinlock.lock();
     EXPECT_TRUE(spinlock.isLocked());
@@ -53,7 +52,7 @@ TEST(TestOSALSpinLock, Lock) {
 }
 
 TEST(TestOSALSpinLock, TryLock) {
-#if (TestOSALSpinLockTryLockEnabled)
+#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALSpinLock spinlock;
     EXPECT_TRUE(spinlock.tryLock());
     EXPECT_TRUE(spinlock.isLocked());
@@ -96,7 +95,7 @@ TEST(TestOSALSpinLock, TryLock) {
 }
 
 TEST(TestOSALSpinLock, LockFor) {
-#if (TestOSALSpinLockLockForEnabled)
+#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALSpinLock spinlock;
     EXPECT_TRUE(spinlock.lockFor(500));
     EXPECT_TRUE(spinlock.isLocked());
@@ -139,7 +138,7 @@ TEST(TestOSALSpinLock, LockFor) {
 }
 
 TEST(TestOSALSpinLock, Unlock) {
-#if (TestOSALSpinLockUnlockEnabled)
+#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALSpinLock spinlock;
     spinlock.lock();
     EXPECT_TRUE(spinlock.isLocked());
@@ -183,7 +182,7 @@ TEST(TestOSALSpinLock, Unlock) {
 }
 
 TEST(TestOSALSpinLock, IsLocked) {
-#if (TestOSALSpinLockIsLockedEnabled)
+#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
     osal::OSALSpinLock spinlock;
     EXPECT_FALSE(spinlock.isLocked());
     spinlock.lock();
