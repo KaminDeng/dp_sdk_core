@@ -4,12 +4,13 @@
 #ifndef __OSAL_LOCK_GUARD_H__
 #define __OSAL_LOCK_GUARD_H__
 
+#include "interface_lockguard.h"
 #include "osal_debug.h"
 #include "osal_mutex.h"
 
 namespace osal {
 
-class OSALLockGuard {
+class OSALLockGuard : public ILockGuard {
 public:
     explicit OSALLockGuard(OSALMutex &mutex) : mutex_(mutex), locked_(false) {
         locked_ = mutex_.lock();
@@ -20,7 +21,7 @@ public:
         }
     }
 
-    ~OSALLockGuard() {
+    ~OSALLockGuard() override {
         if (locked_) {
             if (mutex_.unlock()) {
                 OSAL_LOGD("Mutex unlocked successfully in OSALLockGuard\n");
@@ -30,7 +31,7 @@ public:
         }
     }
 
-    bool isLocked() const { return locked_; }
+    [[nodiscard]] bool isLocked() override { return locked_; }
 
 private:
     OSALMutex &mutex_;
