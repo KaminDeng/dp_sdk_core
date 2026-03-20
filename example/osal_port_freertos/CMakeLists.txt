@@ -1,20 +1,22 @@
+# example/osal_port_freertos/CMakeLists.txt
+#
+# STM32 FreeRTOS+CMSIS-OS2 port — new osal_port.h single-file format.
+#
+# Usage in your project's CMakeLists.txt (before add_subdirectory(osal)):
+#   set(OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/path/to/osal_port_freertos)
+#
+# NOTE: osal_port_debug_write uses HAL_UART_Transmit (huart6).
+# Your project must link stm32cubemx (or your equivalent HAL library).
+# If you need _write() newlib redirection, add a .cpp file with the
+# extern "C" int _write(...) implementation shown in osal_port.h.
 cmake_minimum_required(VERSION 3.15)
 
-file(GLOB_RECURSE OSAL_PORT_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/*.c" "${CMAKE_CURRENT_SOURCE_DIR}/*.cpp")
+add_library(osal_port INTERFACE)
 
-add_library(osal_port STATIC
-        ${OSAL_PORT_SOURCES}
+target_include_directories(osal_port INTERFACE
+    ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-
-# 遍历子目录以确保包含所有头文件
-foreach (subdir
-        ${CMAKE_CURRENT_LIST_DIR}
-#        ${CMAKE_CURRENT_LIST_DIR}/cmsis_os2_freertos/cmsis_base
-#        ${CMAKE_CURRENT_LIST_DIR}/cmsis_os2_freertos
-)
-    target_include_directories(osal_port PUBLIC ${subdir})
-endforeach ()
-
-target_link_libraries(osal_port PUBLIC stm32cubemx)
-
+# STM32 HAL library provides HAL_UART_Transmit used in osal_port_debug_write.
+# Adjust the library name to match your BSP.
+target_link_libraries(osal_port INTERFACE stm32cubemx)
