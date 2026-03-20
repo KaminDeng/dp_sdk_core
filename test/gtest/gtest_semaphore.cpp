@@ -1,5 +1,8 @@
 #include "gtest/gtest.h"
 #include "osal_semaphore.h"
+#include <atomic>
+#include "osal_system.h"
+#include "osal_thread.h"
 
 using namespace osal;
 
@@ -61,6 +64,77 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreGetValue) {
     EXPECT_EQ(semaphore.getValue(), 2);
     semaphore.signal();
     EXPECT_EQ(semaphore.getValue(), 3);
+#else
+    GTEST_SKIP();
+#endif
+}
+
+// Test: wait() blocks the calling thread until another thread calls signal()
+TEST(OSALSemaphoreTest, TestOSALSemaphoreBlockingWait) {
+#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
+    osal::OSALSemaphore semaphore;
+    semaphore.init(0);
+    std::atomic<bool> consumerDone(false);
+
+    OSALThread producer, consumer;
+    consumer.start(
+        "Consumer",
+        [&](void *) {
+            semaphore.wait();  // must block until producer signals
+            consumerDone = true;
+        },
+        nullptr, 0, 2048);
+
+    OSALSystem::getInstance().sleep_ms(100);
+    EXPECT_FALSE(consumerDone.load());  // still blocking
+
+    producer.start(
+        "Producer",
+        [&](void *) { semaphore.signal(); },
+        nullptr, 0, 2048);
+
+    consumer.join();
+    producer.join();
+    EXPECT_TRUE(consumerDone.load());
+#else
+    GTEST_SKIP();
+#endif
+}
+
+// Test: producer-consumer pattern — N signals allow N waits
+TEST(OSALSemaphoreTest, TestOSALSemaphoreProducerConsumer) {
+#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
+    osal::OSALSemaphore semaphore;
+    semaphore.init(0);
+    std::atomic<int> consumed(0);
+    const int N = 5;
+
+    OSALThread producer;
+    producer.start(
+        "Producer",
+        [&](void *) {
+            for (int i = 0; i < N; ++i) {
+                OSALSystem::getInstance().sleep_ms(20);
+                semaphore.signal();
+            }
+        },
+        nullptr, 0, 2048);
+
+    OSALThread consumer;
+    consumer.start(
+        "Consumer",
+        [&](void *) {
+            for (int i = 0; i < N; ++i) {
+                semaphore.wait();
+                consumed.fetch_add(1);
+            }
+        },
+        nullptr, 0, 2048);
+
+    producer.join();
+    consumer.join();
+    EXPECT_EQ(consumed.load(), N);
+    EXPECT_EQ(semaphore.getValue(), 0);
 #else
     GTEST_SKIP();
 #endif

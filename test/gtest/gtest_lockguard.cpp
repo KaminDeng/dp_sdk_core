@@ -6,27 +6,18 @@
 
 using namespace osal;
 
-TEST(OSALLockGuardTest, TestOSALLockGuardConstructor) {
+// Test: LockGuard acquires the mutex on construction (isLocked()==true inside scope)
+// and releases it automatically on destruction (mutex usable again after scope exits).
+// This combines the Constructor, IsLocked, and Destructor cases into one coherent RAII test.
+TEST(OSALLockGuardTest, TestOSALLockGuardRAII) {
 #if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
     osal::OSALMutex mutex;
     {
         osal::OSALLockGuard lockGuard(mutex);
         EXPECT_TRUE(lockGuard.isLocked());
-    }  // lockGuard超出作用域，应该自动解锁
-#else
-    GTEST_SKIP();
-#endif
-}
+    }  // lockGuard goes out of scope — must release the lock
 
-TEST(OSALLockGuardTest, TestOSALLockGuardDestructor) {
-#if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMutex mutex;
-    {
-        osal::OSALLockGuard lockGuard(mutex);
-        EXPECT_TRUE(lockGuard.isLocked());
-    }  // lockGuard超出作用域，应该自动解锁
-
-    // 再次尝试锁定，确保之前的锁已解锁
+    // Verify the mutex is unlocked: locking must succeed immediately.
     EXPECT_TRUE(mutex.lock());
     EXPECT_TRUE(mutex.unlock());
 #else
@@ -34,16 +25,7 @@ TEST(OSALLockGuardTest, TestOSALLockGuardDestructor) {
 #endif
 }
 
-TEST(OSALLockGuardTest, TestOSALLockGuardIsLocked) {
-#if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMutex mutex;
-    osal::OSALLockGuard lockGuard(mutex);
-    EXPECT_TRUE(lockGuard.isLocked());
-#else
-    GTEST_SKIP();
-#endif
-}
-
+// Test: LockGuard works correctly when acquired inside a worker thread.
 TEST(OSALLockGuardTest, TestOSALLockGuardMultiThread) {
 #if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
     OSALThread thread;
@@ -52,18 +34,17 @@ TEST(OSALLockGuardTest, TestOSALLockGuardMultiThread) {
 
     auto workerTask = [&](void *) {
         osal::OSALLockGuard lockGuard(mutex);
-
-        // 封装成函数，避免在无返回值的函数中该宏return非零值，导致编译warning
-        auto wrapper_func = [&]() {
+        // Wrap EXPECT inside a lambda to avoid compiler warning about
+        // returning non-void from a void lambda via the gtest macro.
+        auto check = [&]() {
             EXPECT_TRUE(lockGuard.isLocked());
             return 0;
         };
-        wrapper_func();
+        check();
         taskExecuted = true;
     };
 
     thread.start("TestThread", workerTask, nullptr, 0, 1024);
-
     thread.join();
     EXPECT_TRUE(taskExecuted.load());
 #else

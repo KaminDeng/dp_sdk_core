@@ -9,28 +9,15 @@
 // 使用命名空间以避免在每个调用中使用完整的命名空间路径
 using namespace osal;
 
-TEST(OSALMutexTest, TestOSALMutexLock) {
+// Test: lock() and unlock() both return true on success, and can be called repeatedly.
+TEST(OSALMutexTest, TestOSALMutexLockUnlock) {
 #if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
     OSALMutex mutex;
     EXPECT_TRUE(mutex.lock());
     EXPECT_TRUE(mutex.unlock());
-
-    // 尝试再次锁定和解锁
+    // Second round: verify mutex is reusable after unlock.
     EXPECT_TRUE(mutex.lock());
     EXPECT_TRUE(mutex.unlock());
-#else
-    GTEST_SKIP();
-#endif
-}
-
-TEST(OSALMutexTest, TestOSALMutexUnlock) {
-#if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
-    OSALMutex mutex;
-    EXPECT_TRUE(mutex.lock());
-    EXPECT_TRUE(mutex.unlock());
-
-    // 尝试解锁未锁定的互斥锁（假设此操作是安全的）
-    // EXPECT_FALSE(mutex.unlock());
 #else
     GTEST_SKIP();
 #endif
@@ -154,6 +141,37 @@ TEST(OSALMutexTest, TestOSALMutexLockAndUnlock) {
     // 尝试再次锁定互斥锁
     EXPECT_TRUE(mutex.tryLock());
     mutex.unlock();
+#else
+    GTEST_SKIP();
+#endif
+}
+
+// Test: mutex protects a shared non-atomic counter from concurrent increment races
+TEST(OSALMutexTest, TestOSALMutexConcurrentCounter) {
+#if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
+    OSALMutex mutex;
+    int counter = 0;  // intentionally non-atomic — protected only by mutex
+    const int INCREMENTS = 500;
+    const int NUM_THREADS = 4;
+
+    OSALThread threads[NUM_THREADS];
+    for (int t = 0; t < NUM_THREADS; ++t) {
+        threads[t].start(
+            "Worker",
+            [&](void *) {
+                for (int i = 0; i < INCREMENTS; ++i) {
+                    mutex.lock();
+                    ++counter;
+                    mutex.unlock();
+                }
+            },
+            nullptr, 0, 4096);
+    }
+
+    for (int t = 0; t < NUM_THREADS; ++t) {
+        threads[t].join();
+    }
+    EXPECT_EQ(counter, NUM_THREADS * INCREMENTS);
 #else
     GTEST_SKIP();
 #endif

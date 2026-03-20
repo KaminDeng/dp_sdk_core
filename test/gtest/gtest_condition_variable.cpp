@@ -102,11 +102,9 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitCount) {
 #if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
     OSALConditionVariable condVar;
     OSALMutex mutex;
-    std::atomic<int> readyCount(0);
 
     auto workerTask = [&](void *) {
         mutex.lock();
-        readyCount.fetch_add(1);
         condVar.wait(mutex);
         mutex.unlock();
     };
@@ -115,8 +113,8 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitCount) {
     thread1.start("TestThread1", workerTask, nullptr, 0, 1024);
     thread2.start("TestThread2", workerTask, nullptr, 0, 1024);
 
-    // Spin-wait until both threads enter wait (max 2s)
-    for (int i = 0; i < 200 && readyCount.load() < 2; ++i) {
+    // Spin until both threads are actually inside condVar.wait()
+    for (int i = 0; i < 200 && condVar.getWaitCount() < 2; ++i) {
         OSALSystem::getInstance().sleep_ms(10);
     }
     EXPECT_EQ(condVar.getWaitCount(), 2);

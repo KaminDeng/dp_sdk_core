@@ -98,3 +98,31 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerGetAllocatedSize) {
     GTEST_SKIP();
 #endif
 }
+
+// Test: deallocate(nullptr) must not crash and pool remains usable
+TEST(OSALMemoryManagerTest, TestOSALMemoryManagerDeallocateNull) {
+#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
+    OSALMemoryManager mm(128, 10);
+    mm.deallocate(nullptr);  // must not crash or corrupt state
+    void *p = mm.allocate(10);
+    EXPECT_NE(p, nullptr);
+    mm.deallocate(p);
+#else
+    GTEST_SKIP();
+#endif
+}
+
+// Test: allocate(size > block_size) must return nullptr
+TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateOversize) {
+#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
+    OSALMemoryManager mm(64, 10);
+    void *p = mm.allocate(65);  // one byte over block_size
+    EXPECT_EQ(p, nullptr);
+    // Normal allocation still works
+    void *p2 = mm.allocate(64);
+    EXPECT_NE(p2, nullptr);
+    mm.deallocate(p2);
+#else
+    GTEST_SKIP();
+#endif
+}
