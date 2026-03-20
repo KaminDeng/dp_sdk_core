@@ -14,6 +14,7 @@
 #include <mutex>
 
 #include "interface_thread.h"
+#include "osal.h"  // provides OSAL_PORT_THREAD_MIN_STACK_SIZE
 #include "osal_debug.h"
 
 namespace osal {
@@ -45,8 +46,8 @@ public:
 
             // 设置线程堆栈大小
             if (stack_size > 0) {
-                int size = (stack_size > OSAL_CONFIG_THREAD_MINIMAL_STACK_SIZE) ? stack_size
-                                                                                : OSAL_CONFIG_THREAD_MINIMAL_STACK_SIZE;
+                int size =
+                    (stack_size > OSAL_PORT_THREAD_MIN_STACK_SIZE) ? stack_size : OSAL_PORT_THREAD_MIN_STACK_SIZE;
                 pthread_attr_setstacksize(&attr, size);
             }
 

@@ -19,7 +19,7 @@ public:
     }
 
     OSALThread(const char *name, std::function<void(void *)> taskFunction, void *taskArgument = nullptr,
-               int priority = OSAL_CONFIG_THREAD_DEFAULT_PRIORITY, int stack_size = 0, void *pstack = nullptr)
+               int priority = OSAL_PORT_THREAD_DEFAULT_PRIORITY, int stack_size = 0, void *pstack = nullptr)
         : threadHandle(nullptr), running(false), suspended(false) {
         OSAL_LOGD("OSALThread parameterized constructor called\n");
         start(name, taskFunction, taskArgument, priority, stack_size, pstack);
@@ -28,7 +28,7 @@ public:
     ~OSALThread() override { stop(); }
 
     int start(const char *name, std::function<void(void *)> taskFunction, void *taskArgument = nullptr,
-              int priority = OSAL_CONFIG_THREAD_DEFAULT_PRIORITY, int stack_size = 0, void *pstack = nullptr) override {
+              int priority = OSAL_PORT_THREAD_DEFAULT_PRIORITY, int stack_size = 0, void *pstack = nullptr) override {
         if (!isRunning()) {
             this->_taskFunction = taskFunction;
             this->_taskArgument = taskArgument;
@@ -36,9 +36,8 @@ public:
             osThreadAttr_t attr = {};
             attr.name = name;
             attr.priority = (osPriority_t)priority;
-            attr.stack_size = (stack_size > OSAL_CONFIG_THREAD_MINIMAL_STACK_SIZE)
-                                  ? stack_size
-                                  : OSAL_CONFIG_THREAD_MINIMAL_STACK_SIZE;
+            attr.stack_size =
+                (stack_size > OSAL_PORT_THREAD_MIN_STACK_SIZE) ? stack_size : OSAL_PORT_THREAD_MIN_STACK_SIZE;
 
             if (pstack != nullptr) {
                 attr.stack_mem = pstack;
