@@ -4,8 +4,10 @@
 #ifndef __OSAL_CONDITION_VARIABLE_H__
 #define __OSAL_CONDITION_VARIABLE_H__
 
-#include "osal.h"
+#include <atomic>
+
 #include "interface_condition_variable.h"
+#include "osal.h"
 #include "osal_debug.h"
 #include "osal_mutex.h"
 
@@ -13,7 +15,7 @@ namespace osal {
 
 class OSALConditionVariable : public IConditionVariable {
 public:
-    OSALConditionVariable() : waitCount(0) {
+    OSALConditionVariable() {
         cond_ = osSemaphoreNew(16, 0, nullptr);
         if (cond_ == nullptr) {
             OSAL_LOGE("Failed to initialize condition variable\n");
@@ -72,9 +74,10 @@ public:
     }
 
     void notifyAll() override {
-        // In CMSIS-RTOS2, notifying all would require releasing the semaphore as many times as there are waiting
-        // threads.
-        for (int i = 0; i < waitCount; ++i) {
+        // Snapshot waitCount to avoid TOCTOU: a timed-out waiter may decrement
+        // waitCount mid-loop, causing extra semaphore tokens (I8).
+        int count = waitCount.load();
+        for (int i = 0; i < count; ++i) {
             if (osSemaphoreRelease(cond_) != osOK) {
                 OSAL_LOGE("Failed to notify all on condition variable\n");
                 break;
@@ -83,11 +86,11 @@ public:
         OSAL_LOGD("Condition variable notifyAll succeeded\n");
     }
 
-    int getWaitCount() const override { return waitCount; }
+    int getWaitCount() const override { return waitCount.load(); }
 
 private:
-    osSemaphoreId_t cond_;  // Condition variable semaphore
-    mutable int waitCount;  // Number of waiting threads
+    osSemaphoreId_t cond_;          // Condition variable semaphore
+    std::atomic<int> waitCount{0};  // Number of waiting threads
 };
 
 }  // namespace osal

@@ -3,10 +3,18 @@
 //
 #include "osal_thread_pool.h"
 
+#include <algorithm>
+
 namespace osal {
 
 OSALThreadPool::OSALThreadPool()
-    : isstarted_(false), suspended_(false), priority_(0), stack_size_(0), activeThreads_(0), maxThreads_(0), minThreads_(0) {}
+    : isstarted_(false),
+      suspended_(false),
+      priority_(0),
+      stack_size_(0),
+      activeThreads_(0),
+      maxThreads_(0),
+      minThreads_(0) {}
 
 OSALThreadPool::~OSALThreadPool() { stop(); }
 
@@ -36,16 +44,14 @@ bool OSALThreadPool::OSALAddTread() {
 }
 
 bool OSALThreadPool::OSALDelTread() {
-    bool result = false;
-    for (auto &thread : threads_) {
-        if (!thread->isRunning()) {
-            thread->stop();
-            threads_.erase(std::remove(threads_.begin(), threads_.end(), thread), threads_.end());
-            result = true;
-            break;
-        }
+    auto it = std::find_if(threads_.begin(), threads_.end(),
+                           [](const std::unique_ptr<OSALThread> &t) { return !t->isRunning(); });
+    if (it != threads_.end()) {
+        (*it)->stop();
+        threads_.erase(it);
+        return true;
     }
-    return result;
+    return false;
 }
 
 void OSALThreadPool::stop() {
@@ -156,14 +162,15 @@ void OSALThreadPool::threadLoop() {
         Task task;
         {
             OSALLockGuard lockGuard(queueMutex_);
-            condition_.wait(queueMutex_);
-
-            if (!isstarted_) break;
-            if (suspended_) continue;
-            if (!taskQueue_.empty()) {
-                task = taskQueue_.front();
-                taskQueue_.pop();
+            // Loop to handle spurious wakeups: condition_.wait has no predicate
+            // support in the CMSIS-OS semaphore implementation (C3).
+            while (isstarted_ && !suspended_ && taskQueue_.empty()) {
+                condition_.wait(queueMutex_);
             }
+            if (!isstarted_) break;
+            if (suspended_ || taskQueue_.empty()) continue;
+            task = taskQueue_.front();
+            taskQueue_.pop();
         }
 
         if (task.function != nullptr) {
