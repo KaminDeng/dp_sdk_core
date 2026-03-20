@@ -7,22 +7,6 @@
 
 using namespace osal;
 
-#ifdef OSAL_CONFIG_SELFTEST_ENABLE
-#include "test_chrono.cpp"  // 如果系统启动时时间为0, 可能会测试失败
-#include "test_condition_variable.cpp"
-#include "test_framework.h"
-#include "test_lockguard.cpp"
-#include "test_memory_manger.cpp"
-#include "test_mutex.cpp"
-#include "test_queue.cpp"
-#include "test_rwlock.cpp"
-#include "test_semaphore.cpp"
-#include "test_spin_lock.cpp"
-#include "test_thread.cpp"
-#include "test_thread_pool.cpp"
-#include "test_timer.cpp"
-#endif
-
 #ifdef OSAL_CONFIG_GOOGLETEST_ENABLE
 #include <gtest/gtest.h>
 
@@ -43,10 +27,6 @@ using namespace osal;
 void StartDefaultTask(void *argument) {
     (void)argument;
     // setLogLevel(LOG_LEVEL_VERBOSE);
-
-#ifdef OSAL_CONFIG_SELFTEST_ENABLE
-    runAllTests();
-#endif
 
 #ifdef OSAL_CONFIG_GOOGLETEST_ENABLE
     int argc = 1;
