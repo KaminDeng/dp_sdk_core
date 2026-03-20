@@ -4,6 +4,7 @@
 #ifndef __OSAL_MEMORY_MANAGER_H__
 #define __OSAL_MEMORY_MANAGER_H__
 
+#include <algorithm>
 #include <cstdlib>
 #include <cstring>
 #include <new>
@@ -70,10 +71,19 @@ public:
             OSAL_LOGE("Deallocate failed: pointer is null.");
             return;
         }
-
-        *reinterpret_cast<void **>(ptr) = freeList_;
-        freeList_ = reinterpret_cast<void **>(ptr);
-        OSAL_LOGD("Deallocated block at address: %p.", ptr);
+        // Check whether this is an aligned allocation
+        uintptr_t *meta = reinterpret_cast<uintptr_t *>(ptr) - 2;
+        if (meta[1] == MAGIC_ALIGNED) {
+            void *raw = reinterpret_cast<void *>(meta[0]);
+            meta[1] = 0;  // Clear magic to prevent double-free confusion
+            *reinterpret_cast<void **>(raw) = freeList_;
+            freeList_ = reinterpret_cast<void **>(raw);
+            OSAL_LOGD("Deallocated aligned block, raw=%p.\n", raw);
+        } else {
+            *reinterpret_cast<void **>(ptr) = freeList_;
+            freeList_ = reinterpret_cast<void **>(ptr);
+            OSAL_LOGD("Deallocated block at address: %p.", ptr);
+        }
     }
 
     void *reallocate(void *ptr, size_t newSize) override {
@@ -84,7 +94,7 @@ public:
 
         void *newPtr = allocate(newSize);
         if (newPtr && ptr) {
-            std::memcpy(newPtr, ptr, blockSize_);  // 复制旧数据到新块
+            std::memcpy(newPtr, ptr, std::min(newSize, blockSize_));  // 复制旧数据到新块
             deallocate(ptr);
         }
 
@@ -95,21 +105,32 @@ public:
         if (alignment < sizeof(void *)) {
             alignment = sizeof(void *);
         }
-        void *ptr = allocate(size + alignment);
-        if (!ptr) {
-            OSAL_LOGE("Aligned allocation failed: unable to allocate memory.");
+        // Need: 2 * sizeof(uintptr_t) metadata + up to (alignment-1) padding + size
+        size_t totalSize = 2 * sizeof(uintptr_t) + alignment - 1 + size;
+        if (totalSize > blockSize_) {
+            OSAL_LOGE("Aligned allocation failed: totalSize %zu exceeds blockSize %zu.\n", totalSize, blockSize_);
             return nullptr;
         }
-
-        uintptr_t alignedPtr = (reinterpret_cast<uintptr_t>(ptr) + alignment - 1) & ~(alignment - 1);
-        OSAL_LOGD("Aligned allocation: original address: %p, aligned address: %p.", ptr,
-                  reinterpret_cast<void *>(alignedPtr));
-        return reinterpret_cast<void *>(alignedPtr);
+        void *raw = allocate(totalSize);
+        if (!raw) {
+            OSAL_LOGE("Aligned allocation failed: no free blocks.\n");
+            return nullptr;
+        }
+        // Reserve 2 * sizeof(uintptr_t) at the front for metadata, then align
+        uintptr_t base = reinterpret_cast<uintptr_t>(raw) + 2 * sizeof(uintptr_t);
+        uintptr_t aligned = (base + alignment - 1) & ~(alignment - 1);
+        // Store original block pointer and magic just before the aligned address
+        uintptr_t *meta = reinterpret_cast<uintptr_t *>(aligned) - 2;
+        meta[0] = reinterpret_cast<uintptr_t>(raw);
+        meta[1] = MAGIC_ALIGNED;
+        OSAL_LOGD("Aligned allocation: raw=%p aligned=%p.\n", raw, reinterpret_cast<void *>(aligned));
+        return reinterpret_cast<void *>(aligned);
     }
 
     [[nodiscard]] size_t getAllocatedSize() const override { return blockSize_; }
 
 private:
+    static constexpr uintptr_t MAGIC_ALIGNED = 0xA119ED00u;
     void *pool_;
     void **freeList_;
     size_t blockSize_;
