@@ -81,13 +81,15 @@ public:
 
     void stop() override {
         if (threadHandle) {
+            pthread_t h = threadHandle;
+            threadHandle = 0;  // Clear first to prevent double-join on reentrant calls
             {
                 std::unique_lock<std::mutex> lock(mutex_);
-                cv_.notify_all();
+                cv_.notify_all();  // Wake thread if blocked in waitIfSuspended
             }
-            pthread_cancel(threadHandle);
-            pthread_join(threadHandle, nullptr);
-            OSAL_LOGD("OSALThread destructor called, canceling thread\n");
+            pthread_cancel(h);  // Deferred cancel: fires at next cancellation point
+            pthread_join(h, nullptr);
+            OSAL_LOGD("OSALThread stopped and joined\n");
         }
     }
 
@@ -144,8 +146,10 @@ public:
 
 private:
     static void *taskRunner(void *parameters) {
-        // 设置取消类型为异步, 可以使线程在接收到取消请求时立即响应而无需等待取消点。
-        pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, nullptr);
+        // Use deferred cancellation (the default) so the thread is only
+        // cancelled at explicit cancellation points, not inside malloc/mutex.
+        // PTHREAD_CANCEL_ASYNCHRONOUS is unsafe for general use.
+        pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, nullptr);
 
         OSALThread *thread = static_cast<OSALThread *>(parameters);
         if (thread->taskFunction) {
@@ -153,6 +157,8 @@ private:
             thread->taskFunction(thread->taskArgument);
         }
         thread->running = false;
+        // Clear threadHandle to prevent double-join in stop() / destructor
+        thread->threadHandle = 0;
         pthread_exit(nullptr);
         return nullptr;
     }

@@ -59,6 +59,24 @@ TEST(OSALThreadTest, TestOSALThreadStop) {
 #endif
 }
 
+TEST(OSALThreadTest, TestOSALThreadStopIdempotent) {
+#if (TestOSALThreadStopEnabled)
+    OSALThread thread;
+    std::atomic<bool> taskExecuted(false);
+
+    thread.start("TestThread", [&](void *) { taskExecuted = true; }, nullptr, 0, 1024);
+
+    thread.join();
+    EXPECT_TRUE(taskExecuted);
+
+    // Second stop() and third stop() must be safe (no double-join)
+    thread.stop();
+    thread.stop();
+#else
+    GTEST_SKIP();
+#endif
+}
+
 TEST(OSALThreadTest, TestOSALThreadJoin) {
 #if (TestOSALThreadJoinEnabled)
     OSALThread thread;
