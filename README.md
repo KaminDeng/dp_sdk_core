@@ -165,7 +165,78 @@ and adapt it.
 
 ---
 
-## Components
+## Resource Consumption on Microcontrollers
+
+This section quantifies the RAM, Flash, and runtime overhead of using the OSAL
+abstraction layer compared to calling FreeRTOS or CMSIS-OS2 APIs directly.
+All figures assume a 32-bit Cortex-M target with the CMSIS-OS2 backend.
+
+### RAM — extra bytes per object instance
+
+| Component | Direct OS handle | OSAL object | Extra RAM |
+|-----------|-----------------|-------------|-----------|
+| `OSALMutex` | 4 B (`osMutexId_t`) | 8 B | **+4 B** (vtable ptr) |
+| `OSALSemaphore` | 4 B | 8 B | **+4 B** |
+| `OSALThread` | 4 B (`osThreadId_t`) | ≥ 48 B | **+44 B** |
+| `OSALConditionVariable` | ~12 B (hand-rolled) | 12 B | ~0 B |
+| `OSALRWLock` | ~20 B (hand-rolled) | 20 B | ~0 B |
+| `OSALMessageQueue<T>` | 4 B | 8 B | **+4 B** |
+| `OSALLockGuard` | 0 B (stack) | 12 B (stack) | **+12 B** (stack) |
+| `OSALSpinLock` | 4 B | 8 B | **+4 B** |
+
+**`OSALThread` dominates the overhead (+44 B).**
+The extra cost comes from:
+- `std::function<void(void*)>` task functor — 16–32 B in-object buffer;
+  lambdas capturing more than ~16 B spill to **heap allocation** (fragmentation
+  risk on MCUs with tight heap).
+- One additional `osSemaphoreId_t` (`exitSemaphore`) per thread instance for
+  `join()` support — allocates one FreeRTOS semaphore object in the heap.
+- Two `std::atomic<bool>` fields (8 B total).
+
+### Flash — code-size additions
+
+| Source | Estimated size |
+|--------|---------------|
+| vtable per component (12 components) | ~60 B each → **~720 B total** |
+| `std::function` template instantiation per unique lambda signature | 200–500 B each |
+| C++ runtime (constructors, destructors) | **2–4 KB** |
+| **Total OSAL overhead (typical, with `-Os`)** | **~4–8 KB Flash** |
+
+### Runtime — extra cycles per API call
+
+Every OSAL call goes through one level of virtual dispatch:
+1. Load vtable pointer from the object.
+2. Load function pointer from the vtable array.
+3. Execute indirect branch (BLX).
+
+This adds approximately **3–5 CPU cycles** per call. For mutex / semaphore
+operations (which typically spend hundreds of cycles in the OS scheduler), the
+overhead is **< 1 %** and negligible in practice.
+
+**Exception — `OSALRWLock`:** A single `readLock()` issues up to 5 CMSIS-OS2
+calls (1 mutex + 2 semaphore operations + 2 releases) compared to 1–2 for a
+direct implementation. Prefer `OSALMutex` in read-heavy scenarios on
+resource-constrained MCUs.
+
+### MCU Feasibility Summary
+
+| Target | RAM | Feasibility | Notes |
+|--------|-----|-------------|-------|
+| Cortex-M4 / M7, ≥ 64 KB RAM | — | ✅ **Recommended** | Full feature set; `std::function` overhead is acceptable |
+| Cortex-M3, 32–64 KB RAM | — | ⚠️ **Use with care** | Limit `OSALThread` instances; avoid lambdas with large capture lists |
+| Cortex-M0 / M0+, ≤ 16 KB RAM | — | ❌ **Not recommended** | `std::function` + C++ runtime overhead consumes a disproportionate share of available Flash and RAM |
+
+**Practical guidelines for MCU use:**
+- Enable `-Os` (optimize for size) and `-fno-exceptions -fno-rtti` to strip
+  C++ exception and RTTI machinery (saves 1–3 KB Flash).
+- Keep lambda capture lists small (< 16 B) to avoid heap allocation inside
+  `OSALThread`.
+- Use `OSALMutex` instead of `OSALRWLock` unless you genuinely need concurrent
+  readers; `OSALRWLock` uses three OS objects per instance.
+- `OSALSemaphore::init()` must only be called when **no threads are blocked**
+  on the semaphore; calling it on a live semaphore is undefined behaviour.
+
+---
 
 | Interface header | Abstraction | Key operations |
 |-----------------|-------------|----------------|

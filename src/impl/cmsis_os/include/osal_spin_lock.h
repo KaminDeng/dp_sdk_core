@@ -7,20 +7,18 @@
 #include "osal.h"
 #include "interface_spin_lock.h"
 #include "osal_debug.h"
-#include <atomic>
 
 namespace osal {
 
 class OSALSpinLock : public ISpinLock {
 public:
-    OSALSpinLock() : lockCount(0) {
+    OSALSpinLock() {
         osMutexAttr_t mutexAttr = {};
         mutexAttr.name = "OSALSpinLock";
         mutexAttr.attr_bits = osMutexRecursive | osMutexPrioInherit;
         mutex_ = osMutexNew(&mutexAttr);
         if (mutex_ == nullptr) {
             OSAL_LOGE("Failed to create mutex\n");
-            // 处理创建失败的情况
         } else {
             OSAL_LOGD("SpinLock initialized\n");
         }
@@ -35,7 +33,6 @@ public:
 
     void lock() override {
         if (osMutexAcquire(mutex_, osWaitForever) == osOK) {
-            lockCount++;
             OSAL_LOGD("Lock acquired\n");
         } else {
             OSAL_LOGE("Lock acquisition failed\n");
@@ -44,7 +41,6 @@ public:
 
     bool tryLock() override {
         if (osMutexAcquire(mutex_, 0) == osOK) {
-            lockCount++;
             OSAL_LOGD("Try lock succeeded\n");
             return true;
         }
@@ -54,7 +50,6 @@ public:
 
     bool lockFor(uint32_t timeout) override {
         if (osMutexAcquire(mutex_, timeout) == osOK) {
-            lockCount++;
             OSAL_LOGD("Lock with timeout succeeded\n");
             return true;
         }
@@ -64,22 +59,24 @@ public:
 
     void unlock() override {
         if (osMutexRelease(mutex_) == osOK) {
-            lockCount--;
             OSAL_LOGD("Lock released\n");
         } else {
             OSAL_LOGE("Lock release failed\n");
         }
     }
 
+    /* Query the mutex owner via osMutexGetOwner(): non-null means a thread
+     * holds the lock.  This replaces the previous lockCount atomic which was
+     * redundant (the OS already tracks ownership) and incorrect (it incremented
+     * before checking success, and double-counted recursive acquisitions). */
     [[nodiscard]] bool isLocked() const override {
-        bool result = (lockCount > 0);
+        bool result = (osMutexGetOwner(mutex_) != nullptr);
         OSAL_LOGD("Requested lock status: %s\n", result ? "locked" : "unlocked");
         return result;
     }
 
 private:
     osMutexId_t mutex_;
-    mutable std::atomic<int> lockCount;  // 使用原子计数器来跟踪锁的状态
 };
 
 }  // namespace osal

@@ -49,9 +49,13 @@ public:
         mutex.unlock();  // Release the mutex while waiting
 
         osStatus_t result = osSemaphoreAcquire(cond_, timeout);
-        waitCount--;
 
-        mutex.lock();  // Reacquire the mutex after waiting
+        mutex.lock();   // Reacquire the mutex BEFORE decrementing waitCount.
+                        // Decrementing before lock() creates a race: notifyAll()
+                        // reads waitCount between the semaphore return and the
+                        // mutex reacquisition and may under-count waiting threads,
+                        // causing it to send too few signals to other waiters.
+        waitCount--;
 
         if (result == osOK) {
             OSAL_LOGD("Condition variable waitFor succeeded\n");

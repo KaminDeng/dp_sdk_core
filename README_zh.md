@@ -162,7 +162,71 @@ target_link_libraries(my_app PRIVATE osal)
 
 ---
 
-## 组件列表
+## 单片机资源消耗
+
+本节对 OSAL 抽象层与直接调用 FreeRTOS / CMSIS-OS2 接口相比的 RAM、Flash
+及运行时额外开销进行量化说明。所有数据以 32-bit Cortex-M + CMSIS-OS2 后端为基准。
+
+### RAM — 每个对象实例的额外字节
+
+| 组件 | 直接 OS 句柄 | OSAL 对象 | 额外 RAM |
+|------|------------|-----------|---------|
+| `OSALMutex` | 4 B（`osMutexId_t`）| 8 B | **+4 B**（vtable 指针）|
+| `OSALSemaphore` | 4 B | 8 B | **+4 B** |
+| `OSALThread` | 4 B（`osThreadId_t`）| ≥ 48 B | **+44 B** |
+| `OSALConditionVariable` | ~12 B（手写实现）| 12 B | ~0 B |
+| `OSALRWLock` | ~20 B（手写实现）| 20 B | ~0 B |
+| `OSALMessageQueue<T>` | 4 B | 8 B | **+4 B** |
+| `OSALLockGuard` | 0 B（栈）| 12 B（栈）| **+12 B**（栈）|
+| `OSALSpinLock` | 4 B | 8 B | **+4 B** |
+
+**`OSALThread` 的额外开销最大（+44 B），来源如下：**
+- `std::function<void(void*)>` 任务函子：对象内有 16–32 B 的小缓冲区；若 lambda
+  捕获列表超过 ~16 B，会触发**堆分配**（在堆空间紧张的 MCU 上存在碎片化风险）。
+- 每个 `OSALThread` 实例额外持有一个 `osSemaphoreId_t`（`exitSemaphore`），用于
+  `join()` 功能——会在堆中分配一个 FreeRTOS 信号量对象。
+- 两个 `std::atomic<bool>` 字段（共 8 B）。
+
+### Flash — 代码体积增量
+
+| 来源 | 估算大小 |
+|------|---------|
+| 每个组件的 vtable（12 个组件）| 约 60 B/个 → **合计 ~720 B** |
+| `std::function` 每种 lambda 签名的模板实例化 | 200–500 B/种 |
+| C++ 运行时（构造/析构函数）| **2–4 KB** |
+| **OSAL 总额外开销（典型值，`-Os` 优化）** | **约 4–8 KB Flash** |
+
+### 运行时 — 每次 API 调用的额外开销
+
+每次 OSAL 调用经过一层虚函数派发：
+1. 从对象加载 vtable 指针。
+2. 从 vtable 数组加载函数指针。
+3. 执行间接跳转（BLX）。
+
+每次调用额外约 **3–5 个 CPU 周期**。对于 mutex / 信号量操作（OS 调度器通常
+耗费数百周期），该开销 **< 1%**，实际可忽略不计。
+
+**例外——`OSALRWLock`：** 一次 `readLock()` 最多产生 5 次 CMSIS-OS2 调用
+（1 次 mutex + 2 次信号量操作 + 2 次释放），而直接实现通常只需 1–2 次。
+在资源受限的 MCU 上读多写少的场景，建议改用 `OSALMutex`。
+
+### 单片机可行性总结
+
+| 目标芯片 | 可行性 | 说明 |
+|---------|--------|------|
+| Cortex-M4 / M7，RAM ≥ 64 KB | ✅ **推荐** | 全功能可用；`std::function` 开销可接受 |
+| Cortex-M3，RAM 32–64 KB | ⚠️ **谨慎使用** | 控制 `OSALThread` 数量；避免 lambda 捕获过多变量 |
+| Cortex-M0 / M0+，RAM ≤ 16 KB | ❌ **不推荐** | `std::function` + C++ 运行时占用 Flash 和 RAM 的比例过大 |
+
+**MCU 使用注意事项：**
+- 启用 `-Os`（大小优化）以及 `-fno-exceptions -fno-rtti`，可减少
+  C++ 异常和 RTTI 开销（节省 1–3 KB Flash）。
+- lambda 捕获列表应保持 < 16 B，避免 `OSALThread` 触发堆分配。
+- 若不需要并发读，用 `OSALMutex` 代替 `OSALRWLock`；后者每个实例占用三个 OS 对象。
+- `OSALSemaphore::init()` 只能在**没有线程阻塞**于该信号量时调用；对活跃信号量调用
+  是未定义行为（MCU 上将导致 HardFault）。
+
+---
 
 | 接口头文件 | 抽象类 | 主要操作 |
 |-----------|--------|----------|

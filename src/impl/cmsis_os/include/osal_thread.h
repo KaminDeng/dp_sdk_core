@@ -65,16 +65,27 @@ public:
 
     void stop() override {
         if (threadHandle) {
-            // 先终止线程
+            /* Terminate the task first so taskRunner() never calls
+             * osSemaphoreRelease(exitSemaphore) after we delete it. */
             osThreadTerminate(threadHandle);
-
-            // 确保线程已终止
-            osSemaphoreRelease(exitSemaphore);
-            osSemaphoreDelete(exitSemaphore);
-            exitSemaphore = nullptr;
-
             threadHandle = nullptr;
             running = false;
+
+            /* Null exitSemaphore BEFORE releasing/deleting it.
+             * This ensures join() — which captures a local copy before
+             * checking isRunning() — sees nullptr and does not try to
+             * acquire a semaphore that is being destroyed concurrently.
+             * NOTE: calling stop() and join() truly concurrently from
+             * different threads is still undefined behaviour; the fix
+             * only closes the most common race where stop() runs to
+             * completion before join() starts. */
+            osSemaphoreId_t sem = exitSemaphore;
+            exitSemaphore = nullptr;
+
+            if (sem != nullptr) {
+                osSemaphoreRelease(sem);  /* wake any thread blocked in join() */
+                osSemaphoreDelete(sem);
+            }
             OSAL_LOGD("Thread stopped\n");
         }
     }
@@ -100,8 +111,13 @@ public:
     }
 
     void join() override {
-        if (isRunning()) {
-            osSemaphoreAcquire(exitSemaphore, osWaitForever);
+        /* Capture exitSemaphore locally before checking isRunning().
+         * stop() nulls exitSemaphore before deleting it, so if stop()
+         * races with join(), the local copy is either valid (stop() not
+         * yet called) or null (stop() already ran — nothing to wait for). */
+        osSemaphoreId_t sem = exitSemaphore;
+        if (isRunning() && sem != nullptr) {
+            osSemaphoreAcquire(sem, osWaitForever);
             running = false;
             OSAL_LOGD("Thread joined\n");
         }

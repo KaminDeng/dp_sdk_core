@@ -66,16 +66,33 @@ public:
 
     void init(int initialValue) override {
         if (semaphore_ != nullptr) {
-            osSemaphoreDelete(semaphore_);
-        }
-        osSemaphoreAttr_t semAttr = {};
-        semAttr.name = "OSALSemaphore";
-        semaphore_ = osSemaphoreNew(16, initialValue, &semAttr);  // 设置初始计数
-        if (semaphore_ == nullptr) {
-            OSAL_LOGE("Failed to initialize semaphore with value %d\n", initialValue);
-            // 处理初始化失败的情况
+            /* Drain the existing semaphore to zero: this is safe when no
+             * threads are blocked in wait() — the precondition callers must
+             * guarantee.  Re-creating the semaphore handle (old approach) left
+             * any blocked threads with a dangling handle, causing undefined
+             * behaviour (HardFault on MCU). */
+            while (osSemaphoreGetCount(semaphore_) > 0) {
+                osSemaphoreAcquire(semaphore_, 0);
+            }
+            /* Now raise the count to the requested initial value. */
+            for (int i = 0; i < initialValue; ++i) {
+                if (osSemaphoreRelease(semaphore_) != osOK) {
+                    OSAL_LOGE("Semaphore init: release %d failed (exceeds max count?)\n", i);
+                    break;
+                }
+            }
+            OSAL_LOGD("Semaphore re-initialized to value %d\n", initialValue);
         } else {
-            OSAL_LOGD("Semaphore initialized with value %d\n", initialValue);
+            /* First-time init (constructor set semaphore_ to nullptr — shouldn't
+             * happen in normal flow, but guard defensively). */
+            osSemaphoreAttr_t semAttr = {};
+            semAttr.name = "OSALSemaphore";
+            semaphore_ = osSemaphoreNew(16, initialValue, &semAttr);
+            if (semaphore_ == nullptr) {
+                OSAL_LOGE("Failed to initialize semaphore with value %d\n", initialValue);
+            } else {
+                OSAL_LOGD("Semaphore initialized with value %d\n", initialValue);
+            }
         }
     }
 

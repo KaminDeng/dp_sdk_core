@@ -118,3 +118,46 @@ TEST(TestOSALSpinLock, ConcurrentContention) {
     GTEST_SKIP();
 #endif
 }
+
+// Regression: isLocked() must reflect the cross-thread lock state accurately.
+// The CMSIS-OS2 backend previously maintained a lockCount atomic that was
+// incorrect (incremented unconditionally, double-counted recursive acquisitions,
+// and was never decremented on failed tryLock).  The fix uses osMutexGetOwner()
+// to query ownership directly from the OS.
+// On the POSIX backend this verifies the equivalent atomic_flag / OS query path.
+TEST(TestOSALSpinLock, IsLockedCrossThread) {
+#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
+    osal::OSALSpinLock spinlock;
+    std::atomic<bool> holderReady(false);
+    std::atomic<bool> holderDone(false);
+
+    // Holder thread acquires the lock and holds it for 500ms
+    OSALThread holder;
+    holder.start(
+        "Holder",
+        [&](void *) {
+            spinlock.lock();
+            holderReady = true;
+            OSALSystem::getInstance().sleep_ms(500);
+            spinlock.unlock();
+            holderDone = true;
+        },
+        nullptr, 0, 2048);
+
+    // Wait until holder has the lock
+    for (int i = 0; i < 100 && !holderReady.load(); ++i) {
+        OSALSystem::getInstance().sleep_ms(10);
+    }
+
+    // isLocked() must return true while holder holds it
+    EXPECT_TRUE(spinlock.isLocked());
+
+    holder.join();
+
+    // isLocked() must return false after holder releases it
+    EXPECT_TRUE(holderDone.load());
+    EXPECT_FALSE(spinlock.isLocked());
+#else
+    GTEST_SKIP();
+#endif
+}

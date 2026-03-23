@@ -132,3 +132,62 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitCount) {
     GTEST_SKIP();
 #endif
 }
+
+// Regression: waitCount must be zero after waitFor() times out, so a
+// subsequent notifyAll() does not over-signal and corrupt the remaining
+// waiters.  In the CMSIS-OS2 backend this required moving waitCount--
+// to AFTER mutex.lock() (not before it).
+TEST(OSALConditionVariableTest, TestOSALConditionVariableTimeoutDoesNotCorruptWaitCount) {
+#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
+    OSALConditionVariable condVar;
+    OSALMutex mutex;
+    std::atomic<int> woken(0);
+
+    // Thread A: infinite waiter — must be woken by notifyAll()
+    OSALThread infiniteWaiter;
+    infiniteWaiter.start(
+        "InfiniteWaiter",
+        [&](void *) {
+            mutex.lock();
+            condVar.wait(mutex);  // waits until notified
+            mutex.unlock();
+            woken.fetch_add(1);
+        },
+        nullptr, 0, 2048);
+
+    // Thread B: timed waiter — times out after 200ms
+    OSALThread timedWaiter;
+    timedWaiter.start(
+        "TimedWaiter",
+        [&](void *) {
+            mutex.lock();
+            condVar.waitFor(mutex, 200);  // always times out here
+            mutex.unlock();
+        },
+        nullptr, 0, 2048);
+
+    // Wait for both threads to enter condVar
+    for (int i = 0; i < 100 && condVar.getWaitCount() < 2; ++i) {
+        OSALSystem::getInstance().sleep_ms(10);
+    }
+    EXPECT_EQ(condVar.getWaitCount(), 2);
+
+    timedWaiter.join();  // 200ms timeout expires, timedWaiter exits
+
+    // After timeout, waitCount must have returned to 1 (only infiniteWaiter left)
+    EXPECT_EQ(condVar.getWaitCount(), 1);
+
+    // notifyAll() should wake exactly the remaining 1 waiter
+    {
+        mutex.lock();
+        condVar.notifyAll();
+        mutex.unlock();
+    }
+
+    infiniteWaiter.join();
+    EXPECT_EQ(woken.load(), 1);
+    EXPECT_EQ(condVar.getWaitCount(), 0);
+#else
+    GTEST_SKIP();
+#endif
+}

@@ -139,3 +139,27 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreProducerConsumer) {
     GTEST_SKIP();
 #endif
 }
+
+// Regression: init() must reset the semaphore value correctly without
+// destroying the underlying OS handle (which would leave any blocked thread
+// with a dangling pointer).  This test verifies init() is idempotent in the
+// single-threaded (no waiters) case that is always safe to call.
+TEST(OSALSemaphoreTest, TestOSALSemaphoreReinit) {
+#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
+    osal::OSALSemaphore semaphore;
+    semaphore.init(3);
+    EXPECT_EQ(semaphore.getValue(), 3);
+
+    // Re-init to a lower value — must drain and refill correctly
+    semaphore.init(1);
+    EXPECT_EQ(semaphore.getValue(), 1);
+
+    // Verify the semaphore is still functional after re-init
+    EXPECT_TRUE(semaphore.tryWait());
+    EXPECT_EQ(semaphore.getValue(), 0);
+    semaphore.signal();
+    EXPECT_EQ(semaphore.getValue(), 1);
+#else
+    GTEST_SKIP();
+#endif
+}
