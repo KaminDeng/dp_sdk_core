@@ -121,6 +121,7 @@ public:
 
     void writeLock() override {
         osSemaphoreAcquire(writeSemaphore_, osWaitForever);
+        writeLocked_ = true;
         OSAL_LOGD("Write lock acquired\n");
     }
 
@@ -129,6 +130,7 @@ public:
             OSAL_LOGD("Try write lock failed\n");
             return false;
         }
+        writeLocked_ = true;
         OSAL_LOGD("Try write lock succeeded\n");
         return true;
     }
@@ -138,27 +140,28 @@ public:
             OSAL_LOGD("Write lock with timeout failed\n");
             return false;
         }
+        writeLocked_ = true;
         OSAL_LOGD("Write lock with timeout succeeded\n");
         return true;
     }
 
     void writeUnlock() override {
+        writeLocked_ = false;
         osSemaphoreRelease(writeSemaphore_);
         OSAL_LOGD("Write lock released\n");
     }
 
     size_t getReadLockCount() const override {
-        // 这个功能在标准库中没有直接支持，通常需要自定义实现。
-        // 这里仅作为示例，返回0。
         OSAL_LOGD("Requested read lock count\n");
         return readCount_;
     }
 
     bool isWriteLocked() const override {
-        // 这个功能在标准库中没有直接支持，通常需要自定义实现。
-        // 这里仅作为示例，返回false。
+        /* True only when a writer holds the lock — not when readers do.
+         * Readers also acquire writeSemaphore_ (to block writers), but
+         * isWriteLocked() must distinguish the two cases. */
         OSAL_LOGD("Requested write lock status\n");
-        return osSemaphoreGetCount(writeSemaphore_) == 0;
+        return writeLocked_;
     }
 
 private:
@@ -166,6 +169,7 @@ private:
     osSemaphoreId_t readSemaphore_;
     osSemaphoreId_t writeSemaphore_;
     mutable uint32_t readCount_ = 0;
+    mutable bool writeLocked_ = false;
 };
 
 }  // namespace osal
