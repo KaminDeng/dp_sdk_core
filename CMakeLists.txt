@@ -73,3 +73,7 @@ target_include_directories(osal
 # must link them externally:
 #   target_link_libraries(osal PUBLIC freertos_kernel cmsis_os2_impl)
 target_link_libraries(osal PUBLIC gtest)
+
+# osal_debug.h uses ##__VA_ARGS__ (GNU extension) to support zero-arg variadic
+# macro calls. Suppress the pedantic warning about this GNU extension.
+target_compile_options(osal PUBLIC -Wno-gnu-zero-variadic-macro-arguments)

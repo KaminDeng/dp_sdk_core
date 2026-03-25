@@ -24,36 +24,36 @@ public:
         OSAL_LOGD("OSALThread default constructor called\n");
     }
 
-    OSALThread(const char *name, std::function<void(void *)> taskFunction, void *taskArgument = nullptr,
+    OSALThread(const char *name, std::function<void(void *)> fn, void *arg = nullptr,
                int priority = 0, int stack_size = 0, void *pstack = nullptr)
         : threadHandle(0), running(false), suspended(false), priority_(priority) {
         OSAL_LOGD("OSALThread parameterized constructor called\n");
-        start(name, taskFunction, taskArgument, priority, stack_size, pstack);
+        start(name, fn, arg, priority, stack_size, pstack);
     }
 
     virtual ~OSALThread() { stop(); }
 
-    int start(const char *name, std::function<void(void *)> taskFunction, void *taskArgument = nullptr,
+    int start(const char *name, std::function<void(void *)> fn, void *arg = nullptr,
               int priority = 0, int stack_size = 0, void *pstack = nullptr) override {
         (void)name;
         int result = 0;
         if (!isRunning()) {
-            this->taskFunction = taskFunction;
-            this->taskArgument = taskArgument;
+            this->taskFunction = fn;
+            this->taskArgument = arg;
 
             pthread_attr_t attr;
             pthread_attr_init(&attr);
 
             // 设置线程堆栈大小
             if (stack_size > 0) {
-                int size =
-                    (stack_size > OSAL_PORT_THREAD_MIN_STACK_SIZE) ? stack_size : OSAL_PORT_THREAD_MIN_STACK_SIZE;
-                pthread_attr_setstacksize(&attr, size);
+                size_t sz = static_cast<size_t>(stack_size);
+                size_t actual = (sz > OSAL_PORT_THREAD_MIN_STACK_SIZE) ? sz : OSAL_PORT_THREAD_MIN_STACK_SIZE;
+                pthread_attr_setstacksize(&attr, actual);
             }
 
             // 设置线程堆栈内存
             if (pstack != nullptr) {
-                pthread_attr_setstack(&attr, pstack, stack_size);
+                pthread_attr_setstack(&attr, pstack, static_cast<size_t>(stack_size));
             }
 
             // 设置线程优先级

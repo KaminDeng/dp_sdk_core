@@ -36,5 +36,5 @@ extern "C" void osal_test_main(void) {
     char *argv[1] = {const_cast<char *>("osal_gtest")};
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::GTEST_FLAG(filter) = "OSALChrono*:OSALConditionVariable*:OSALLockGuard*:OSALMemoryManager*:OSALMutex*:OSALMessageQueue*:OSALRWLock*:OSALSemaphore*:TestOSALSpinLock*:OSALThread*:OSALTimer*";
-    RUN_ALL_TESTS();
+    (void)RUN_ALL_TESTS();
 }

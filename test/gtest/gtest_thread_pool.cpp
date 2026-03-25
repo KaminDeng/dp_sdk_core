@@ -43,7 +43,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolSuspendResume) {
 #endif
 }
 
-auto task = [](void *arg) {
+auto g_submit_task = [](void *arg) {
     bool *executed = static_cast<bool *>(arg);
     *executed = true;
 };
@@ -54,7 +54,7 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolSubmitTask) {
     threadPool.start(4, 0, 1024);
 
     bool taskExecuted = false;
-    threadPool.submit(task, &taskExecuted, 0);
+    threadPool.submit(g_submit_task, &taskExecuted, 0);
     OSALSystem::getInstance().sleep_ms(500);  // Wait for task execution
     ASSERT_TRUE(taskExecuted);
 

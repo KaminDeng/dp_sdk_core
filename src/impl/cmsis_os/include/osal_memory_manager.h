@@ -34,7 +34,7 @@ public:
             _block_count = block_count;
             _block_size = block_size;
             // 初始化内存池
-            memPoolId = osMemoryPoolNew(_block_count, _block_size, NULL);
+            memPoolId = osMemoryPoolNew((uint32_t)_block_count, (uint32_t)_block_size, NULL);
             if (memPoolId == NULL) {
                 OSAL_LOGE("Failed to create memory pool\n");
                 // 处理内存池创建失败的情况
@@ -59,7 +59,7 @@ public:
             OSAL_LOGE("Failed to allocate memory from pool\n");
             return nullptr;
         }
-        OSAL_LOGD("Allocated %d bytes from pool\n", size);
+        OSAL_LOGD("Allocated %zu bytes from pool\n", size);
         return ptr;
     }
 
@@ -116,7 +116,7 @@ public:
             memcpy(newPtr, ptr, newSize);
             deallocate(ptr);
         }
-        OSAL_LOGD("Reallocated memory to %d bytes from pool\n", newSize);
+        OSAL_LOGD("Reallocated memory to %zu bytes from pool\n", newSize);
         return newPtr;
     }
 
@@ -146,7 +146,7 @@ public:
 
         // 检查原始地址是否已经对齐
         if (reinterpret_cast<uintptr_t>(original) % alignment == 0) {
-            OSAL_LOGD("Allocated %d bytes with alignment %d (already aligned)\n", size, alignment);
+            OSAL_LOGD("Allocated %zu bytes with alignment %zu (already aligned)\n", size, alignment);
             return original;
         }
 
@@ -158,7 +158,7 @@ public:
         metadata[0] = reinterpret_cast<uintptr_t>(original);
         metadata[1] = MAGIC_NUMBER; // 使用魔数标识对齐分配的内存块
 
-        OSAL_LOGD("Allocated %d bytes with alignment %d\n", size, alignment);
+        OSAL_LOGD("Allocated %zu bytes with alignment %zu\n", size, alignment);
         return reinterpret_cast<void *>(aligned);
     }
 

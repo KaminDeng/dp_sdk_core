@@ -87,7 +87,7 @@ public:
              * happen in normal flow, but guard defensively). */
             osSemaphoreAttr_t semAttr = {};
             semAttr.name = "OSALSemaphore";
-            semaphore_ = osSemaphoreNew(16, initialValue, &semAttr);
+            semaphore_ = osSemaphoreNew(16, (uint32_t)initialValue, &semAttr);
             if (semaphore_ == nullptr) {
                 OSAL_LOGE("Failed to initialize semaphore with value %d\n", initialValue);
             } else {

@@ -37,7 +37,8 @@ public:
             attr.name = name;
             attr.priority = (osPriority_t)priority;
             attr.stack_size =
-                (stack_size > OSAL_PORT_THREAD_MIN_STACK_SIZE) ? stack_size : OSAL_PORT_THREAD_MIN_STACK_SIZE;
+                (stack_size > 0 && static_cast<uint32_t>(stack_size) > OSAL_PORT_THREAD_MIN_STACK_SIZE)
+                ? static_cast<uint32_t>(stack_size) : OSAL_PORT_THREAD_MIN_STACK_SIZE;
 
             if (pstack != nullptr) {
                 attr.stack_mem = pstack;
