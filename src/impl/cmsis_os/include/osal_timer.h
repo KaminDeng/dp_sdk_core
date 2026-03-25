@@ -6,8 +6,8 @@
 
 #include <functional>
 
-#include "osal.h"
 #include "interface_timer.h"
+#include "osal.h"
 #include "osal_chrono.h"
 #include "osal_debug.h"
 #include "osal_lockguard.h"

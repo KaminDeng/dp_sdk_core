@@ -4,8 +4,8 @@
 #ifndef _OSAL_MUTEX_H__
 #define _OSAL_MUTEX_H__
 
-#include "osal.h"
 #include "interface_mutex.h"
+#include "osal.h"
 #include "osal_debug.h"
 
 namespace osal {

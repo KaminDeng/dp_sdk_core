@@ -24,8 +24,8 @@ public:
         OSAL_LOGD("OSALThread default constructor called\n");
     }
 
-    OSALThread(const char *name, std::function<void(void *)> fn, void *arg = nullptr,
-               int priority = 0, int stack_size = 0, void *pstack = nullptr)
+    OSALThread(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
+               int stack_size = 0, void *pstack = nullptr)
         : threadHandle(0), running(false), suspended(false), priority_(priority) {
         OSAL_LOGD("OSALThread parameterized constructor called\n");
         start(name, fn, arg, priority, stack_size, pstack);
@@ -33,8 +33,8 @@ public:
 
     virtual ~OSALThread() { stop(); }
 
-    int start(const char *name, std::function<void(void *)> fn, void *arg = nullptr,
-              int priority = 0, int stack_size = 0, void *pstack = nullptr) override {
+    int start(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
+              int stack_size = 0, void *pstack = nullptr) override {
         (void)name;
         int result = 0;
         if (!isRunning()) {

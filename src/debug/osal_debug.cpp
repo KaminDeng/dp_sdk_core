@@ -55,8 +55,8 @@ void common_log(const char *prefix, const char *file, const char *function, int 
 
     // 计算实际需要发送的字节数
     size_t prefix_len = (size_t)(ptr - buf);
-    size_t msg_len    = (written > 0) ? (size_t)written : 0;
-    uint32_t total    = (uint32_t)(prefix_len + msg_len);
+    size_t msg_len = (written > 0) ? (size_t)written : 0;
+    uint32_t total = (uint32_t)(prefix_len + msg_len);
 
     // 输出日志
     osal_port_debug_write(buf, total);

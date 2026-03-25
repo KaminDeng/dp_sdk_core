@@ -6,8 +6,8 @@
 
 #include <atomic>
 
-#include "osal.h"
 #include "interface_spin_lock.h"
+#include "osal.h"
 #include "osal_debug.h"
 
 namespace osal {

@@ -38,9 +38,9 @@ public:
     }
 
 private:
-    OSALSystem(){};
+    OSALSystem() {};
 
-    ~OSALSystem(){};
+    ~OSALSystem() {};
 };
 
 }  // namespace osal

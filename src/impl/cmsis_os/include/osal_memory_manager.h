@@ -6,8 +6,8 @@
 
 #include <string.h>
 
-#include "osal.h"
 #include "interface_memory_manager.h"
+#include "osal.h"
 #include "osal_debug.h"
 
 namespace osal {
@@ -151,12 +151,13 @@ public:
         }
 
         // 计算对齐后的地址
-        uintptr_t aligned = (reinterpret_cast<uintptr_t>(original) + 2 * sizeof(uintptr_t) + alignment - 1) & ~(alignment - 1);
+        uintptr_t aligned =
+            (reinterpret_cast<uintptr_t>(original) + 2 * sizeof(uintptr_t) + alignment - 1) & ~(alignment - 1);
 
         // 存储元数据用于释放时使用
         uintptr_t *metadata = reinterpret_cast<uintptr_t *>(aligned) - 2;
         metadata[0] = reinterpret_cast<uintptr_t>(original);
-        metadata[1] = MAGIC_NUMBER; // 使用魔数标识对齐分配的内存块
+        metadata[1] = MAGIC_NUMBER;  // 使用魔数标识对齐分配的内存块
 
         OSAL_LOGD("Allocated %zu bytes with alignment %zu\n", size, alignment);
         return reinterpret_cast<void *>(aligned);
@@ -169,7 +170,7 @@ private:
     size_t _block_size = 0;   // 每个块的大小
     size_t _block_count = 0;  // 块的数量
     volatile bool is_inited = false;
-    static constexpr uintptr_t MAGIC_NUMBER = 0xDEADBEEF; // 魔数，用于标识对齐分配的内存块
+    static constexpr uintptr_t MAGIC_NUMBER = 0xDEADBEEF;  // 魔数，用于标识对齐分配的内存块
 };
 
 }  // namespace osal

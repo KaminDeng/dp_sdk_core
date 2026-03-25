@@ -102,8 +102,8 @@ TEST(TestOSALSpinLock, ConcurrentContention) {
     thread2.start(
         "Contender",
         [&](void *) {
-            EXPECT_FALSE(spinlock.tryLock());    // must fail — holder has it
-            EXPECT_FALSE(spinlock.lockFor(500)); // must timeout before holder releases
+            EXPECT_FALSE(spinlock.tryLock());     // must fail — holder has it
+            EXPECT_FALSE(spinlock.lockFor(500));  // must timeout before holder releases
             thread2Done = true;
         },
         nullptr, 0, 2048);

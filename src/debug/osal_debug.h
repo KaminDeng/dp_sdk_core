@@ -40,10 +40,10 @@ bool getIncludeFileFunction();
         }                                                                                         \
     }
 
-void common_log(const char* prefix, const char* file, const char* function, int line,
-                const char* format, va_list args) __attribute__((format(printf, 5, 0)));
+void common_log(const char* prefix, const char* file, const char* function, int line, const char* format, va_list args)
+    __attribute__((format(printf, 5, 0)));
 
-#define DECLARE_LOG_FUNCTION(logFuncName) \
+#define DECLARE_LOG_FUNCTION(logFuncName)                                                       \
     void logFuncName(const char* file, const char* function, int line, const char* format, ...) \
         __attribute__((format(printf, 4, 5)));
 

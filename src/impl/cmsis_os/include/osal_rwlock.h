@@ -4,8 +4,8 @@
 #ifndef __OSAL_RWLOCK_H__
 #define __OSAL_RWLOCK_H__
 
-#include "osal.h"
 #include "interface_rwlock.h"
+#include "osal.h"
 #include "osal_debug.h"
 
 namespace osal {

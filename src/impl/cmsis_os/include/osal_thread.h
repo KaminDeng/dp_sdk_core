@@ -36,9 +36,9 @@ public:
             osThreadAttr_t attr = {};
             attr.name = name;
             attr.priority = (osPriority_t)priority;
-            attr.stack_size =
-                (stack_size > 0 && static_cast<uint32_t>(stack_size) > OSAL_PORT_THREAD_MIN_STACK_SIZE)
-                ? static_cast<uint32_t>(stack_size) : OSAL_PORT_THREAD_MIN_STACK_SIZE;
+            attr.stack_size = (stack_size > 0 && static_cast<uint32_t>(stack_size) > OSAL_PORT_THREAD_MIN_STACK_SIZE)
+                                  ? static_cast<uint32_t>(stack_size)
+                                  : OSAL_PORT_THREAD_MIN_STACK_SIZE;
 
             if (pstack != nullptr) {
                 attr.stack_mem = pstack;
@@ -84,7 +84,7 @@ public:
             exitSemaphore = nullptr;
 
             if (sem != nullptr) {
-                osSemaphoreRelease(sem);  /* wake any thread blocked in join() */
+                osSemaphoreRelease(sem); /* wake any thread blocked in join() */
                 osSemaphoreDelete(sem);
             }
             OSAL_LOGD("Thread stopped\n");

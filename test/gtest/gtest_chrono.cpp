@@ -18,8 +18,8 @@ TEST(OSALChronoTest, TestOSALChronoNow) {
     OSALSystem::getInstance().sleep_ms(15);
     auto timePoint2 = OSALChrono::getInstance().now();
     auto interval = timePoint2 - timePoint1;
-    EXPECT_GE(interval, 10u);   // must advance at least 10 ms
-    EXPECT_LT(interval, 50u);   // must not advance more than 50 ms (sanity cap)
+    EXPECT_GE(interval, 10u);  // must advance at least 10 ms
+    EXPECT_LT(interval, 50u);  // must not advance more than 50 ms (sanity cap)
 #else
     GTEST_SKIP();
 #endif

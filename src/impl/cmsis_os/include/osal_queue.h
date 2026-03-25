@@ -4,8 +4,8 @@
 #ifndef __OSAL_MESSAGE_QUEUE_H__
 #define __OSAL_MESSAGE_QUEUE_H__
 
-#include "osal.h"
 #include "interface_queue.h"
+#include "osal.h"
 #include "osal_debug.h"
 
 namespace osal {

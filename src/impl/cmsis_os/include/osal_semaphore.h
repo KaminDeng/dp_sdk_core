@@ -4,8 +4,8 @@
 #ifndef __OSAL_SEMAPHORE_H__
 #define __OSAL_SEMAPHORE_H__
 
-#include "osal.h"
 #include "interface_semaphore.h"
+#include "osal.h"
 #include "osal_debug.h"
 
 namespace osal {

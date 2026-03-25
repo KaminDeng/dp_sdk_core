@@ -1353,8 +1353,8 @@ osStatus_t osMutexAcquire(osMutexId_t mutex_id, uint32_t timeout) {
     // TODO: kamin comment
     hMutex = (SemaphoreHandle_t)((uint64_t)mutex_id & 0xFFFFFFFFFFFFFFFE);
     rmtx = (uint64_t)mutex_id & 1U;
-//    hMutex = (SemaphoreHandle_t)((uint32_t)mutex_id & ~1U);
-//    rmtx = (uint32_t)mutex_id & 1U;
+    //    hMutex = (SemaphoreHandle_t)((uint32_t)mutex_id & ~1U);
+    //    rmtx = (uint32_t)mutex_id & 1U;
 
     stat = osOK;
 
@@ -1395,8 +1395,8 @@ osStatus_t osMutexRelease(osMutexId_t mutex_id) {
     // TODO: kamin comment
     hMutex = (SemaphoreHandle_t)((uint64_t)mutex_id & 0xFFFFFFFFFFFFFFFE);
     rmtx = (uint64_t)mutex_id & 1U;
-//    hMutex = (SemaphoreHandle_t)((uint32_t)mutex_id & ~1U);
-//    rmtx = (uint32_t)mutex_id & 1U;
+    //    hMutex = (SemaphoreHandle_t)((uint32_t)mutex_id & ~1U);
+    //    rmtx = (uint32_t)mutex_id & 1U;
 
     stat = osOK;
 
@@ -1443,7 +1443,7 @@ osStatus_t osMutexDelete(osMutexId_t mutex_id) {
 
     // TODO: kamin comment
     hMutex = (SemaphoreHandle_t)((uint64_t)mutex_id & 0xFFFFFFFFFFFFFFFE);
-//    hMutex = (SemaphoreHandle_t)((uint32_t)mutex_id & ~1U);
+    //    hMutex = (SemaphoreHandle_t)((uint32_t)mutex_id & ~1U);
 
     if (IS_IRQ()) {
         stat = osErrorISR;

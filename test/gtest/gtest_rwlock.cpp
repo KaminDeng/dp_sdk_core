@@ -1,6 +1,7 @@
+#include <atomic>
+
 #include "gtest/gtest.h"
 #include "osal_rwlock.h"
-#include <atomic>
 #include "osal_system.h"
 #include "osal_thread.h"
 
@@ -173,7 +174,7 @@ TEST(OSALRWLockTest, TestOSALRWLockWriteExcludesRead) {
     reader.start(
         "Reader",
         [&](void *) {
-            readBlocked = !rwlock.tryReadLock();        // must fail while write-locked
+            readBlocked = !rwlock.tryReadLock();       // must fail while write-locked
             bool timedOut = !rwlock.readLockFor(200);  // must timeout
             readerDone = timedOut;
         },
@@ -210,8 +211,8 @@ TEST(OSALRWLockTest, TestOSALRWLockReadExcludesWrite) {
     writer.start(
         "Writer",
         [&](void *) {
-            writeBlocked = !rwlock.tryWriteLock();        // must fail while read-locked
-            bool timedOut = !rwlock.writeLockFor(200);   // must timeout
+            writeBlocked = !rwlock.tryWriteLock();      // must fail while read-locked
+            bool timedOut = !rwlock.writeLockFor(200);  // must timeout
             writerDone = timedOut;
         },
         nullptr, 0, 2048);
@@ -241,7 +242,8 @@ TEST(OSALRWLockTest, TestOSALRWLockConcurrentReads) {
                 rwlock.readLock();
                 int cur = concurrentReaders.fetch_add(1) + 1;
                 int prev = maxObserved.load();
-                while (cur > prev && !maxObserved.compare_exchange_weak(prev, cur)) {}
+                while (cur > prev && !maxObserved.compare_exchange_weak(prev, cur)) {
+                }
                 OSALSystem::getInstance().sleep_ms(200);
                 concurrentReaders.fetch_sub(1);
                 rwlock.readUnlock();

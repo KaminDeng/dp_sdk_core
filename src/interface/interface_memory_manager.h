@@ -18,7 +18,7 @@ public:
 
     virtual void *reallocate(void *ptr, size_t newSize) = 0;           // 重新分配内存
     virtual void *allocateAligned(size_t size, size_t alignment) = 0;  // 对齐分配内存
-    [[nodiscard]] virtual size_t getAllocatedSize() const = 0;              // 获取已分配内存的大小
+    [[nodiscard]] virtual size_t getAllocatedSize() const = 0;         // 获取已分配内存的大小
 };
 
 }  // namespace osal

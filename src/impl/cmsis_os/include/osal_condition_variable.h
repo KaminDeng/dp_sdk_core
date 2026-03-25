@@ -50,11 +50,11 @@ public:
 
         osStatus_t result = osSemaphoreAcquire(cond_, timeout);
 
-        mutex.lock();   // Reacquire the mutex BEFORE decrementing waitCount.
-                        // Decrementing before lock() creates a race: notifyAll()
-                        // reads waitCount between the semaphore return and the
-                        // mutex reacquisition and may under-count waiting threads,
-                        // causing it to send too few signals to other waiters.
+        mutex.lock();  // Reacquire the mutex BEFORE decrementing waitCount.
+                       // Decrementing before lock() creates a race: notifyAll()
+                       // reads waitCount between the semaphore return and the
+                       // mutex reacquisition and may under-count waiting threads,
+                       // causing it to send too few signals to other waiters.
         waitCount--;
 
         if (result == osOK) {

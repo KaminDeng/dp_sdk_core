@@ -4,8 +4,8 @@
 #ifndef OSAL_SYSTEM_H_
 #define OSAL_SYSTEM_H_
 
-#include "osal.h"
 #include "interface_system.h"
+#include "osal.h"
 
 namespace osal {
 
@@ -31,9 +31,9 @@ public:
     }
 
 private:
-    OSALSystem(){};
+    OSALSystem() {};
 
-    ~OSALSystem(){};
+    ~OSALSystem() {};
 };
 
 }  // namespace osal

@@ -8,8 +8,8 @@
 #include <cstdio>  // for std::sprintf
 #include <ctime>   // for std::tm and std::time_t
 
-#include "osal.h"
 #include "interface_chrono.h"
+#include "osal.h"
 
 namespace osal {
 
