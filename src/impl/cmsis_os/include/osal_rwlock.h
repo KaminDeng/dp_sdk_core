@@ -20,17 +20,16 @@ public:
 
         osSemaphoreAttr_t semAttr = {};
         semAttr.name = "RWLockSemaphore";
-        readSemaphore_ = osSemaphoreNew(1, 0, &semAttr);
-        writeSemaphore_ = osSemaphoreNew(1, 0, &semAttr);
+        /* Use max_count=2 to create counting semaphores (not binary).
+         * Binary semaphores (max=1) created via xSemaphoreCreateBinary() start
+         * at count=0 and osSemaphoreRelease may fail in task context on some
+         * FreeRTOS POSIX port versions. Counting semaphores with max=2,
+         * initial_count=1 give the same 0/1 semantics we need. */
+        readSemaphore_ = osSemaphoreNew(2, 1, &semAttr);
+        writeSemaphore_ = osSemaphoreNew(2, 1, &semAttr);
 
         if (mutex_ == nullptr || readSemaphore_ == nullptr || writeSemaphore_ == nullptr) {
             OSAL_LOGE("Failed to create RWLock\n");
-            // 处理创建失败的情况
-        } else {
-            /* Binary semaphores are created with count=0 by xSemaphoreCreateBinary().
-             * Explicitly release both to set the initial count to 1 (unlocked state). */
-            osSemaphoreRelease(readSemaphore_);
-            osSemaphoreRelease(writeSemaphore_);
         }
     }
 
