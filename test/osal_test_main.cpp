@@ -38,5 +38,6 @@ extern "C" void osal_test_main(void) {
     ::testing::GTEST_FLAG(filter) =
         "OSALChrono*:OSALConditionVariable*:OSALLockGuard*:OSALMemoryManager*:OSALMutex*:OSALMessageQueue*:OSALRWLock*:"
         "OSALSemaphore*:TestOSALSpinLock*:OSALThread*:OSALTimer*";
-    (void)RUN_ALL_TESTS();
+    int gtest_result = RUN_ALL_TESTS();
+    (void)gtest_result;
 }

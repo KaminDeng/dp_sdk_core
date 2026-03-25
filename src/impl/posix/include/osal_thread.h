@@ -47,7 +47,8 @@ public:
             // 设置线程堆栈大小
             if (stack_size > 0) {
                 size_t sz = static_cast<size_t>(stack_size);
-                size_t actual = (sz > OSAL_PORT_THREAD_MIN_STACK_SIZE) ? sz : OSAL_PORT_THREAD_MIN_STACK_SIZE;
+                size_t min_sz = static_cast<size_t>(OSAL_PORT_THREAD_MIN_STACK_SIZE);
+                size_t actual = (sz > min_sz) ? sz : min_sz;
                 pthread_attr_setstacksize(&attr, actual);
             }
 

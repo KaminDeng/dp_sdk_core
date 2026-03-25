@@ -14,19 +14,21 @@ namespace osal {
 
 class OSALSpinLock : public ISpinLock {
 public:
-    OSALSpinLock() : flag_{} {}
+    OSALSpinLock() : flag_{false} {}
 
     ~OSALSpinLock() = default;
 
     void lock() override {
-        while (flag_.test_and_set(std::memory_order_acquire)) {
+        while (flag_.exchange(true, std::memory_order_acquire)) {
             // 自旋等待
         }
         OSAL_LOGD("Lock acquired\n");
     }
 
     bool tryLock() override {
-        bool result = !flag_.test_and_set(std::memory_order_acquire);
+        bool expected = false;
+        bool result = flag_.compare_exchange_strong(expected, true, std::memory_order_acquire,
+                                                    std::memory_order_relaxed);
         OSAL_LOGD("Try lock %s\n", result ? "succeeded" : "failed");
         return result;
     }
@@ -35,7 +37,7 @@ public:
         auto start = std::chrono::steady_clock::now();
         std::chrono::milliseconds timeout_duration(timeout);
 
-        while (flag_.test_and_set(std::memory_order_acquire)) {
+        while (flag_.exchange(true, std::memory_order_acquire)) {
             if (std::chrono::steady_clock::now() - start >= timeout_duration) {
                 OSAL_LOGD("Lock with timeout failed\n");
                 return false;
@@ -47,18 +49,18 @@ public:
     }
 
     void unlock() override {
-        flag_.clear(std::memory_order_release);
+        flag_.store(false, std::memory_order_release);
         OSAL_LOGD("Lock released\n");
     }
 
     bool isLocked() const override {
-        bool result = flag_.test(std::memory_order_relaxed);
+        bool result = flag_.load(std::memory_order_relaxed);
         OSAL_LOGD("Requested lock status: %s\n", result ? "locked" : "unlocked");
         return result;
     }
 
 private:
-    std::atomic_flag flag_ = ATOMIC_FLAG_INIT;
+    std::atomic<bool> flag_;
 };
 
 }  // namespace osal
