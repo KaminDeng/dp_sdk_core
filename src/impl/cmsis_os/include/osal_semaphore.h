@@ -15,7 +15,7 @@ public:
     OSALSemaphore() : semaphore_(nullptr) {
         osSemaphoreAttr_t semAttr = {};
         semAttr.name = "OSALSemaphore";
-        semaphore_ = osSemaphoreNew(1, 0, &semAttr);  // 初始计数为0
+        semaphore_ = osSemaphoreNew(16, 0, &semAttr);  // max_count=16 supports counting semaphores; initial count=0
         if (semaphore_ == nullptr) {
             OSAL_LOGE("Failed to create semaphore\n");
             // 处理创建失败的情况
