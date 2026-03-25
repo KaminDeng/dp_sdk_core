@@ -4,6 +4,8 @@
 #ifndef __OSAL_SPINLOCK_H__
 #define __OSAL_SPINLOCK_H__
 
+#include <atomic>
+
 #include "osal.h"
 #include "interface_spin_lock.h"
 #include "osal_debug.h"
@@ -12,7 +14,7 @@ namespace osal {
 
 class OSALSpinLock : public ISpinLock {
 public:
-    OSALSpinLock() {
+    OSALSpinLock() : locked_(false) {
         osMutexAttr_t mutexAttr = {};
         mutexAttr.name = "OSALSpinLock";
         mutexAttr.attr_bits = osMutexRecursive | osMutexPrioInherit;
@@ -33,6 +35,7 @@ public:
 
     void lock() override {
         if (osMutexAcquire(mutex_, osWaitForever) == osOK) {
+            locked_.store(true, std::memory_order_release);
             OSAL_LOGD("Lock acquired\n");
         } else {
             OSAL_LOGE("Lock acquisition failed\n");
@@ -41,6 +44,7 @@ public:
 
     bool tryLock() override {
         if (osMutexAcquire(mutex_, 0) == osOK) {
+            locked_.store(true, std::memory_order_release);
             OSAL_LOGD("Try lock succeeded\n");
             return true;
         }
@@ -50,6 +54,7 @@ public:
 
     bool lockFor(uint32_t timeout) override {
         if (osMutexAcquire(mutex_, timeout) == osOK) {
+            locked_.store(true, std::memory_order_release);
             OSAL_LOGD("Lock with timeout succeeded\n");
             return true;
         }
@@ -58,6 +63,7 @@ public:
     }
 
     void unlock() override {
+        locked_.store(false, std::memory_order_release);
         if (osMutexRelease(mutex_) == osOK) {
             OSAL_LOGD("Lock released\n");
         } else {
@@ -65,18 +71,20 @@ public:
         }
     }
 
-    /* Query the mutex owner via osMutexGetOwner(): non-null means a thread
-     * holds the lock.  This replaces the previous lockCount atomic which was
-     * redundant (the OS already tracks ownership) and incorrect (it incremented
-     * before checking success, and double-counted recursive acquisitions). */
+    /* Use a dedicated atomic flag instead of osMutexGetOwner().
+     * osMutexGetOwner() can block on FreeRTOS POSIX simulation due to
+     * internal scheduler interactions, causing TestOSALSpinLock.Lock
+     * to deadlock. The atomic flag is updated under the mutex on
+     * acquire/release, giving correct visibility without OS calls. */
     [[nodiscard]] bool isLocked() const override {
-        bool result = (osMutexGetOwner(mutex_) != nullptr);
+        bool result = locked_.load(std::memory_order_acquire);
         OSAL_LOGD("Requested lock status: %s\n", result ? "locked" : "unlocked");
         return result;
     }
 
 private:
     osMutexId_t mutex_;
+    std::atomic<bool> locked_;
 };
 
 }  // namespace osal
