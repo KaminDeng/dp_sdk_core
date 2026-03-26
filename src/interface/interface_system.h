@@ -4,6 +4,8 @@
 #ifndef ISYSTEM_H_
 #define ISYSTEM_H_
 
+#include <cstdint> /* uint32_t — required before any platform-specific includes */
+
 namespace osal {
 
 class ISystem {
