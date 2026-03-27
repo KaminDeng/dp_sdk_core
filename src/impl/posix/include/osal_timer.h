@@ -81,7 +81,7 @@ private:
 
     std::atomic<bool> running_;
     bool periodic_;
-    unsigned int interval_;
+    uint32_t interval_;
     std::function<void()> callback_;
     std::thread thread_;
     mutable std::mutex mutex_;

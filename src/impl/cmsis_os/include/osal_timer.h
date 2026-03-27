@@ -98,7 +98,7 @@ private:
     osTimerId_t timerId_;
     std::atomic<bool> running_;
     bool periodic_;
-    unsigned int interval_;
+    uint32_t interval_;
     std::function<void()> callback_;
     mutable OSALMutex mutex_;
     OSALChrono::TimePoint endTime_;
