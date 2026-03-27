@@ -1,3 +1,5 @@
+/** @file interface_chrono.h
+ *  @brief Abstract interface for OSAL time/clock services. */
 //
 // Created by kamin.deng on 2024/8/23.
 //
@@ -8,25 +10,41 @@
 
 namespace osal {
 
+/** @brief Abstract clock and time-conversion interface.
+ *
+ *  Provides a portable way to read the current time, compute elapsed
+ *  durations, and convert between the OSAL @c TimePoint representation
+ *  and standard C/C++ time types.  Concrete backends map these operations
+ *  to the underlying RTOS tick counter or POSIX clock. */
 class IChrono {
 public:
     // 定义具体的类型
-    using TimePoint = uint32_t;  // 使用内核计时器的滴答计数作为时间点
-    using Duration = double;     // 使用秒作为时间间隔单位
+    using TimePoint = uint32_t;  ///< Kernel tick count used as a time point.
+    using Duration = double;     ///< Time interval expressed in seconds.
 
-    // 获取当前时间点
+    /** @brief Returns the current time point (tick count).
+     *  @return Current kernel tick count. */
     [[nodiscard]] virtual TimePoint now() const = 0;
 
-    // 计算两个时间点之间的时间间隔
+    /** @brief Computes the elapsed time between two time points.
+     *  @param start  Earlier time point.
+     *  @param end    Later time point.
+     *  @return Elapsed time in seconds. */
     [[nodiscard]] virtual Duration elapsed(const TimePoint &start, const TimePoint &end) const = 0;
 
-    // 将时间点转换为time_t类型
+    /** @brief Converts a time point to a @c std::time_t wall-clock value.
+     *  @param timePoint  Time point to convert.
+     *  @return Corresponding @c std::time_t value. */
     [[nodiscard]] virtual std::time_t to_time_t(const TimePoint &timePoint) const = 0;
 
-    // 将time_t类型转换为时间点
+    /** @brief Converts a @c std::time_t wall-clock value to a time point.
+     *  @param time  Wall-clock value to convert.
+     *  @return Corresponding @c TimePoint. */
     [[nodiscard]] virtual TimePoint from_time_t(std::time_t time) const = 0;
 
-    // 将时间点转换为字符串
+    /** @brief Formats a time point as a human-readable string.
+     *  @param timePoint  Time point to format.
+     *  @return Formatted string representation. */
     [[nodiscard]] virtual std::string to_string(const TimePoint &timePoint) const = 0;
 };
 
