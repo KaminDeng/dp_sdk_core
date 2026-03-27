@@ -28,7 +28,7 @@ void OSALThreadPool::start(uint32_t numThreads, int priority, int stack_size) {
     for (uint32_t i = 0; i < numThreads; ++i) {
         OSALThreadPool::OSALAddTread();
     }
-    OSAL_LOGD("Thread pool started with %u threads\n", numThreads);
+    OSAL_LOGD("Thread pool started with %u threads\n", static_cast<unsigned int>(numThreads));
 }
 
 bool OSALThreadPool::OSALAddTread() {
@@ -146,14 +146,14 @@ void OSALThreadPool::setTaskFailureCallback(std::function<void(void *)> callback
 
 void OSALThreadPool::setMaxThreads(uint32_t maxThreads) {
     maxThreads_ = maxThreads;
-    OSAL_LOGD("Max threads set to %u\n", maxThreads);
+    OSAL_LOGD("Max threads set to %u\n", static_cast<unsigned int>(maxThreads));
 }
 
 uint32_t OSALThreadPool::getMaxThreads() const { return maxThreads_; }
 
 void OSALThreadPool::setMinThreads(uint32_t minThreads) {
     minThreads_ = minThreads;
-    OSAL_LOGD("Min threads set to %u\n", minThreads);
+    OSAL_LOGD("Min threads set to %u\n", static_cast<unsigned int>(minThreads));
 }
 
 uint32_t OSALThreadPool::getMinThreads() const { return minThreads_; }

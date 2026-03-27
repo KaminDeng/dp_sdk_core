@@ -157,7 +157,7 @@ private:
         auto *thread = static_cast<OSALThread *>(parameters);
         /* Install this thread's stop flag as the thread-local pointer so that
          * sleep_ms() can detect stop() without using FreeRTOS task flags. */
-        tl_cmsis_stop_flag = &thread->stop_requested_;
+        osal_cmsis_stop_flag_set(&thread->stop_requested_);
         if (thread->_taskFunction) {
             try {
                 thread->_taskFunction(thread->_taskArgument);
@@ -173,7 +173,7 @@ private:
          * the OSALThread object; accessing thread->* after that would be
          * use-after-free.  The join() caller is responsible for setting
          * running=false after acquiring the semaphore. */
-        tl_cmsis_stop_flag = nullptr;
+        osal_cmsis_stop_flag_set(nullptr);
         osSemaphoreRelease(thread->exitSemaphore);
         /* Do NOT access thread->* after osSemaphoreRelease — the object may
          * have been destroyed by the time execution reaches here. */
