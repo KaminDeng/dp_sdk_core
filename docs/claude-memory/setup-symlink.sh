@@ -20,7 +20,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # 子模块根目录：docs/claude-memory/ 的上一级（即 docs/ 的上一级）
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MEMORY_SRC="$SCRIPT_DIR"
 
 # 将路径转换为 Claude Code 的编码格式（/ _ . 全替换为 -）
