@@ -9,6 +9,27 @@
 
 #include "osal.h"
 
+/* ── Portable compiler-attribute macros (self-contained, no external deps) ──
+ * OSAL_PRINTF_LIKE(fmt_idx, args_idx): annotate a variadic function so the
+ * compiler validates format strings.  Indices are 1-based; use 0 for va_list
+ * functions.  Falls back to empty on unsupported toolchains.               */
+#ifndef __has_attribute
+#  define __has_attribute(x) 0
+#endif
+#if __has_attribute(format) || defined(__GNUC__)
+#  define OSAL_PRINTF_LIKE(fmt_idx, args_idx) \
+     __attribute__((format(printf, fmt_idx, args_idx)))
+#else
+#  define OSAL_PRINTF_LIKE(fmt_idx, args_idx)
+#endif
+
+/* OSAL_UNUSED: suppress "unused variable / parameter" warnings.            */
+#if __has_attribute(unused) || defined(__GNUC__)
+#  define OSAL_UNUSED __attribute__((unused))
+#else
+#  define OSAL_UNUSED
+#endif
+
 namespace osal {
 
 // 日志等级定义
@@ -41,11 +62,11 @@ bool getIncludeFileFunction();
     }
 
 void common_log(const char* prefix, const char* file, const char* function, int line, const char* format, va_list args)
-    __attribute__((format(printf, 5, 0)));
+    OSAL_PRINTF_LIKE(5, 0);
 
 #define DECLARE_LOG_FUNCTION(logFuncName)                                                       \
     void logFuncName(const char* file, const char* function, int line, const char* format, ...) \
-        __attribute__((format(printf, 4, 5)));
+        OSAL_PRINTF_LIKE(4, 5);
 
 DECLARE_LOG_FUNCTION(OSAL_LOG_)
 
