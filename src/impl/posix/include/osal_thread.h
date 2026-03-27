@@ -32,9 +32,9 @@ struct OSALThreadStopException : public std::exception {
 // Per-thread stop context: owned by OSALThread, pointed to by the thread-local
 // tl_stop_ctx while taskRunner is executing.
 struct OSALThreadStopCtx {
-    std::mutex              mtx;
+    std::mutex mtx;
     std::condition_variable cv;
-    std::atomic<bool>       stop { false };
+    std::atomic<bool> stop{false};
 };
 
 // Thread-local pointer to the current thread's stop context.
@@ -50,8 +50,7 @@ inline void osal_sleep_ms_interruptible(uint32_t ms) {
     OSALThreadStopCtx *ctx = tl_stop_ctx;
     if (ctx) {
         std::unique_lock<std::mutex> lk(ctx->mtx);
-        bool stopped = ctx->cv.wait_for(lk, std::chrono::milliseconds(ms),
-                                        [ctx] { return ctx->stop.load(); });
+        bool stopped = ctx->cv.wait_for(lk, std::chrono::milliseconds(ms), [ctx] { return ctx->stop.load(); });
         if (stopped) {
             throw OSALThreadStopException{};
         }
@@ -82,6 +81,9 @@ public:
         if (!isRunning()) {
             this->taskFunction = fn;
             this->taskArgument = arg;
+
+            // Reset ready_ so the new thread waits until the constructor/start() finishes.
+            ready_.store(false, std::memory_order_relaxed);
 
             // Reset the stop context for a fresh start
             stopCtx_.stop.store(false);
@@ -122,6 +124,10 @@ public:
             }
 
             pthread_attr_destroy(&attr);
+
+            // Signal the new thread that all members are fully initialized.
+            // Must be the last write in start() so the thread sees a consistent object.
+            ready_.store(true, std::memory_order_release);
         }
         return result;
     }
@@ -206,6 +212,14 @@ private:
     static void *taskRunner(void *parameters) {
         OSALThread *thread = static_cast<OSALThread *>(parameters);
 
+        // Wait until the constructor / start() has finished initializing all
+        // members. Without this barrier, TSAN reports data races on taskFunction,
+        // mutex_, cv_, stopCtx_, etc. because pthread_create() can schedule the
+        // new thread before start() returns.
+        while (!thread->ready_.load(std::memory_order_acquire)) {
+            std::this_thread::yield();
+        }
+
         // Install this thread's stop context so osal_sleep_ms_interruptible() works.
         tl_stop_ctx = &thread->stopCtx_;
 
@@ -244,6 +258,10 @@ private:
     void *taskArgument;
     std::atomic<bool> running;
     std::atomic<bool> suspended;
+    // Signals the thread that start() has finished writing all members.
+    // Prevents TSAN data races when pthread_create() schedules the thread
+    // before the constructor/start() returns.
+    std::atomic<bool> ready_{false};
     int priority_;  // stored priority, returned by getPriority() regardless of OS call result
     std::mutex mutex_;
     std::condition_variable cv_;
