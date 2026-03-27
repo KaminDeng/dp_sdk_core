@@ -653,7 +653,8 @@ __NO_RETURN void osThreadExit(void) {
 #ifndef USE_FreeRTOS_HEAP_1
     vTaskDelete(NULL);
 #endif
-    for (;;);
+    for (;;)
+        ;
 }
 
 osStatus_t osThreadTerminate(osThreadId_t thread_id) {
@@ -2235,7 +2236,8 @@ osStatus_t osMemoryPoolDelete(osMemoryPoolId_t mp_id) {
         mp->status = mp->status & 3U;
 
         /* Wake-up tasks waiting for pool semaphore */
-        while (xSemaphoreGive(mp->sem) == pdTRUE);
+        while (xSemaphoreGive(mp->sem) == pdTRUE)
+            ;
 
         mp->head = NULL;
         mp->bl_sz = 0U;

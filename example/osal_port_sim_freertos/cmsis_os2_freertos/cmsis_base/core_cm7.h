@@ -1739,7 +1739,7 @@ typedef struct {
   \param[in] value  Value of register. This parameter is interpreted as an uint32_t type.
   \return           Masked and shifted bit field value.
 */
-#define _FLD2VAL(field, value) (((uint32_t)(value) & field##_Msk) >> field##_Pos)
+#define _FLD2VAL(field, value) (((uint32_t)(value)&field##_Msk) >> field##_Pos)
 
 /*@} end of group CMSIS_core_bitfield */
 
@@ -2165,8 +2165,8 @@ __STATIC_INLINE uint32_t SCB_GetFPUType(void) {
  */
 
 /* Cache Size ID Register Macros */
-#define CCSIDR_WAYS(x) (((x) & SCB_CCSIDR_ASSOCIATIVITY_Msk) >> SCB_CCSIDR_ASSOCIATIVITY_Pos)
-#define CCSIDR_SETS(x) (((x) & SCB_CCSIDR_NUMSETS_Msk) >> SCB_CCSIDR_NUMSETS_Pos)
+#define CCSIDR_WAYS(x) (((x)&SCB_CCSIDR_ASSOCIATIVITY_Msk) >> SCB_CCSIDR_ASSOCIATIVITY_Pos)
+#define CCSIDR_SETS(x) (((x)&SCB_CCSIDR_NUMSETS_Msk) >> SCB_CCSIDR_NUMSETS_Pos)
 
 #define __SCB_DCACHE_LINE_SIZE \
     32U /*!< Cortex-M7 cache line size is fixed to 32 bytes (8 words). See also register SCB_CCSIDR */

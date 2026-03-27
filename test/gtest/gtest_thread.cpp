@@ -46,7 +46,8 @@ TEST(OSALThreadTest, TestOSALThreadStop) {
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
-    thread.start("TestThread", [&](void *) { taskExecuted = true; }, nullptr, 0, 1024);
+    thread.start(
+        "TestThread", [&](void *) { taskExecuted = true; }, nullptr, 0, 1024);
 
     thread.join();
     EXPECT_TRUE(taskExecuted);
@@ -63,7 +64,8 @@ TEST(OSALThreadTest, TestOSALThreadStopIdempotent) {
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
-    thread.start("TestThread", [&](void *) { taskExecuted = true; }, nullptr, 0, 1024);
+    thread.start(
+        "TestThread", [&](void *) { taskExecuted = true; }, nullptr, 0, 1024);
 
     thread.join();
     EXPECT_TRUE(taskExecuted);
@@ -81,7 +83,8 @@ TEST(OSALThreadTest, TestOSALThreadJoin) {
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
-    thread.start("TestThread", [&](void *) { taskExecuted = true; }, nullptr, 0, 1024);
+    thread.start(
+        "TestThread", [&](void *) { taskExecuted = true; }, nullptr, 0, 1024);
 
     thread.join();
     EXPECT_TRUE(taskExecuted);
@@ -146,7 +149,8 @@ TEST(OSALThreadTest, TestOSALThreadSetAndGetPriority) {
     OSALThread thread;
     std::atomic<bool> taskExecuted(false);
 
-    thread.start("TestThread", [&](void *) { taskExecuted = true; }, nullptr, 0, 1024);
+    thread.start(
+        "TestThread", [&](void *) { taskExecuted = true; }, nullptr, 0, 1024);
 
     // 设置线程优先级
     int priority = 10;

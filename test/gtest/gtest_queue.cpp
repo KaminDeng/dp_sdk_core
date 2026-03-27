@@ -92,12 +92,14 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueBlockingReceive) {
     std::atomic<int> received(-1);
 
     OSALThread consumer, producer;
-    consumer.start("Consumer", [&](void *) { received = queue.receive(); }, nullptr, 0, 2048);
+    consumer.start(
+        "Consumer", [&](void *) { received = queue.receive(); }, nullptr, 0, 2048);
 
     OSALSystem::getInstance().sleep_ms(100);
     EXPECT_EQ(received.load(), -1);  // still blocking
 
-    producer.start("Producer", [&](void *) { queue.send(42); }, nullptr, 0, 2048);
+    producer.start(
+        "Producer", [&](void *) { queue.send(42); }, nullptr, 0, 2048);
 
     consumer.join();
     producer.join();

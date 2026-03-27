@@ -89,7 +89,8 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreBlockingWait) {
     OSALSystem::getInstance().sleep_ms(100);
     EXPECT_FALSE(consumerDone.load());  // still blocking
 
-    producer.start("Producer", [&](void *) { semaphore.signal(); }, nullptr, 0, 2048);
+    producer.start(
+        "Producer", [&](void *) { semaphore.signal(); }, nullptr, 0, 2048);
 
     consumer.join();
     producer.join();

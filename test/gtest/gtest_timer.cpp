@@ -12,9 +12,9 @@ TEST(OSALTimerTest, TestOSALTimerRepeat) {
     std::atomic<int> count(0);
 
     timer.start(100, true, [&]() { count++; });
-    EXPECT_FALSE(count > 5);
+    EXPECT_LE(count, 5);
     OSALSystem::getInstance().sleep_ms(700);
-    EXPECT_TRUE(count > 5);
+    EXPECT_GT(count, 5);
     timer.stop();
 #else
     GTEST_SKIP();

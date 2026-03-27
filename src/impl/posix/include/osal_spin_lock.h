@@ -27,8 +27,8 @@ public:
 
     bool tryLock() override {
         bool expected = false;
-        bool result = flag_.compare_exchange_strong(expected, true, std::memory_order_acquire,
-                                                    std::memory_order_relaxed);
+        bool result =
+            flag_.compare_exchange_strong(expected, true, std::memory_order_acquire, std::memory_order_relaxed);
         OSAL_LOGD("Try lock %s\n", result ? "succeeded" : "failed");
         return result;
     }

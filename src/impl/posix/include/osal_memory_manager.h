@@ -82,10 +82,9 @@ public:
         // allocateAligned() returns raw + offset where offset >= 2*sizeof(uintptr_t).
         // Reading meta[-2] is only safe when ptr is NOT a raw block start (i.e., there
         // are at least 2*sizeof(uintptr_t) bytes of valid memory before it).
-        const auto *ptr8  = reinterpret_cast<const uint8_t *>(ptr);
+        const auto *ptr8 = reinterpret_cast<const uint8_t *>(ptr);
         const auto *pool8 = reinterpret_cast<const uint8_t *>(pool_);
-        bool is_raw_start = (ptr8 >= pool8) &&
-                            (ptr8 < pool8 + blockSize_ * blockCount_) &&
+        bool is_raw_start = (ptr8 >= pool8) && (ptr8 < pool8 + blockSize_ * blockCount_) &&
                             (static_cast<size_t>(ptr8 - pool8) % blockSize_ == 0);
         if (!is_raw_start) {
             // Aligned allocation: metadata stored 2 words before ptr (within raw block)

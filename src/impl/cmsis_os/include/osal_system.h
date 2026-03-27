@@ -51,8 +51,7 @@ public:
             uint32_t chunk = (remaining > SLEEP_CHUNK_MS) ? SLEEP_CHUNK_MS : remaining;
             osDelay(chunk);
             remaining -= chunk;
-            if (tl_cmsis_stop_flag != nullptr &&
-                tl_cmsis_stop_flag->load(std::memory_order_acquire)) {
+            if (tl_cmsis_stop_flag != nullptr && tl_cmsis_stop_flag->load(std::memory_order_acquire)) {
                 throw OSALCmsisThreadStopException{};
             }
         }
@@ -66,9 +65,9 @@ public:
     }
 
 private:
-    OSALSystem() {};
+    OSALSystem(){};
 
-    ~OSALSystem() {};
+    ~OSALSystem(){};
 };
 
 }  // namespace osal

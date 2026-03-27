@@ -61,13 +61,13 @@ inline void osal_sleep_ms_interruptible(uint32_t ms) {
 
 class OSALThread : public IThread {
 public:
-    OSALThread() : threadHandle(0), running(false), suspended(false), priority_(0) {
+    OSALThread() : threadHandle_(0), running(false), suspended(false), priority_(0) {
         OSAL_LOGD("OSALThread default constructor called\n");
     }
 
     OSALThread(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
                int stack_size = 0, void *pstack = nullptr)
-        : threadHandle(0), running(false), suspended(false), priority_(priority) {
+        : threadHandle_(0), running(false), suspended(false), priority_(priority) {
         OSAL_LOGD("OSALThread parameterized constructor called\n");
         start(name, fn, arg, priority, stack_size, pstack);
     }
@@ -115,8 +115,10 @@ public:
             // 设置线程分离状态
             pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
-            result = pthread_create(&threadHandle, &attr, taskRunner, this);
+            pthread_t new_handle = 0;
+            result = pthread_create(&new_handle, &attr, taskRunner, this);
             if (result == 0) {
+                threadHandle_.store(new_handle, std::memory_order_relaxed);
                 running = true;
                 OSAL_LOGD("Thread started successfully\n");
             } else {
@@ -133,10 +135,8 @@ public:
     }
 
     void stop() override {
-        if (threadHandle) {
-            pthread_t h = threadHandle;
-            threadHandle = 0;  // Clear first to prevent double-join on reentrant calls
-
+        pthread_t h = threadHandle_.exchange(0);
+        if (h) {
             // 1. Wake waitIfSuspended
             {
                 std::unique_lock<std::mutex> lock(mutex_);
@@ -174,15 +174,17 @@ public:
     }
 
     void join() override {
-        if (threadHandle) {
-            pthread_join(threadHandle, nullptr);
+        pthread_t h = threadHandle_.exchange(0);
+        if (h) {
+            pthread_join(h, nullptr);
             OSAL_LOGD("Thread joined\n");
         }
     }
 
     void detach() override {
-        if (threadHandle) {
-            pthread_detach(threadHandle);
+        pthread_t h = threadHandle_.exchange(0);
+        if (h) {
+            pthread_detach(h);
             OSAL_LOGD("Thread detached\n");
         }
     }
@@ -191,11 +193,12 @@ public:
 
     void setPriority(int priority) override {
         priority_ = priority;  // always store, so getPriority() works after thread ends
-        if (threadHandle) {
+        pthread_t h = threadHandle_.load();
+        if (h) {
             struct sched_param schedParam;
             schedParam.sched_priority = priority;
             // Note: SCHED_FIFO requires root on macOS/Linux. Failure is non-fatal.
-            pthread_setschedparam(threadHandle, SCHED_FIFO, &schedParam);
+            pthread_setschedparam(h, SCHED_FIFO, &schedParam);
             OSAL_LOGD("Thread priority set to %d\n", priority);
         }
     }
@@ -235,7 +238,7 @@ private:
         }
         thread->running = false;
         // Clear threadHandle to prevent double-join in stop() / destructor
-        thread->threadHandle = 0;
+        thread->threadHandle_.store(0, std::memory_order_release);
 
         // Clear the thread-local stop context before the thread exits.
         tl_stop_ctx = nullptr;
@@ -253,7 +256,7 @@ private:
         }
     }
 
-    pthread_t threadHandle;
+    std::atomic<pthread_t> threadHandle_{0};
     std::function<void(void *)> taskFunction;
     void *taskArgument;
     std::atomic<bool> running;

@@ -24,7 +24,8 @@ public:
 
     void StartScheduler() override {
         // POSIX 系统不需要显式启动调度器
-        while (1);
+        while (1)
+            ;
     }
 
     void sleep_ms(const uint32_t milliseconds) const override { osal_sleep_ms_interruptible(milliseconds); }
@@ -37,9 +38,9 @@ public:
     }
 
 private:
-    OSALSystem() {};
+    OSALSystem(){};
 
-    ~OSALSystem() {};
+    ~OSALSystem(){};
 };
 
 }  // namespace osal

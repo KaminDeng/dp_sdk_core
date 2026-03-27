@@ -1326,7 +1326,7 @@ typedef struct {
   \param[in] value  Value of register. This parameter is interpreted as an uint32_t type.
   \return           Masked and shifted bit field value.
 */
-#define _FLD2VAL(field, value) (((uint32_t)(value) & field##_Msk) >> field##_Pos)
+#define _FLD2VAL(field, value) (((uint32_t)(value)&field##_Msk) >> field##_Pos)
 
 /*@} end of group CMSIS_core_bitfield */
 

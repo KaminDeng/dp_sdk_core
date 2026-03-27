@@ -39,17 +39,20 @@
 #define osKernelGetState()                                       \
     do {                                                         \
         printk("osKernelGetState is not supported on Zephyr\n"); \
-        while (1);                                               \
+        while (1)                                                \
+            ;                                                    \
     } while (0)
 #define osKernelSuspend()                                       \
     do {                                                        \
         printk("osKernelSuspend is not supported on Zephyr\n"); \
-        while (1);                                              \
+        while (1)                                               \
+            ;                                                   \
     } while (0)
 #define osKernelResume()                                       \
     do {                                                       \
         printk("osKernelResume is not supported on Zephyr\n"); \
-        while (1);                                             \
+        while (1)                                              \
+            ;                                                  \
     } while (0)
 
 // ═══════════════════════════════════════════════════════════════════════════════

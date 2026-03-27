@@ -185,7 +185,7 @@ private:
     void *_taskArgument{};
     std::atomic<bool> running;
     std::atomic<bool> suspended;
-    std::atomic<bool> stop_requested_{false};  /* cooperative stop flag */
+    std::atomic<bool> stop_requested_{false}; /* cooperative stop flag */
     osSemaphoreId_t exitSemaphore{};
 };
 }  // namespace osal
