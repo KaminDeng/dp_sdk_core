@@ -57,7 +57,13 @@ bool OSALThreadPool::OSALDelTread() {
 void OSALThreadPool::stop() {
     isstarted_ = false;
 
+    /* Wake threads blocked in condition_.wait() so they can re-check
+     * isstarted_ and exit threadLoop() cooperatively.  Threads executing a
+     * submitted task receive the stop signal via OSALThread::stop() below,
+     * which uses osThreadFlagsSet(0x1) to interrupt sleep_ms/osThreadFlagsWait
+     * without pthread_cancel — avoiding the GCC 11 ASan CHECK failure. */
     condition_.notifyAll();
+
     for (auto &thread : threads_) {
         thread->stop();
     }

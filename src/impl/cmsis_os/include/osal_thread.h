@@ -10,6 +10,7 @@
 #include "interface_thread.h"
 #include "osal.h"
 #include "osal_debug.h"
+#include "osal_thread_stop.h"
 
 namespace osal {
 class OSALThread : public IThread {
@@ -66,25 +67,24 @@ public:
 
     void stop() override {
         if (threadHandle) {
-            /* Terminate the task first so taskRunner() never calls
-             * osSemaphoreRelease(exitSemaphore) after we delete it. */
-            osThreadTerminate(threadHandle);
-            threadHandle = nullptr;
-            running = false;
+            /* Set the cooperative stop flag so sleep_ms() exits its osDelay
+             * loop within 1 ms (the chunk granularity), without using FreeRTOS
+             * task notification flags (which interact with vTaskSuspend). */
+            stop_requested_.store(true, std::memory_order_release);
 
-            /* Null exitSemaphore BEFORE releasing/deleting it.
-             * This ensures join() — which captures a local copy before
-             * checking isRunning() — sees nullptr and does not try to
-             * acquire a semaphore that is being destroyed concurrently.
-             * NOTE: calling stop() and join() truly concurrently from
-             * different threads is still undefined behaviour; the fix
-             * only closes the most common race where stop() runs to
-             * completion before join() starts. */
+            /* Wait for the thread to exit naturally (taskRunner releases the
+             * exit semaphore before running=false and osThreadExit).  This
+             * avoids pthread_cancel which — via glibc's SIGCANCEL with
+             * SA_ONSTACK — triggers __asan_handle_no_return while on the
+             * alternate signal stack, causing a GCC 11 ASan CHECK failure. */
+            join();
+
+            /* Clean up after join(). */
+            threadHandle = nullptr;
+            stop_requested_.store(false, std::memory_order_release);
             osSemaphoreId_t sem = exitSemaphore;
             exitSemaphore = nullptr;
-
             if (sem != nullptr) {
-                osSemaphoreRelease(sem); /* wake any thread blocked in join() */
                 osSemaphoreDelete(sem);
             }
             OSAL_LOGD("Thread stopped\n");
@@ -102,13 +102,18 @@ public:
     }
 
     int resume() override {
-        if (isRunning() && suspended) {
+        /* Do NOT check isRunning() here: 'running' may be false due to a race
+         * between the thread completing its first osDelay(1) tick and this
+         * resume() call — even though the FreeRTOS task is still alive.
+         * Checking 'suspended' (set by suspend()) and 'threadHandle' (set by
+         * start()) is sufficient to guard against spurious resume calls. */
+        if (suspended && threadHandle) {
             osThreadResume(threadHandle);
             suspended = false;
             OSAL_LOGD("Thread resumed\n");
             return 0;  // 成功
         }
-        return -1;  // 线程未运行或未挂起
+        return -1;  // 线程未挂起
     }
 
     void join() override {
@@ -150,11 +155,28 @@ public:
 private:
     static void taskRunner(void *parameters) {
         auto *thread = static_cast<OSALThread *>(parameters);
+        /* Install this thread's stop flag as the thread-local pointer so that
+         * sleep_ms() can detect stop() without using FreeRTOS task flags. */
+        tl_cmsis_stop_flag = &thread->stop_requested_;
         if (thread->_taskFunction) {
-            thread->_taskFunction(thread->_taskArgument);
+            try {
+                thread->_taskFunction(thread->_taskArgument);
+            } catch (const OSALCmsisThreadStopException &) {
+                /* stop() was requested: sleep_ms() threw to abort the task
+                 * function before executing any code after the sleep call.
+                 * Exit cleanly via the semaphore + osThreadExit path. */
+                OSAL_LOGD("OSALThread: task aborted by stop()\n");
+            }
         }
-        thread->running = false;
+        /* Clear the stop-flag pointer BEFORE releasing the exit semaphore.
+         * After osSemaphoreRelease, join() may return and stop() may destroy
+         * the OSALThread object; accessing thread->* after that would be
+         * use-after-free.  The join() caller is responsible for setting
+         * running=false after acquiring the semaphore. */
+        tl_cmsis_stop_flag = nullptr;
         osSemaphoreRelease(thread->exitSemaphore);
+        /* Do NOT access thread->* after osSemaphoreRelease — the object may
+         * have been destroyed by the time execution reaches here. */
         osThreadExit();
     }
 
@@ -163,6 +185,7 @@ private:
     void *_taskArgument{};
     std::atomic<bool> running;
     std::atomic<bool> suspended;
+    std::atomic<bool> stop_requested_{false};  /* cooperative stop flag */
     osSemaphoreId_t exitSemaphore{};
 };
 }  // namespace osal

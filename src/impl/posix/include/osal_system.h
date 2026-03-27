@@ -11,6 +11,7 @@
 #include <thread>
 
 #include "interface_system.h"
+#include "osal_thread.h"  // for osal_sleep_ms_interruptible() + tl_stop_ctx
 
 namespace osal {
 
@@ -26,9 +27,7 @@ public:
         while (1);
     }
 
-    void sleep_ms(const uint32_t milliseconds) const override {
-        std::this_thread::sleep_for(std::chrono::milliseconds(milliseconds));
-    }
+    void sleep_ms(const uint32_t milliseconds) const override { osal_sleep_ms_interruptible(milliseconds); }
 
     void sleep(const uint32_t seconds) const override { std::this_thread::sleep_for(std::chrono::seconds(seconds)); }
 

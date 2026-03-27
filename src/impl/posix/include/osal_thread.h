@@ -12,12 +12,54 @@
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <stdexcept>
+#include <thread>
 
 #include "interface_thread.h"
 #include "osal.h"  // provides OSAL_PORT_THREAD_MIN_STACK_SIZE
 #include "osal_debug.h"
 
 namespace osal {
+
+// Exception thrown by osal_sleep_ms_interruptible() when the owning OSALThread
+// is stopped. Caught by taskRunner to cleanly abort the user function without
+// using pthread_cancel (which triggers a GCC 11 ASan CHECK failure via
+// AsanThread::Destroy → UnsetAlternateSignalStack → sigaltstack interceptor).
+struct OSALThreadStopException : public std::exception {
+    const char *what() const noexcept override { return "OSALThread: stop requested"; }
+};
+
+// Per-thread stop context: owned by OSALThread, pointed to by the thread-local
+// tl_stop_ctx while taskRunner is executing.
+struct OSALThreadStopCtx {
+    std::mutex              mtx;
+    std::condition_variable cv;
+    std::atomic<bool>       stop { false };
+};
+
+// Thread-local pointer to the current thread's stop context.
+// Set by taskRunner before calling the user function; cleared on exit.
+// Used by osal_sleep_ms_interruptible() so OSALSystem::sleep_ms() is interruptible.
+inline thread_local OSALThreadStopCtx *tl_stop_ctx = nullptr;
+
+// Interruptible sleep used by OSALSystem::sleep_ms in the POSIX backend.
+// - If called from inside an OSALThread and stop() is requested before the
+//   timeout expires, throws OSALThreadStopException to abort the user function.
+// - Falls back to plain sleep_for when not inside an OSALThread (e.g. main thread).
+inline void osal_sleep_ms_interruptible(uint32_t ms) {
+    OSALThreadStopCtx *ctx = tl_stop_ctx;
+    if (ctx) {
+        std::unique_lock<std::mutex> lk(ctx->mtx);
+        bool stopped = ctx->cv.wait_for(lk, std::chrono::milliseconds(ms),
+                                        [ctx] { return ctx->stop.load(); });
+        if (stopped) {
+            throw OSALThreadStopException{};
+        }
+    } else {
+        std::this_thread::sleep_for(std::chrono::milliseconds(ms));
+    }
+}
+
 class OSALThread : public IThread {
 public:
     OSALThread() : threadHandle(0), running(false), suspended(false), priority_(0) {
@@ -40,6 +82,9 @@ public:
         if (!isRunning()) {
             this->taskFunction = fn;
             this->taskArgument = arg;
+
+            // Reset the stop context for a fresh start
+            stopCtx_.stop.store(false);
 
             pthread_attr_t attr;
             pthread_attr_init(&attr);
@@ -85,11 +130,23 @@ public:
         if (threadHandle) {
             pthread_t h = threadHandle;
             threadHandle = 0;  // Clear first to prevent double-join on reentrant calls
+
+            // 1. Wake waitIfSuspended
             {
                 std::unique_lock<std::mutex> lock(mutex_);
-                cv_.notify_all();  // Wake thread if blocked in waitIfSuspended
+                cv_.notify_all();
             }
-            pthread_cancel(h);  // Deferred cancel: fires at next cancellation point
+
+            // 2. Signal the stop context: wakes any interruptible sleep inside the user
+            //    function and causes osal_sleep_ms_interruptible() to throw, aborting
+            //    the user function without pthread_cancel (avoids GCC 11 ASan crash).
+            {
+                std::unique_lock<std::mutex> lk(stopCtx_.mtx);
+                stopCtx_.stop.store(true);
+                stopCtx_.cv.notify_all();
+            }
+
+            // 3. Wait for the thread to exit naturally — no pthread_cancel needed.
             pthread_join(h, nullptr);
             OSAL_LOGD("OSALThread stopped and joined\n");
         }
@@ -147,20 +204,31 @@ public:
 
 private:
     static void *taskRunner(void *parameters) {
-        // Use deferred cancellation (the default) so the thread is only
-        // cancelled at explicit cancellation points, not inside malloc/mutex.
-        // PTHREAD_CANCEL_ASYNCHRONOUS is unsafe for general use.
-        pthread_setcanceltype(PTHREAD_CANCEL_DEFERRED, nullptr);
-
         OSALThread *thread = static_cast<OSALThread *>(parameters);
+
+        // Install this thread's stop context so osal_sleep_ms_interruptible() works.
+        tl_stop_ctx = &thread->stopCtx_;
+
         if (thread->taskFunction) {
             thread->waitIfSuspended();
-            thread->taskFunction(thread->taskArgument);
+            try {
+                thread->taskFunction(thread->taskArgument);
+            } catch (const OSALThreadStopException &) {
+                // stop() was called while the user function was sleeping.
+                // Exit cleanly without running any more user code.
+                OSAL_LOGD("OSALThread: user function aborted by stop()\n");
+            }
         }
         thread->running = false;
         // Clear threadHandle to prevent double-join in stop() / destructor
         thread->threadHandle = 0;
-        pthread_exit(nullptr);
+
+        // Clear the thread-local stop context before the thread exits.
+        tl_stop_ctx = nullptr;
+
+        // Return normally — do NOT call pthread_exit() here.
+        // pthread_exit() is noreturn and triggers __asan_handle_no_return →
+        // PlatformUnpoisonStacks() → sigaltstack interceptor → GCC 11 ASan CHECK failure.
         return nullptr;
     }
 
@@ -179,6 +247,7 @@ private:
     int priority_;  // stored priority, returned by getPriority() regardless of OS call result
     std::mutex mutex_;
     std::condition_variable cv_;
+    OSALThreadStopCtx stopCtx_;  // per-instance stop context for cooperative cancellation
 };
 }  // namespace osal
 
