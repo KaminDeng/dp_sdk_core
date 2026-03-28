@@ -37,11 +37,11 @@ Backend is controlled by the consuming port's `osal_port.h`:
 - `#define OSAL_BACKEND_POSIX` — selects `src/impl/posix/`
 - `#define OSAL_BACKEND_CMSIS_OS` — selects `src/impl/cmsis_os/`
 
-Parent project ports live in `kernel/ports/<port-name>/osal_port.h`.
+Parent project ports live in `platform/<port-name>/kernel_port/osal_port.h`.
 
 ## Adding a New RTOS Port
 
-1. Create `kernel/ports/<new-port>/osal_port.h` in the parent project
+1. Create `platform/<new-port>/kernel_port/osal_port.h` in the parent project
 2. Set `OSAL_BACKEND_POSIX` or `OSAL_BACKEND_CMSIS_OS` based on which backend fits
 3. Add a corresponding `products/<new-port>.cmake`
 4. For a new RTOS with custom primitives: extend `src/impl/` with a new backend
