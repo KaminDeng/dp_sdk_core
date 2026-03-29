@@ -51,10 +51,12 @@ public:
             uint32_t chunk = (remaining > SLEEP_CHUNK_MS) ? SLEEP_CHUNK_MS : remaining;
             osDelay(chunk);
             remaining -= chunk;
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
             auto* stop_flag = osal::osal_cmsis_stop_flag_get();
             if (stop_flag != nullptr && stop_flag->load(std::memory_order_acquire)) {
                 throw OSALCmsisThreadStopException{};
             }
+#endif
         }
     }
 

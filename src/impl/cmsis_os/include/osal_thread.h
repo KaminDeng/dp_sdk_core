@@ -159,6 +159,7 @@ private:
          * sleep_ms() can detect stop() without using FreeRTOS task flags. */
         osal_cmsis_stop_flag_set(&thread->stop_requested_);
         if (thread->_taskFunction) {
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
             try {
                 thread->_taskFunction(thread->_taskArgument);
             } catch (const OSALCmsisThreadStopException &) {
@@ -167,6 +168,12 @@ private:
                  * Exit cleanly via the semaphore + osThreadExit path. */
                 OSAL_LOGD("OSALThread: task aborted by stop()\n");
             }
+#else
+            /* Bare-metal / -fno-exceptions: run function directly.
+             * Cooperative stop via exception is unavailable; the task must
+             * poll for the stop flag or return voluntarily. */
+            thread->_taskFunction(thread->_taskArgument);
+#endif
         }
         /* Clear the stop-flag pointer BEFORE releasing the exit semaphore.
          * After osSemaphoreRelease, join() may return and stop() may destroy

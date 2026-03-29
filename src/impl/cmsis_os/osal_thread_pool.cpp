@@ -119,6 +119,7 @@ size_t OSALThreadPool::getTaskQueueSize() {
 uint32_t OSALThreadPool::getActiveThreadCount() const { return activeThreads_; }
 
 bool OSALThreadPool::cancelTask(std::function<void(void *)> &taskFunction) {
+#if defined(__GXX_RTTI) || defined(__cpp_rtti)
     OSALLockGuard lockGuard(queueMutex_);
     std::queue<Task> newQueue;
     bool found = false;
@@ -137,6 +138,13 @@ bool OSALThreadPool::cancelTask(std::function<void(void *)> &taskFunction) {
     taskQueue_ = std::move(newQueue);
     OSAL_LOGD("Task %s\n", found ? "cancelled" : "not found");
     return found;
+#else
+    /* RTTI disabled (bare-metal): task cancellation by function pointer
+     * comparison is unavailable without std::function::target(). */
+    (void)taskFunction;
+    OSAL_LOGD("cancelTask: RTTI unavailable, returning false\n");
+    return false;
+#endif
 }
 
 void OSALThreadPool::setTaskFailureCallback(std::function<void(void *)> callback) {
