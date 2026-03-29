@@ -9,15 +9,23 @@
 #pragma once
 
 #include <atomic>
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
 #include <exception>
+#endif
 
 namespace osal {
 
 /* Thrown by OSALSystem::sleep_ms() when the current thread's stop flag is set.
- * Caught by OSALThread::taskRunner() so code after the sleep call is skipped. */
+ * Caught by OSALThread::taskRunner() so code after the sleep call is skipped.
+ * Under -fno-exceptions (bare-metal), the struct has no base class and is never
+ * thrown; stop() relies on cooperative task exit instead. */
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
 struct OSALCmsisThreadStopException : public std::exception {
     const char *what() const noexcept override { return "OSALThread (CMSIS-OS): stop requested"; }
 };
+#else
+struct OSALCmsisThreadStopException {};
+#endif
 
 /* ── Per-thread stop-flag access ──────────────────────────────────────────── */
 

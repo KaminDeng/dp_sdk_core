@@ -18,11 +18,16 @@ public:
     }
 
     void StartScheduler() override {
-        /* osKernelInitialize() must be called before creating tasks (in main.cpp
-         * on bare-metal). Here we only call osKernelStart() to launch the scheduler.
-         * Calling osKernelInitialize() again here would be a no-op (KernelState check
-         * would reject it), but calling it before task creation is required by
-         * CMSIS-RTOS2 spec. */
+        /* Ensure the kernel is initialized before starting the scheduler.
+         * On bare-metal (dp_stm32f427_dev) osKernelInitialize() is called
+         * by the dp_stm32f427 cmsis_os2 port inside osThreadNew() if the
+         * kernel is still inactive.  On POSIX simulator products the kernel
+         * starts inactive here, so we must call osKernelInitialize() to
+         * transition KernelState to osKernelReady before osKernelStart();
+         * without this osKernelStart() returns osError immediately and the
+         * scheduler never runs, causing the OSALThread destructor to call
+         * vPortYield from the main thread and fire vAssertCalled. */
+        osKernelInitialize();
         osKernelStart();
     }
 
