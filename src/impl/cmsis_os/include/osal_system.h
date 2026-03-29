@@ -18,7 +18,11 @@ public:
     }
 
     void StartScheduler() override {
-        osKernelInitialize();
+        /* osKernelInitialize() must be called before creating tasks (in main.cpp
+         * on bare-metal). Here we only call osKernelStart() to launch the scheduler.
+         * Calling osKernelInitialize() again here would be a no-op (KernelState check
+         * would reject it), but calling it before task creation is required by
+         * CMSIS-RTOS2 spec. */
         osKernelStart();
     }
 
