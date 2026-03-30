@@ -72,3 +72,10 @@ grep -q "test suites ran." /tmp/t.txt && echo "COMPLETED" || echo "TIMEOUT/DEADL
 ## Memory
 
 See `docs/claude-memory/MEMORY.md` for known fixes and architecture notes.
+
+## Cross-Platform Module 约束
+
+> **本库遵循 `cross-platform-module` skill 规范。新建/修改代码前必须加载该 skill。**
+
+关键约束：compat header、port 隔离（src/ 内零平台 API）、固定宽度类型、CMake 分层。
+完整检查清单通过 skill 加载获取。
