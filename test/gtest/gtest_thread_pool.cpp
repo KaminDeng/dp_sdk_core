@@ -127,15 +127,19 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolCancelTask) {
         *executed = true;
     };
 
-    threadPool.submit(task, &taskExecuted, 0);
+    /* Submit a task and let it execute, then try to cancel it by ID.
+     * The task will have already completed, so cancelTask() must return false. */
+    uint32_t taskId1 = threadPool.submit(task, &taskExecuted, 0);
     OSALSystem::getInstance().sleep_ms(500);  // Wait for task execution
-    ASSERT_FALSE(threadPool.cancelTask(task));
+    ASSERT_FALSE(threadPool.cancelTask(taskId1));
     ASSERT_TRUE(taskExecuted);
 
+    /* Suspend the pool so the submitted task stays queued, then cancel it.
+     * cancelTask() must return true and the task must not have executed. */
     taskExecuted = false;
     threadPool.suspend();
-    threadPool.submit(task, &taskExecuted, 0);
-    ASSERT_TRUE(threadPool.cancelTask(task));
+    uint32_t taskId2 = threadPool.submit(task, &taskExecuted, 0);
+    ASSERT_TRUE(threadPool.cancelTask(taskId2));
     ASSERT_FALSE(taskExecuted);
 
     threadPool.stop();

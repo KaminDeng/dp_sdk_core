@@ -72,6 +72,16 @@ public:
              * task notification flags (which interact with vTaskSuspend). */
             stop_requested_.store(true, std::memory_order_release);
 
+            /* On FreeRTOS, wake the thread from osDelay immediately via task
+             * notification flag 0x1.  On RT-Thread/Zephyr where task flags are
+             * a stub, stop() still sets the atomic flag; the sleeping thread
+             * will detect it at the next SLEEP_CHUNK_MS boundary (≤100 ms). */
+#ifdef configUSE_TASK_NOTIFICATIONS
+            if (configUSE_TASK_NOTIFICATIONS && threadHandle) {
+                osThreadFlagsSet(threadHandle, 0x1U);
+            }
+#endif
+
             /* Wait for the thread to exit naturally (taskRunner releases the
              * exit semaphore before running=false and osThreadExit).  This
              * avoids pthread_cancel which — via glibc's SIGCANCEL with

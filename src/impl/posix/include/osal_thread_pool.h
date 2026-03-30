@@ -37,7 +37,7 @@ public:
 
     bool isSuspended() const override;
 
-    void submit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) override;
+    uint32_t submit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) override;
 
     void setPriority(int priority) override;
 
@@ -46,6 +46,8 @@ public:
     size_t getTaskQueueSize() override;
 
     uint32_t getActiveThreadCount() const override;
+
+    bool cancelTask(uint32_t taskId) override;
 
     bool cancelTask(std::function<void(void *)> &taskFunction) override;
 
@@ -64,6 +66,7 @@ private:
         std::function<void(void *)> function;
         void *argument;
         int priority;
+        uint32_t id;
     };
 
     bool OSALAddTread();
@@ -85,6 +88,7 @@ private:
     std::atomic<uint32_t> activeThreads_;
     std::atomic<uint32_t> maxThreads_;
     std::atomic<uint32_t> minThreads_;
+    std::atomic<uint32_t> nextTaskId_{1};
     std::function<void(void *)> taskFailureCallback_;
 };
 

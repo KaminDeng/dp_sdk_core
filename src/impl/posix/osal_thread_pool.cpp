@@ -78,17 +78,19 @@ bool OSALThreadPool::isStarted() const { return isstarted_; }
 
 bool OSALThreadPool::isSuspended() const { return suspended_; }
 
-void OSALThreadPool::submit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) {
+uint32_t OSALThreadPool::submit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) {
+    uint32_t id = nextTaskId_.fetch_add(1U, std::memory_order_relaxed);
     {
         std::lock_guard<std::mutex> lock(queueMutex_);
-        taskQueue_.emplace(Task{taskFunction, taskArgument, priority});
+        taskQueue_.emplace(Task{taskFunction, taskArgument, priority, id});
     }
     condition_.notify_one();
     // 如果当前仍有任务堆积, 且已有线程池跑满，且未达到最大线程值
     if (activeThreads_ == std::size(threads_) && activeThreads_ < maxThreads_) {
         OSALAddTread();
     }
-    OSAL_LOGD("Task submitted\n");
+    OSAL_LOGD("Task submitted (id=%u)\n", static_cast<unsigned>(id));
+    return id;
 }
 
 void OSALThreadPool::setPriority(int priority) {
@@ -108,6 +110,24 @@ size_t OSALThreadPool::getTaskQueueSize() {
 }
 
 uint32_t OSALThreadPool::getActiveThreadCount() const { return activeThreads_; }
+
+bool OSALThreadPool::cancelTask(uint32_t taskId) {
+    std::lock_guard<std::mutex> lock(queueMutex_);
+    std::queue<Task> newQueue;
+    bool found = false;
+    while (!taskQueue_.empty()) {
+        Task t = taskQueue_.front();
+        taskQueue_.pop();
+        if (t.id == taskId) {
+            found = true;
+        } else {
+            newQueue.push(t);
+        }
+    }
+    taskQueue_ = std::move(newQueue);
+    OSAL_LOGD("cancelTask(id=%u): %s\n", static_cast<unsigned>(taskId), found ? "cancelled" : "not found");
+    return found;
+}
 
 bool OSALThreadPool::cancelTask(std::function<void(void *)> &taskFunction) {
     std::lock_guard<std::mutex> lock(queueMutex_);

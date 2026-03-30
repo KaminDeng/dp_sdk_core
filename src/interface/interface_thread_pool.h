@@ -46,8 +46,9 @@ public:
     /** @brief Submits a task for execution by any available worker thread.
      *  @param taskFunction  Function to execute.
      *  @param taskArgument  Opaque argument passed to @p taskFunction.
-     *  @param priority      Scheduling priority hint for this task. */
-    virtual void submit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) = 0;
+     *  @param priority      Scheduling priority hint for this task.
+     *  @return              Unique task ID that can be passed to cancelTask(uint32_t). */
+    virtual uint32_t submit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) = 0;
 
     /** @brief Sets the scheduling priority for all worker threads.
      *  @param priority  New OS-specific priority value. */
@@ -66,8 +67,14 @@ public:
     [[nodiscard]] virtual uint32_t getActiveThreadCount() const = 0;
 
     /** @brief Removes a pending task from the queue before it executes.
-     *  @param taskFunction  The task function to cancel.
+     *  @param taskId  The task ID returned by submit().
      *  @return @c true if the task was found and removed, @c false otherwise. */
+    virtual bool cancelTask(uint32_t taskId) = 0;
+
+    /** @brief Removes a pending task from the queue before it executes (RTTI variant).
+     *  @param taskFunction  The task function to cancel.
+     *  @return @c true if the task was found and removed, @c false otherwise.
+     *  @note Only available when RTTI is enabled. Falls back to returning false. */
     virtual bool cancelTask(std::function<void(void *)> &taskFunction) = 0;
 
     /** @brief Registers a callback invoked when a task function throws or fails.
