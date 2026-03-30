@@ -31,7 +31,16 @@ TEST(OSALThreadTest, TestOSALThreadStart) {
     EXPECT_EQ(taskExecuted, 2);
     thread.stop();
     auto interval = OSALChrono::getInstance().now() - timestamp_now;
+#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
+    /* Exception build: sleep_ms throws, task function aborted at sleep site.
+     * taskExecuted stays 2 — the line after sleep_ms never runs. */
     EXPECT_EQ(taskExecuted, 2);
+#else
+    /* Bare-metal (-fno-exceptions): sleep_ms returns early, but the task
+     * function continues executing (taskExecuted becomes 3).  Only the
+     * stop timing (interval < 500ms) is validated here. */
+    EXPECT_TRUE(taskExecuted == 2 || taskExecuted == 3);
+#endif
     EXPECT_TRUE(interval > 50 && interval < 500);
 
     // 尝试再次启动同一个线程，应该失败
