@@ -14,6 +14,7 @@
 #include "test_dac.cpp"    // NOLINT(build/include)
 #include "test_timer.cpp"  // NOLINT(build/include)
 #include "test_power.cpp"  // NOLINT(build/include)
+#include "test_pwm.cpp"    // NOLINT(build/include)
 
 /** @brief  dp_hal test entry point.
  *
@@ -27,7 +28,7 @@ extern "C" void dp_hal_test_main(void) {
     ::testing::GTEST_FLAG(filter) =
         "DpHalUart*:DpHalGpio*:DpHalSpiBus*:DpHalSpiDevice*:"
         "DpHalI2cBus*:DpHalI2cDevice*:"
-        "DpHalAdc*:DpHalDac*:DpHalTimer*:DpHalPower*";
+        "DpHalAdc*:DpHalDac*:DpHalTimer*:DpHalPower*:DpHalPwm*";
     int r = RUN_ALL_TESTS();
     (void)r;
 }

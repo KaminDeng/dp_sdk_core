@@ -14,6 +14,7 @@
 #include "mock_spi.h"
 #include "mock_timer.h"
 #include "mock_uart.h"
+#include "mock_pwm.h"
 
 namespace dp::hal {
 
@@ -25,6 +26,7 @@ using DpAdc = mock::MockAdc;
 using DpCan = mock::MockCan;
 using DpDac = mock::MockDac;
 using DpTimer = mock::MockTimer;
+using DpPwm = mock::MockPwm;  ///< PWM output mock binding.
 
 }  // namespace dp::hal
 
