@@ -72,6 +72,21 @@ enum class PowerState : uint8_t {
     kOff,        ///< Powered off.
 };
 
+/** @brief  CAN bus configuration. */
+struct CanConfig {
+    uint32_t bitrate;  ///< Bit rate in bps (e.g., 500000, 1000000).
+    uint8_t mode;      ///< 0=normal, 1=loopback, 2=silent, 3=silent_loopback.
+};
+
+/** @brief  CAN frame structure. */
+struct CanFrame {
+    uint32_t id;        ///< CAN ID (11-bit standard or 29-bit extended).
+    uint8_t data[8];    ///< Frame payload (up to 8 bytes).
+    uint8_t dlc;        ///< Data Length Code: 0-8.
+    bool is_extended;   ///< True for 29-bit extended ID.
+    bool is_remote;     ///< True for Remote Transmission Request.
+};
+
 }  // namespace dp::hal
 
 #endif  // DP_HAL_TYPES_H_

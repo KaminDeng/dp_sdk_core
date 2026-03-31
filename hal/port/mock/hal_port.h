@@ -7,6 +7,7 @@
 #define HAL_PORT_H_
 
 #include "mock_adc.h"
+#include "mock_can.h"
 #include "mock_dac.h"
 #include "mock_gpio.h"
 #include "mock_i2c.h"
@@ -21,6 +22,7 @@ using DpGpioPin = mock::MockGpioPin;
 using DpSpiBus = mock::MockSpiBus;
 using DpI2cBus = mock::MockI2cBus;
 using DpAdc = mock::MockAdc;
+using DpCan = mock::MockCan;
 using DpDac = mock::MockDac;
 using DpTimer = mock::MockTimer;
 
