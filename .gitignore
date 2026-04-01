@@ -2,3 +2,6 @@ cmake-build-debug/
 .vscode
 .idea
 *.tags
+
+docs/*
+!docs/claude-memory
