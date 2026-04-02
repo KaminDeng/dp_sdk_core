@@ -6,7 +6,7 @@ name-based lookup, lifecycle (open/close/refcount), and dpsh shell commands.
 
 ## Build
 - Part of dpsdk: `cmake -B build -DPRODUCT=posix_demo && cmake --build build`
-- Tests: `-DDP_DEVICE_BUILD_TESTS=ON` or `USER_DEMO=DEVICE_TEST`
+- Tests: `-DDP_DEVICE_BUILD_TESTS=ON` (via `test_all` overlay)
 
 ## Architecture
 - Device base class: name + type + open/close refcount (no read/write)
