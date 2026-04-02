@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
 
+dpsdk_library(
+    NAME          osal
+    DESCRIPTION   "C++17 OS 抽象层"
+    NOTES         "通过 osal_port 选择后端（POSIX/CMSIS-OS2）"
+)
+
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 

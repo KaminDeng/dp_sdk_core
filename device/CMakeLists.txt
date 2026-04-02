@@ -3,6 +3,13 @@
 # dp_device — device management framework on top of dp_hal.
 # Provides Device base class, DeviceManager registry, and per-class adapters.
 
+dpsdk_library(
+    NAME          dp_device
+    DESCRIPTION   "设备管理框架（注册、生命周期、Shell 集成）"
+    DEPENDS       dp_hal osal
+    NOTES         "dp_hal 为公开依赖，osal 为私有依赖（DeviceManager 互斥锁）"
+)
+
 add_library(dp_device STATIC
     src/dp_device.cpp
     src/dp_device_manager.cpp
