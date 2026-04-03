@@ -3,6 +3,8 @@
 //
 #include "osal_thread_pool.h"
 
+#if OSAL_ENABLE_THREAD_POOL
+
 #include <algorithm>
 #include <functional>
 
@@ -198,3 +200,5 @@ void OSALThreadPool::threadLoop() {
 }
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_THREAD_POOL */

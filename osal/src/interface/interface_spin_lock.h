@@ -6,6 +6,8 @@
 #ifndef ISPIN_LOCK_H_
 #define ISPIN_LOCK_H_
 
+#if OSAL_ENABLE_SPIN_LOCK
+
 namespace osal {
 
 /** @brief Abstract spin-lock interface.
@@ -38,4 +40,7 @@ public:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_SPIN_LOCK */
+
 #endif  // ISPIN_LOCK_H_

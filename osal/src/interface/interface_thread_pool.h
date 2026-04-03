@@ -6,6 +6,8 @@
 #ifndef ITHREAD_POOL_H_
 #define ITHREAD_POOL_H_
 
+#if OSAL_ENABLE_THREAD_POOL
+
 namespace osal {
 
 /** @brief Abstract fixed-size thread pool interface.
@@ -98,4 +100,7 @@ public:
     [[nodiscard]] virtual uint32_t getMinThreads() const = 0;
 };
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_THREAD_POOL */
+
 #endif  // ITHREAD_POOL_H_

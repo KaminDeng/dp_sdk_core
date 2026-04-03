@@ -4,6 +4,8 @@
 #ifndef __OSAL_TIMER_H__
 #define __OSAL_TIMER_H__
 
+#if OSAL_ENABLE_TIMER
+
 #include <functional>
 
 #include "interface_timer.h"
@@ -105,5 +107,7 @@ private:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_TIMER */
 
 #endif  // __OSAL_TIMER_H__

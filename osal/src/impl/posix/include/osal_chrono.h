@@ -5,6 +5,8 @@
 #ifndef OSAL_CHRONO_H
 #define OSAL_CHRONO_H
 
+#if OSAL_ENABLE_CHRONO
+
 #include <chrono>
 #include <ctime>
 #include <iomanip>
@@ -63,5 +65,7 @@ private:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_CHRONO */
 
 #endif  // OSAL_CHRONO_H

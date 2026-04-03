@@ -6,6 +6,8 @@
 #ifndef IREAD_WRITE_LOCK_H_
 #define IREAD_WRITE_LOCK_H_
 
+#if OSAL_ENABLE_RW_LOCK
+
 namespace osal {
 
 /** @brief Abstract reader-writer lock interface.
@@ -57,4 +59,7 @@ public:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_RW_LOCK */
+
 #endif  // IREAD_WRITE_LOCK_H_

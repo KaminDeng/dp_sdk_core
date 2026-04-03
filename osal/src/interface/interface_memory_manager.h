@@ -6,6 +6,8 @@
 #ifndef IMEM_POOL_H_
 #define IMEM_POOL_H_
 
+#if OSAL_ENABLE_MEMORY_MANAGER
+
 namespace osal {
 
 /** @brief Abstract memory-manager interface.
@@ -50,5 +52,7 @@ public:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_MEMORY_MANAGER */
 
 #endif  // IMEM_POOL_H_

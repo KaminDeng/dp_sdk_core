@@ -4,6 +4,8 @@
 #ifndef __OSAL_THREADPOOL_H__
 #define __OSAL_THREADPOOL_H__
 
+#if OSAL_ENABLE_THREAD_POOL
+
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -94,5 +96,7 @@ private:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_THREAD_POOL */
 
 #endif  // __OSAL_THREADPOOL_H__

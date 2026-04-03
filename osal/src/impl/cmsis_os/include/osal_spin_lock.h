@@ -4,6 +4,8 @@
 #ifndef __OSAL_SPINLOCK_H__
 #define __OSAL_SPINLOCK_H__
 
+#if OSAL_ENABLE_SPIN_LOCK
+
 #include <atomic>
 
 #include "interface_spin_lock.h"
@@ -88,5 +90,7 @@ private:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_SPIN_LOCK */
 
 #endif  // __OSAL_SPINLOCK_H__

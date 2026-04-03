@@ -4,6 +4,8 @@
 #ifndef __OSAL_MEMORY_MANAGER_H__
 #define __OSAL_MEMORY_MANAGER_H__
 
+#if OSAL_ENABLE_MEMORY_MANAGER
+
 #include <string.h>
 
 #include "interface_memory_manager.h"
@@ -174,5 +176,7 @@ private:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_MEMORY_MANAGER */
 
 #endif  // __OSAL_MEMORY_MANAGER_H__

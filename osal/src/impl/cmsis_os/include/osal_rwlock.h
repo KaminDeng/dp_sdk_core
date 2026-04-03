@@ -4,6 +4,8 @@
 #ifndef __OSAL_RWLOCK_H__
 #define __OSAL_RWLOCK_H__
 
+#if OSAL_ENABLE_RW_LOCK
+
 #include "interface_rwlock.h"
 #include "osal.h"
 #include "osal_debug.h"
@@ -173,5 +175,7 @@ private:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_RW_LOCK */
 
 #endif  // __OSAL_RWLOCK_H__

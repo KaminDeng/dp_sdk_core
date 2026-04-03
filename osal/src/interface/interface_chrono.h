@@ -6,6 +6,8 @@
 #ifndef ICHRONO_H_
 #define ICHRONO_H_
 
+#if OSAL_ENABLE_CHRONO
+
 #include <string>
 
 namespace osal {
@@ -49,4 +51,7 @@ public:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_CHRONO */
+
 #endif  // ICHRONO_H_

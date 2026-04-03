@@ -9,6 +9,16 @@ dpsdk_library(
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
+# ── OSAL 原语裁剪 ──────────────────────────────────────
+option(OSAL_ENABLE_THREAD_POOL    "线程池"         ON)
+option(OSAL_ENABLE_RW_LOCK        "读写锁"         ON)
+option(OSAL_ENABLE_SPIN_LOCK      "自旋锁"         ON)
+option(OSAL_ENABLE_CONDITION_VAR  "条件变量"        ON)
+option(OSAL_ENABLE_TIMER          "软件定时器"      ON)
+option(OSAL_ENABLE_CHRONO         "高精度时钟"      ON)
+option(OSAL_ENABLE_MEMORY_MANAGER "OSAL 内存管理"   ON)
+option(OSAL_STATIC_ALLOC          "静态分配模式"    OFF)
+
 # ── Port directory resolution ──────────────────────────────────────────────────
 # Users set OSAL_PORT_DIR before add_subdirectory(osal) to supply their port:
 #   set(OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/my_port)
@@ -83,3 +93,18 @@ target_link_libraries(osal PUBLIC gtest)
 # osal_debug.h uses ##__VA_ARGS__ (GNU extension) to support zero-arg variadic
 # macro calls. Suppress the pedantic warning about this GNU extension.
 target_compile_options(osal PUBLIC -Wno-gnu-zero-variadic-macro-arguments)
+
+# ── 原语裁剪：传播编译定义 ────────────────────────────────────────────────────
+foreach(_feat THREAD_POOL RW_LOCK SPIN_LOCK CONDITION_VAR TIMER CHRONO MEMORY_MANAGER)
+    if(OSAL_ENABLE_${_feat})
+        target_compile_definitions(osal PUBLIC OSAL_ENABLE_${_feat}=1)
+    else()
+        target_compile_definitions(osal PUBLIC OSAL_ENABLE_${_feat}=0)
+    endif()
+endforeach()
+# STATIC_ALLOC 使用不同的 option 名
+if(OSAL_STATIC_ALLOC)
+    target_compile_definitions(osal PUBLIC OSAL_ENABLE_STATIC_ALLOC=1)
+else()
+    target_compile_definitions(osal PUBLIC OSAL_ENABLE_STATIC_ALLOC=0)
+endif()

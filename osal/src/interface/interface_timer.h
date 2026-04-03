@@ -6,6 +6,8 @@
 #ifndef ITIMER_H_
 #define ITIMER_H_
 
+#if OSAL_ENABLE_TIMER
+
 #include <functional>
 
 namespace osal {
@@ -42,4 +44,7 @@ public:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_TIMER */
+
 #endif  // ITIMER_H_

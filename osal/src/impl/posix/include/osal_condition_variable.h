@@ -4,6 +4,8 @@
 #ifndef __OSAL_CONDITION_VARIABLE_H__
 #define __OSAL_CONDITION_VARIABLE_H__
 
+#if OSAL_ENABLE_CONDITION_VAR
+
 #include <pthread.h>
 
 #include <atomic>
@@ -99,5 +101,7 @@ private:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_CONDITION_VAR */
 
 #endif  // __OSAL_CONDITION_VARIABLE_H__

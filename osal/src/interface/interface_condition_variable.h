@@ -6,6 +6,8 @@
 #ifndef ICONDITION_VARIABLE_H_
 #define ICONDITION_VARIABLE_H_
 
+#if OSAL_ENABLE_CONDITION_VAR
+
 #include "osal_mutex.h"
 
 namespace osal {
@@ -41,5 +43,7 @@ public:
 };
 
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_CONDITION_VAR */
 
 #endif  // ICONDITION_VARIABLE_H_

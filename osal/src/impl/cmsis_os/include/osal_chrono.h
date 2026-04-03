@@ -5,6 +5,8 @@
 #ifndef OSAL_CHRONO_H
 #define OSAL_CHRONO_H
 
+#if OSAL_ENABLE_CHRONO
+
 #include <cstdio>  // for std::sprintf
 #include <ctime>   // for std::tm and std::time_t
 
@@ -59,4 +61,7 @@ private:
     OSALChrono() {}
 };
 }  // namespace osal
+
+#endif /* OSAL_ENABLE_CHRONO */
+
 #endif  // OSAL_CHRONO_H
