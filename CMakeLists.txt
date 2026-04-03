@@ -18,4 +18,4 @@ target_include_directories(dpsdk_compat INTERFACE
 add_subdirectory(osal)
 add_subdirectory(hal)
 add_subdirectory(device)
-add_subdirectory(app_registry)
+
