@@ -4,4 +4,5 @@ cmake-build-debug/
 *.tags
 
 docs/*
-!docs/claude-memory
+!docs/ai_docs
+!docs/ai_rules.md
