@@ -115,4 +115,17 @@
      ? __builtin_strrchr(__FILE__, '/') + 1 \
      : __FILE__)
 
+/* -- 14. Hot/Cold path hints --------------------------------------------- */
+#if __has_attribute(hot) || defined(__GNUC__)
+#  define OSAL_HOT __attribute__((hot))
+#else
+#  define OSAL_HOT
+#endif
+
+#if __has_attribute(cold) || defined(__GNUC__)
+#  define OSAL_COLD __attribute__((cold))
+#else
+#  define OSAL_COLD
+#endif
+
 #endif /* OSAL_COMPAT_H_ */

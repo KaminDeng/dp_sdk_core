@@ -5,16 +5,18 @@
 
 #include <cstdint>
 
+#include "osal_compat.h"
+
 namespace osal {
 
 /** @brief CRTP base for mutex implementations. */
 template <typename Impl>
 class MutexBase {
 public:
-    bool lock() { return impl().doLock(); }
-    bool unlock() { return impl().doUnlock(); }
+    OSAL_HOT bool lock() { return impl().doLock(); }
+    OSAL_HOT bool unlock() { return impl().doUnlock(); }
     bool tryLock() { return impl().doTryLock(); }
-    bool tryLockFor(uint32_t timeout) { return impl().doTryLockFor(timeout); }
+    OSAL_COLD bool tryLockFor(uint32_t timeout) { return impl().doTryLockFor(timeout); }
 
 protected:
     ~MutexBase() = default;
