@@ -4,7 +4,7 @@
 //
 // Two backends:
 //   POSIX/desktop (default): C++ inline thread_local pointer — zero overhead.
-//   ARM bare-metal (DPSDK_BARE_METAL): FreeRTOS per-task TLS slot 0.
+//   ARM MCU firmware (DPSDK_MCU_FIRMWARE): FreeRTOS per-task TLS slot 0.
 //     Requires configNUM_THREAD_LOCAL_STORAGE_POINTERS >= 1 in FreeRTOSConfig.h.
 #pragma once
 
@@ -17,7 +17,7 @@ namespace osal {
 
 /* Thrown by OSALSystem::sleep_ms() when the current thread's stop flag is set.
  * Caught by OSALThread::taskRunner() so code after the sleep call is skipped.
- * Under -fno-exceptions (bare-metal), the struct has no base class and is never
+ * Under -fno-exceptions (MCU firmware), the struct has no base class and is never
  * thrown; stop() relies on cooperative task exit instead. */
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
 struct OSALCmsisThreadStopException : public std::exception {
@@ -29,8 +29,8 @@ struct OSALCmsisThreadStopException {};
 
 /* ── Per-thread stop-flag access ──────────────────────────────────────────── */
 
-#ifdef DPSDK_BARE_METAL
-/* ARM bare-metal: use FreeRTOS per-task TLS slot 0.
+#ifdef DPSDK_MCU_FIRMWARE
+/* ARM MCU firmware: use FreeRTOS per-task TLS slot 0.
  * Thread-local pointer to the running OSALThread's stop flag.
  * Set by taskRunner() before calling the user function; cleared on exit.
  * sleep_ms() reads this to detect stop requests.                            */

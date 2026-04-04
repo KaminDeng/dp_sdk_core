@@ -1,5 +1,5 @@
 /** @file osal_static.h
- *  @brief OSAL static allocation helpers for bare-metal builds. */
+ *  @brief OSAL static allocation helpers for MCU firmware builds. */
 #ifndef OSAL_STATIC_H_
 #define OSAL_STATIC_H_
 

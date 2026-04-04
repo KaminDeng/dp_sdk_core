@@ -161,7 +161,7 @@ bool OSALThreadPool::doCancelTask(std::function<void(void *)> &taskFunction) {
     OSAL_LOGD("Task %s\n", found ? "cancelled" : "not found");
     return found;
 #else
-    /* RTTI disabled (bare-metal): task cancellation by function pointer
+    /* RTTI disabled (MCU firmware): task cancellation by function pointer
      * comparison is unavailable without std::function::target(). */
     (void)taskFunction;
     OSAL_LOGD("cancelTask: RTTI unavailable, returning false\n");

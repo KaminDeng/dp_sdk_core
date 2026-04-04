@@ -98,7 +98,7 @@ Set `OSAL_PORT_DIR` before `add_subdirectory(osal)`. Defaults to
 
 | Directory | Platform | Backend | Debug output |
 |-----------|----------|---------|--------------|
-| `osal_port_freertos/` | STM32 bare-metal + FreeRTOS | CMSIS-OS2 | `HAL_UART_Transmit` on UART6 |
+| `osal_port_freertos/` | STM32 MCU firmware + FreeRTOS | CMSIS-OS2 | `HAL_UART_Transmit` on UART6 |
 | `osal_port_sim_freertos/` | FreeRTOS-on-POSIX simulator | CMSIS-OS2 | `write(1, …)` (stdout) |
 | `osal_port_zephyr/` | Zephyr RTOS | CMSIS-OS2 (built-in) | `printk` |
 

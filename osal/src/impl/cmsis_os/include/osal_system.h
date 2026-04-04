@@ -22,7 +22,7 @@ public:
 private:
     void doStartScheduler() {
         /* Ensure the kernel is initialized before starting the scheduler.
-         * On bare-metal (dp_stm32f427_dev) osKernelInitialize() is called
+         * On MCU firmware (dp_stm32f427_dev) osKernelInitialize() is called
          * by the dp_stm32f427 cmsis_os2 port inside osThreadNew() if the
          * kernel is still inactive.  On POSIX simulator products the kernel
          * starts inactive here, so we must call osKernelInitialize() to
@@ -63,7 +63,7 @@ private:
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
                 throw OSALCmsisThreadStopException{};
 #else
-                return;  /* cooperative early return on bare-metal */
+                return;  /* cooperative early return on MCU firmware */
 #endif
             }
         }

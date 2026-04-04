@@ -94,7 +94,7 @@ CMake 通过扫描 `osal_port.h` 中未注释的 `#define OSAL_BACKEND_CMSIS_OS`
 
 | 目录 | 平台 | 后端 | 调试输出 |
 |------|------|------|----------|
-| `osal_port_freertos/` | STM32 裸机 + FreeRTOS | CMSIS-OS2 | `HAL_UART_Transmit`（UART6）|
+| `osal_port_freertos/` | STM32 单片机固件 + FreeRTOS | CMSIS-OS2 | `HAL_UART_Transmit`（UART6）|
 | `osal_port_sim_freertos/` | FreeRTOS-on-POSIX 模拟器 | CMSIS-OS2 | `write(1, …)`（stdout）|
 | `osal_port_zephyr/` | Zephyr RTOS | CMSIS-OS2（内置）| `printk` |
 
