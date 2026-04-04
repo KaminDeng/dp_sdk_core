@@ -6,6 +6,8 @@
 dpsdk_library(
     NAME          dp_device
     DESCRIPTION   "设备管理框架（注册、生命周期、Shell 集成）"
+    PRIMARY_TAG   general
+    TAGS          general device
     DEPENDS       dp_hal osal
     NOTES         "dp_hal 为公开依赖，osal 为私有依赖（DeviceManager 互斥锁）"
 )

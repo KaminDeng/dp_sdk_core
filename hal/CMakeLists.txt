@@ -12,6 +12,8 @@ cmake_minimum_required(VERSION 3.15)
 dpsdk_library(
     NAME          dp_hal
     DESCRIPTION   "零开销 CRTP 硬件抽象层"
+    PRIMARY_TAG   general
+    TAGS          general hal
     NOTES         "INTERFACE 库（仅头文件），通过 dp_hal_port_impl 提供实现"
 )
 
