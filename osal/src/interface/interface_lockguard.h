@@ -1,27 +1,32 @@
 /** @file interface_lockguard.h
- *  @brief Abstract RAII lock-guard interface. */
-//
-// Created by kamin.deng on 2024/8/23.
-//
-#ifndef ILOCKGUARD_H_
-#define ILOCKGUARD_H_
+ *  @brief RAII lock guard template. */
+#ifndef OSAL_INTERFACE_LOCKGUARD_H_
+#define OSAL_INTERFACE_LOCKGUARD_H_
 
 namespace osal {
 
-/** @brief RAII-style scoped lock manager interface.
- *
- *  Concrete implementations acquire a lock on construction and release it
- *  on destruction, preventing lock leaks.  Use @c isLocked() to detect
- *  whether the underlying lock was actually acquired (e.g. after a
- *  tryLock-style guard). */
-class ILockGuard {
+/** @brief RAII lock guard for any mutex-like type exposing lock/unlock. */
+template <typename MutexType>
+class LockGuard {
 public:
-    virtual ~ILockGuard() = default;
+    explicit LockGuard(MutexType &mutex) : mutex_(mutex), locked_(mutex_.lock()) {}
 
-    /** @brief Checks whether the guarded lock is currently held.
-     *  @return @c true if the lock is held, @c false otherwise. */
-    virtual bool isLocked() = 0;
+    ~LockGuard() {
+        if (locked_) {
+            (void)mutex_.unlock();
+        }
+    }
+
+    [[nodiscard]] bool isLocked() const { return locked_; }
+
+    LockGuard(const LockGuard &) = delete;
+    LockGuard &operator=(const LockGuard &) = delete;
+
+private:
+    MutexType &mutex_;
+    bool locked_;
 };
+
 }  // namespace osal
 
-#endif  // ILOCKGUARD_H_
+#endif  // OSAL_INTERFACE_LOCKGUARD_H_

@@ -1,39 +1,29 @@
 /** @file interface_mutex.h
- *  @brief Abstract mutex interface for OSAL. */
-//
-// Created by kamin.deng on 2024/8/23.
-//
-#ifndef IMUTEX_H_
-#define IMUTEX_H_
+ *  @brief CRTP mutex interface for OSAL. */
+#ifndef OSAL_INTERFACE_MUTEX_H_
+#define OSAL_INTERFACE_MUTEX_H_
+
+#include <cstdint>
 
 namespace osal {
 
-/** @brief Abstract mutual-exclusion lock interface.
- *
- *  Maps to a @c pthread_mutex_t on POSIX or a CMSIS-OS2 mutex on
- *  embedded targets.  All operations are non-recursive by default unless
- *  the concrete backend is configured otherwise. */
-class IMutex {
+/** @brief CRTP base for mutex implementations. */
+template <typename Impl>
+class MutexBase {
 public:
-    virtual ~IMutex() = default;
+    bool lock() { return impl().doLock(); }
+    bool unlock() { return impl().doUnlock(); }
+    bool tryLock() { return impl().doTryLock(); }
+    bool tryLockFor(uint32_t timeout) { return impl().doTryLockFor(timeout); }
 
-    /** @brief Blocks the caller until the mutex is acquired.
-     *  @return @c true on success, @c false on error. */
-    virtual bool lock() = 0;
+protected:
+    ~MutexBase() = default;
 
-    /** @brief Releases the mutex.
-     *  @return @c true on success, @c false on error. */
-    virtual bool unlock() = 0;
-
-    /** @brief Attempts to acquire the mutex without blocking.
-     *  @return @c true if the mutex was acquired, @c false if already locked. */
-    virtual bool tryLock() = 0;
-
-    /** @brief Attempts to acquire the mutex within a timeout.
-     *  @param timeout  Maximum wait time in milliseconds.
-     *  @return @c true if acquired before timeout, @c false on timeout or error. */
-    virtual bool tryLockFor(uint32_t timeout) = 0;
+private:
+    Impl &impl() { return *static_cast<Impl *>(this); }
+    const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
+
 }  // namespace osal
 
-#endif  // IMUTEX_H_
+#endif  // OSAL_INTERFACE_MUTEX_H_

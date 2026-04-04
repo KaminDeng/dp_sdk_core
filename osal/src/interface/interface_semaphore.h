@@ -1,46 +1,31 @@
 /** @file interface_semaphore.h
- *  @brief Abstract counting-semaphore interface for OSAL. */
-//
-// Created by kamin.deng on 2024/8/23.
-//
-#ifndef ISEMAPHORE_H_
-#define ISEMAPHORE_H_
+ *  @brief CRTP semaphore interface for OSAL. */
+#ifndef OSAL_INTERFACE_SEMAPHORE_H_
+#define OSAL_INTERFACE_SEMAPHORE_H_
 
-#include <stdint.h>
+#include <cstdint>
 
 namespace osal {
 
-/** @brief Abstract counting semaphore interface.
- *
- *  Provides portable wait/signal primitives backed by @c pthread_cond_t
- *  (POSIX) or a CMSIS-OS2 semaphore on embedded targets. */
-class ISemaphore {
+/** @brief CRTP base for semaphore implementations. */
+template <typename Impl>
+class SemaphoreBase {
 public:
-    virtual ~ISemaphore() = default;
+    void wait() { impl().doWait(); }
+    void signal() { impl().doSignal(); }
+    bool tryWait() { return impl().doTryWait(); }
+    bool tryWaitFor(uint32_t timestamp) { return impl().doTryWaitFor(timestamp); }
+    [[nodiscard]] int getValue() const { return impl().doGetValue(); }
+    void init(int initialValue) { impl().doInit(initialValue); }
 
-    /** @brief Decrements the semaphore count, blocking until non-zero. */
-    virtual void wait() = 0;
+protected:
+    ~SemaphoreBase() = default;
 
-    /** @brief Increments the semaphore count, waking one waiting thread. */
-    virtual void signal() = 0;
-
-    /** @brief Attempts to decrement the semaphore without blocking.
-     *  @return @c true if the semaphore was decremented, @c false if zero. */
-    virtual bool tryWait() = 0;
-
-    /** @brief Attempts to decrement the semaphore within a timeout.
-     *  @param timestamp  Maximum wait time in milliseconds.
-     *  @return @c true if decremented before timeout, @c false on timeout. */
-    virtual bool tryWaitFor(uint32_t timestamp) = 0;
-
-    /** @brief Returns the current semaphore count.
-     *  @return Current count value. */
-    [[nodiscard]] virtual int getValue() const = 0;
-
-    /** @brief Resets the semaphore to a given initial count.
-     *  @param initialValue  New initial count value. */
-    virtual void init(int initialValue) = 0;
+private:
+    Impl &impl() { return *static_cast<Impl *>(this); }
+    const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
 }  // namespace osal
-#endif  // ISEMAPHORE_H_
+
+#endif  // OSAL_INTERFACE_SEMAPHORE_H_

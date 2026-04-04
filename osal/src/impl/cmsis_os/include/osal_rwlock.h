@@ -12,7 +12,9 @@
 
 namespace osal {
 
-class OSALRWLock : public IRWLock {
+class OSALRWLock : public RWLockBase<OSALRWLock> {
+    friend class RWLockBase<OSALRWLock>;
+
 public:
     OSALRWLock() {
         osMutexAttr_t mutexAttr = {};
@@ -47,7 +49,8 @@ public:
         }
     }
 
-    void readLock() override {
+private:
+    void doReadLock() {
         osMutexAcquire(mutex_, osWaitForever);
         osSemaphoreAcquire(readSemaphore_, osWaitForever);
         readCount_++;
@@ -59,7 +62,7 @@ public:
         OSAL_LOGD("Read lock acquired\n");
     }
 
-    bool tryReadLock() override {
+    bool doTryReadLock() {
         if (osMutexAcquire(mutex_, 0) != osOK) {
             OSAL_LOGD("Try read lock failed\n");
             return false;
@@ -85,7 +88,7 @@ public:
         return true;
     }
 
-    bool readLockFor(uint32_t timeout) override {
+    bool doReadLockFor(uint32_t timeout) {
         if (osMutexAcquire(mutex_, timeout) != osOK) {
             OSAL_LOGD("Read lock with timeout failed\n");
             return false;
@@ -111,7 +114,7 @@ public:
         return true;
     }
 
-    void readUnlock() override {
+    void doReadUnlock() {
         osSemaphoreAcquire(readSemaphore_, osWaitForever);
         readCount_--;
         if (readCount_ == 0) {
@@ -121,13 +124,13 @@ public:
         OSAL_LOGD("Read lock released\n");
     }
 
-    void writeLock() override {
+    void doWriteLock() {
         osSemaphoreAcquire(writeSemaphore_, osWaitForever);
         writeLocked_ = true;
         OSAL_LOGD("Write lock acquired\n");
     }
 
-    bool tryWriteLock() override {
+    bool doTryWriteLock() {
         if (osSemaphoreAcquire(writeSemaphore_, 0) != osOK) {
             OSAL_LOGD("Try write lock failed\n");
             return false;
@@ -137,7 +140,7 @@ public:
         return true;
     }
 
-    bool writeLockFor(uint32_t timeout) override {
+    bool doWriteLockFor(uint32_t timeout) {
         if (osSemaphoreAcquire(writeSemaphore_, timeout) != osOK) {
             OSAL_LOGD("Write lock with timeout failed\n");
             return false;
@@ -147,18 +150,18 @@ public:
         return true;
     }
 
-    void writeUnlock() override {
+    void doWriteUnlock() {
         writeLocked_ = false;
         osSemaphoreRelease(writeSemaphore_);
         OSAL_LOGD("Write lock released\n");
     }
 
-    size_t getReadLockCount() const override {
+    size_t doGetReadLockCount() const {
         OSAL_LOGD("Requested read lock count\n");
         return readCount_;
     }
 
-    bool isWriteLocked() const override {
+    bool doIsWriteLocked() const {
         /* True only when a writer holds the lock — not when readers do.
          * Readers also acquire writeSemaphore_ (to block writers), but
          * isWriteLocked() must distinguish the two cases. */
@@ -166,7 +169,6 @@ public:
         return writeLocked_;
     }
 
-private:
     osMutexId_t mutex_;
     osSemaphoreId_t readSemaphore_;
     osSemaphoreId_t writeSemaphore_;

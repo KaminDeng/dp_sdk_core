@@ -23,6 +23,8 @@ public:
     virtual Status write(const uint8_t *buf, size_t len) = 0;
     virtual Status read(uint8_t *buf, size_t max_len, size_t *actual) = 0;
     virtual Status flush() = 0;
+    virtual Status setRxCallback(void (*cb)(const uint8_t *data, size_t len, void *ctx), void *ctx) = 0;
+    virtual Status setTxCompleteCallback(void (*cb)(void *ctx), void *ctx) = 0;
 };
 
 /** @brief  Wrap any CRTP UartBase implementation as IUart.
@@ -38,6 +40,12 @@ public:
     Status write(const uint8_t *buf, size_t len) override { return impl_.write(buf, len); }
     Status read(uint8_t *buf, size_t max_len, size_t *actual) override { return impl_.read(buf, max_len, actual); }
     Status flush() override { return impl_.flush(); }
+    Status setRxCallback(void (*cb)(const uint8_t *data, size_t len, void *ctx), void *ctx) override {
+        return impl_.setRxCallback(cb, ctx);
+    }
+    Status setTxCompleteCallback(void (*cb)(void *ctx), void *ctx) override {
+        return impl_.setTxCompleteCallback(cb, ctx);
+    }
 
 private:
     Impl &impl_;
@@ -53,6 +61,8 @@ public:
     virtual Status write(PinState state) = 0;
     virtual PinState read() = 0;
     virtual Status toggle() = 0;
+    virtual Status enableIrq(GpioIrqTrigger trigger, void (*cb)(void *ctx), void *ctx) = 0;
+    virtual Status disableIrq() = 0;
 };
 
 /** @brief  Wrap any CRTP GpioPinBase implementation as IGpioPin.
@@ -68,6 +78,10 @@ public:
     Status write(PinState state) override { return impl_.write(state); }
     PinState read() override { return impl_.read(); }
     Status toggle() override { return impl_.toggle(); }
+    Status enableIrq(GpioIrqTrigger trigger, void (*cb)(void *ctx), void *ctx) override {
+        return impl_.enableIrq(trigger, cb, ctx);
+    }
+    Status disableIrq() override { return impl_.disableIrq(); }
 
 private:
     Impl &impl_;
@@ -242,6 +256,98 @@ public:
     Status stop() override { return impl_.stop(); }
     Status setCallback(TimerCallback cb, void *ctx) override { return impl_.setCallback(cb, ctx); }
     uint32_t getCounterUs() override { return impl_.getCounterUs(); }
+
+private:
+    Impl &impl_;
+};
+
+/* ---- CAN virtual interface --------------------------------------------- */
+
+/** @brief  CAN receive callback type.
+ *  @param  frame  Received CAN frame.
+ *  @param  ctx    User context pointer. */
+using CanRxCallback = void (*)(const CanFrame &frame, void *ctx);
+
+/** @brief  Virtual CAN bus interface for dependency injection / GMock. */
+class ICan {
+public:
+    virtual ~ICan() = default;
+    virtual Status configure(const CanConfig &cfg) = 0;
+    virtual Status send(const CanFrame &frame) = 0;
+    virtual Status receive(CanFrame *frame) = 0;
+    virtual Status setFilter(uint32_t id, uint32_t mask, bool is_extended) = 0;
+    virtual Status setRxCallback(CanRxCallback cb, void *ctx) = 0;
+};
+
+/** @brief  Wrap any CRTP CanBase implementation as ICan.
+ *  @tparam Impl  Concrete CanBase implementation. */
+template <typename Impl>
+class CanVirtual : public ICan {
+public:
+    explicit CanVirtual(Impl &impl) : impl_(impl) {}
+
+    Status configure(const CanConfig &cfg) override { return impl_.configure(cfg); }
+    Status send(const CanFrame &frame) override { return impl_.send(frame); }
+    Status receive(CanFrame *frame) override { return impl_.receive(frame); }
+    Status setFilter(uint32_t id, uint32_t mask, bool is_extended) override {
+        return impl_.setFilter(id, mask, is_extended);
+    }
+    Status setRxCallback(CanRxCallback cb, void *ctx) override { return impl_.setRxCallback(cb, ctx); }
+
+private:
+    Impl &impl_;
+};
+
+/* ---- PWM virtual interface --------------------------------------------- */
+
+/** @brief  Virtual PWM interface for dependency injection / GMock. */
+class IPwm {
+public:
+    virtual ~IPwm() = default;
+    virtual Status start(uint32_t frequency_hz, float duty_percent) = 0;
+    virtual Status setDuty(float duty_percent) = 0;
+    virtual Status setFrequency(uint32_t frequency_hz) = 0;
+    virtual Status stop() = 0;
+};
+
+/** @brief  Wrap any CRTP PwmBase implementation as IPwm.
+ *  @tparam Impl  Concrete PwmBase implementation. */
+template <typename Impl>
+class PwmVirtual : public IPwm {
+public:
+    explicit PwmVirtual(Impl &impl) : impl_(impl) {}
+
+    Status start(uint32_t frequency_hz, float duty_percent) override {
+        return impl_.start(frequency_hz, duty_percent);
+    }
+    Status setDuty(float duty_percent) override { return impl_.setDuty(duty_percent); }
+    Status setFrequency(uint32_t frequency_hz) override { return impl_.setFrequency(frequency_hz); }
+    Status stop() override { return impl_.stop(); }
+
+private:
+    Impl &impl_;
+};
+
+/* ---- Power virtual interface ------------------------------------------- */
+
+/** @brief  Virtual power-management interface for dependency injection /
+ *          GMock. */
+class IPowerManageable {
+public:
+    virtual ~IPowerManageable() = default;
+    virtual Status setPowerState(PowerState state) = 0;
+    virtual PowerState getPowerState() = 0;
+};
+
+/** @brief  Wrap any CRTP PowerManageable implementation as IPowerManageable.
+ *  @tparam Impl  Concrete implementation. */
+template <typename Impl>
+class PowerManageableVirtual : public IPowerManageable {
+public:
+    explicit PowerManageableVirtual(Impl &impl) : impl_(impl) {}
+
+    Status setPowerState(PowerState state) override { return impl_.setPowerState(state); }
+    PowerState getPowerState() override { return impl_.getPowerState(); }
 
 private:
     Impl &impl_;

@@ -59,7 +59,9 @@ inline void osal_sleep_ms_interruptible(uint32_t ms) {
     }
 }
 
-class OSALThread : public IThread {
+class OSALThread : public ThreadBase<OSALThread> {
+    friend class ThreadBase<OSALThread>;
+
 public:
     OSALThread() : threadHandle_(0), running(false), suspended(false), priority_(0) {
         OSAL_LOGD("OSALThread default constructor called\n");
@@ -72,10 +74,11 @@ public:
         start(name, fn, arg, priority, stack_size, pstack);
     }
 
-    virtual ~OSALThread() { stop(); }
+    ~OSALThread() { doStop(); }
 
-    int start(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
-              int stack_size = 0, void *pstack = nullptr) override {
+private:
+    int doStart(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
+                int stack_size = 0, void *pstack = nullptr) {
         (void)name;
         int result = 0;
         if (!isRunning()) {
@@ -134,7 +137,7 @@ public:
         return result;
     }
 
-    void stop() override {
+    void doStop() {
         pthread_t h = threadHandle_.exchange(0);
         if (h) {
             // 1. Wake waitIfSuspended
@@ -158,14 +161,14 @@ public:
         }
     }
 
-    int suspend() override {
+    int doSuspend() {
         std::unique_lock<std::mutex> lock(mutex_);
         suspended = true;
         OSAL_LOGD("Thread suspended\n");
         return 0;  // 成功
     }
 
-    int resume() override {
+    int doResume() {
         std::unique_lock<std::mutex> lock(mutex_);
         suspended = false;
         cv_.notify_all();
@@ -173,7 +176,7 @@ public:
         return 0;  // 成功
     }
 
-    void join() override {
+    void doJoin() {
         pthread_t h = threadHandle_.exchange(0);
         if (h) {
             pthread_join(h, nullptr);
@@ -181,7 +184,7 @@ public:
         }
     }
 
-    void detach() override {
+    void doDetach() {
         pthread_t h = threadHandle_.exchange(0);
         if (h) {
             pthread_detach(h);
@@ -189,9 +192,9 @@ public:
         }
     }
 
-    bool isRunning() const override { return running; }
+    bool doIsRunning() const { return running; }
 
-    void setPriority(int priority) override {
+    void doSetPriority(int priority) {
         priority_ = priority;  // always store, so getPriority() works after thread ends
         pthread_t h = threadHandle_.load();
         if (h) {
@@ -203,7 +206,7 @@ public:
         }
     }
 
-    int getPriority() const override {
+    int doGetPriority() const {
         // Return the stored priority so callers get a consistent value
         // even when the thread has already finished (threadHandle == 0)
         // or when the OS call would fail (e.g. no root for SCHED_FIFO).
@@ -211,7 +214,6 @@ public:
         return priority_;
     }
 
-private:
     static void *taskRunner(void *parameters) {
         OSALThread *thread = static_cast<OSALThread *>(parameters);
 

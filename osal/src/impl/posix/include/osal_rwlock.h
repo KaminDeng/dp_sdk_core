@@ -15,65 +15,66 @@
 
 namespace osal {
 
-class OSALRWLock : public IRWLock {
+class OSALRWLock : public RWLockBase<OSALRWLock> {
+    friend class RWLockBase<OSALRWLock>;
+
 public:
     OSALRWLock() = default;
 
     ~OSALRWLock() = default;
 
-    void readLock() override {
+private:
+    void doReadLock() {
         sharedMutex_.lock_shared();
         readCount_.fetch_add(1);
         OSAL_LOGD("Read lock acquired\n");
     }
 
-    bool tryReadLock() override {
+    bool doTryReadLock() {
         bool result = sharedMutex_.try_lock_shared();
         OSAL_LOGD("Try read lock %s\n", result ? "succeeded" : "failed");
         return result;
     }
 
-    bool readLockFor(uint32_t timeout) override {
+    bool doReadLockFor(uint32_t timeout) {
         bool result = sharedMutex_.try_lock_shared_for(std::chrono::milliseconds(timeout));
         OSAL_LOGD("Read lock with timeout %s\n", result ? "succeeded" : "failed");
         return result;
     }
 
-    void readUnlock() override {
+    void doReadUnlock() {
         readCount_.fetch_sub(1);
         sharedMutex_.unlock_shared();
         OSAL_LOGD("Read lock released\n");
     }
 
-    void writeLock() override {
+    void doWriteLock() {
         sharedMutex_.lock();
         writeLocked_.store(true);
         OSAL_LOGD("Write lock acquired\n");
     }
 
-    bool tryWriteLock() override {
+    bool doTryWriteLock() {
         bool result = sharedMutex_.try_lock();
         OSAL_LOGD("Try write lock %s\n", result ? "succeeded" : "failed");
         return result;
     }
 
-    bool writeLockFor(uint32_t timeout) override {
+    bool doWriteLockFor(uint32_t timeout) {
         bool result = sharedMutex_.try_lock_for(std::chrono::milliseconds(timeout));
         OSAL_LOGD("Write lock with timeout %s\n", result ? "succeeded" : "failed");
         return result;
     }
 
-    void writeUnlock() override {
+    void doWriteUnlock() {
         writeLocked_.store(false);
         sharedMutex_.unlock();
         OSAL_LOGD("Write lock released\n");
     }
 
-    size_t getReadLockCount() const override { return readCount_.load(); }
+    size_t doGetReadLockCount() const { return readCount_.load(); }
 
-    bool isWriteLocked() const override { return writeLocked_.load(); }
-
-private:
+    bool doIsWriteLocked() const { return writeLocked_.load(); }
     std::atomic<size_t> readCount_{0};
     std::atomic<bool> writeLocked_{false};
     mutable std::shared_timed_mutex sharedMutex_;

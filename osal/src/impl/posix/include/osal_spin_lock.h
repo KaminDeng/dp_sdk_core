@@ -14,20 +14,23 @@
 
 namespace osal {
 
-class OSALSpinLock : public ISpinLock {
+class OSALSpinLock : public SpinLockBase<OSALSpinLock> {
+    friend class SpinLockBase<OSALSpinLock>;
+
 public:
     OSALSpinLock() : flag_{false} {}
 
     ~OSALSpinLock() = default;
 
-    void lock() override {
+private:
+    void doLock() {
         while (flag_.exchange(true, std::memory_order_acquire)) {
             // 自旋等待
         }
         OSAL_LOGD("Lock acquired\n");
     }
 
-    bool tryLock() override {
+    bool doTryLock() {
         bool expected = false;
         bool result =
             flag_.compare_exchange_strong(expected, true, std::memory_order_acquire, std::memory_order_relaxed);
@@ -35,7 +38,7 @@ public:
         return result;
     }
 
-    bool lockFor(uint32_t timeout) override {
+    bool doLockFor(uint32_t timeout) {
         auto start = std::chrono::steady_clock::now();
         std::chrono::milliseconds timeout_duration(timeout);
 
@@ -50,18 +53,17 @@ public:
         return true;
     }
 
-    void unlock() override {
+    void doUnlock() {
         flag_.store(false, std::memory_order_release);
         OSAL_LOGD("Lock released\n");
     }
 
-    bool isLocked() const override {
+    bool doIsLocked() const {
         bool result = flag_.load(std::memory_order_relaxed);
         OSAL_LOGD("Requested lock status: %s\n", result ? "locked" : "unlocked");
         return result;
     }
 
-private:
     std::atomic<bool> flag_;
 };
 

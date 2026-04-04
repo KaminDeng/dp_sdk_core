@@ -61,12 +61,16 @@ osal    -->  (POSIX or CMSIS-OS2 backend)
 
 ### OSAL Design
 
-Virtual base class interfaces (`src/interface/`: IThread, IMutex, IQueue<T>, ISemaphore, IRWLock, ISpinLock, IConditionVariable, ITimer, IThreadPool, IChrono, IMemoryManager, ISystem) with two backend implementations:
+CRTP base interfaces (`src/interface/`: ThreadBase<Impl>, MutexBase<Impl>, QueueBase<Impl, T>, SemaphoreBase<Impl>, RWLockBase<Impl>, SpinLockBase<Impl>, ConditionVariableBase<Impl>, TimerBase<Impl>, ThreadPoolBase<Impl>, ChronoBase<Impl>, MemoryManagerBase<Impl>, SystemBase<Impl>) with two backend implementations:
 
 - **POSIX** (`src/impl/posix/`) -- pthreads, std::thread, std::mutex
 - **CMSIS-OS2** (`src/impl/cmsis_os/`) -- maps to FreeRTOS/Zephyr/RT-Thread
 
 Backend selected at CMake time by scanning `osal_port.h` for `#define OSAL_BACKEND_CMSIS_OS` (POSIX is default).
+
+For host dependency injection / GMock only, use `src/interface/osal_virtual.h`
+(`IMutex` + `MutexVirtual<T>` and related wrappers). Production code should use
+CRTP concrete types directly.
 
 ### HAL Design
 

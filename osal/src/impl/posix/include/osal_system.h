@@ -15,29 +15,30 @@
 
 namespace osal {
 
-class OSALSystem : public ISystem {
+class OSALSystem : public SystemBase<OSALSystem> {
+    friend class SystemBase<OSALSystem>;
+
 public:
     static OSALSystem &getInstance() {
         static OSALSystem instance;
         return instance;
     }
 
-    void StartScheduler() override {
+private:
+    void doStartScheduler() {
         // POSIX 系统不需要显式启动调度器
         while (1)
             ;
     }
 
-    void sleep_ms(const uint32_t milliseconds) const override { osal_sleep_ms_interruptible(milliseconds); }
+    void doSleepMs(const uint32_t milliseconds) const { osal_sleep_ms_interruptible(milliseconds); }
 
-    void sleep(const uint32_t seconds) const override { std::this_thread::sleep_for(std::chrono::seconds(seconds)); }
+    void doSleep(const uint32_t seconds) const { std::this_thread::sleep_for(std::chrono::seconds(seconds)); }
 
-    const char *get_system_info() const override {
+    const char *doGetSystemInfo() const {
         // 返回一些基本的系统信息
         return "POSIX System";
     }
-
-private:
     OSALSystem(){};
 
     ~OSALSystem(){};

@@ -6,6 +6,7 @@
 
 #if OSAL_ENABLE_TIMER
 
+#include <atomic>
 #include <functional>
 
 #include "interface_timer.h"
@@ -17,13 +18,16 @@
 
 namespace osal {
 
-class OSALTimer : public ITimer {
+class OSALTimer : public TimerBase<OSALTimer> {
+    friend class TimerBase<OSALTimer>;
+
 public:
     OSALTimer() : timerId_(nullptr), running_(false), periodic_(false), interval_(0) {}
 
     ~OSALTimer() { stop(); }
 
-    void start(uint32_t interval, bool periodic, std::function<void()> callback) override {
+private:
+    void doStart(uint32_t interval, bool periodic, std::function<void()> callback) {
         stop();  // 停止任何现有的定时器
         interval_ = interval;
         periodic_ = periodic;
@@ -51,7 +55,7 @@ public:
         OSAL_LOGD("Timer started\n");
     }
 
-    void stop() override {
+    void doStop() {
         if (timerId_ != nullptr) {
             osTimerStop(timerId_);
             osTimerDelete(timerId_);
@@ -61,9 +65,9 @@ public:
         }
     }
 
-    bool isRunning() const override { return running_; }
+    bool doIsRunning() const { return running_; }
 
-    uint32_t getRemainingTime() const override {
+    uint32_t doGetRemainingTime() const {
         // CMSIS-RTOS2 并没有直接提供查询剩余时间的接口
         // 这里可以通过记录开始时间和间隔时间来计算剩余时间
         OSALLockGuard lockGuard(mutex_);
@@ -76,7 +80,7 @@ public:
         return remaining > 0 ? static_cast<uint32_t>(remaining) : 0;
     }
 
-    void reset() override {
+    void doReset() {
         OSALLockGuard lockGuard(mutex_);
         if (running_) {
             osTimerStop(timerId_);
@@ -86,7 +90,6 @@ public:
         }
     }
 
-private:
     static void timerCallback(void *arg) {
         OSALTimer *timer = static_cast<OSALTimer *>(arg);
         if (timer->callback_) {

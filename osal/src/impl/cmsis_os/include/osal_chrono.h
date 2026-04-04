@@ -15,37 +15,35 @@
 
 namespace osal {
 
-class OSALChrono : public IChrono {
+class OSALChrono : public ChronoBase<OSALChrono> {
+    friend class ChronoBase<OSALChrono>;
+
 public:
     static OSALChrono &getInstance() {
         static OSALChrono instance;
         return instance;
     }
 
-    // 获取当前时间点
-    TimePoint now() const override { return osKernelGetTickCount(); }
+private:
+    TimePoint doNow() const { return osKernelGetTickCount(); }
 
-    // 计算两个时间点之间的时间间隔
-    Duration elapsed(const TimePoint &start, const TimePoint &end) const override {
+    Duration doElapsed(const TimePoint &start, const TimePoint &end) const {
         uint32_t tickFreq = osKernelGetTickFreq();
         return static_cast<Duration>(end - start) / tickFreq;
     }
 
-    // 将时间点转换为time_t类型
-    std::time_t to_time_t(const TimePoint &timePoint) const override {
+    std::time_t doToTimeT(const TimePoint &timePoint) const {
         uint32_t tickFreq = osKernelGetTickFreq();
         return static_cast<std::time_t>(timePoint / tickFreq);
     }
 
-    // 将time_t类型转换为时间点
-    TimePoint from_time_t(std::time_t time) const override {
+    TimePoint doFromTimeT(std::time_t time) const {
         uint32_t tickFreq = osKernelGetTickFreq();
         return static_cast<TimePoint>(time * tickFreq);
     }
 
-    // 将时间点转换为字符串
-    std::string to_string(const TimePoint &timePoint) const override {
-        std::time_t time = to_time_t(timePoint);
+    std::string doToString(const TimePoint &timePoint) const {
+        std::time_t time = doToTimeT(timePoint);
         std::tm *tm = std::localtime(&time);
 
         char buffer[100];  // 假设你已经定义了这个缓冲区，并且大小足够
@@ -55,10 +53,9 @@ public:
         return std::string(buffer);
     }
 
-private:
-    virtual ~OSALChrono() {}
+    ~OSALChrono() = default;
 
-    OSALChrono() {}
+    OSALChrono() = default;
 };
 }  // namespace osal
 

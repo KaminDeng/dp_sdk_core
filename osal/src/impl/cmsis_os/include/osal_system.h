@@ -10,14 +10,17 @@
 
 namespace osal {
 
-class OSALSystem : public ISystem {
+class OSALSystem : public SystemBase<OSALSystem> {
+    friend class SystemBase<OSALSystem>;
+
 public:
     static OSALSystem &getInstance() {
         static OSALSystem instance;
         return instance;
     }
 
-    void StartScheduler() override {
+private:
+    void doStartScheduler() {
         /* Ensure the kernel is initialized before starting the scheduler.
          * On bare-metal (dp_stm32f427_dev) osKernelInitialize() is called
          * by the dp_stm32f427 cmsis_os2 port inside osThreadNew() if the
@@ -48,14 +51,14 @@ public:
      * of overhead, so 100 ms keeps short sleeps (≤100 ms) within the ±50 ms
      * test tolerance while bounding stop latency to ≤100 ms.
      */
-    void sleep_ms(const uint32_t milliseconds) const override {
+    void doSleepMs(const uint32_t milliseconds) const {
         static constexpr uint32_t SLEEP_CHUNK_MS = 100U;
         uint32_t remaining = milliseconds;
         while (remaining > 0U) {
             uint32_t chunk = (remaining > SLEEP_CHUNK_MS) ? SLEEP_CHUNK_MS : remaining;
             osDelay(chunk);
             remaining -= chunk;
-            auto* stop_flag = osal::osal_cmsis_stop_flag_get();
+            auto *stop_flag = osal::osal_cmsis_stop_flag_get();
             if (stop_flag != nullptr && stop_flag->load(std::memory_order_acquire)) {
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
                 throw OSALCmsisThreadStopException{};
@@ -66,14 +69,12 @@ public:
         }
     }
 
-    void sleep(const uint32_t seconds) const override { sleep_ms(seconds * 1000); }
+    void doSleep(const uint32_t seconds) const { doSleepMs(seconds * 1000); }
 
-    [[nodiscard]] const char *get_system_info() const override {
+    [[nodiscard]] const char *doGetSystemInfo() const {
         // Return some basic system information
         return "CMSIS-RTOS2 System";
     }
-
-private:
     OSALSystem(){};
 
     ~OSALSystem(){};

@@ -13,7 +13,9 @@
 #include "osal_thread_stop.h"
 
 namespace osal {
-class OSALThread : public IThread {
+class OSALThread : public ThreadBase<OSALThread> {
+    friend class ThreadBase<OSALThread>;
+
 public:
     OSALThread() : threadHandle(nullptr), running(false), suspended(false) {
         OSAL_LOGD("OSALThread default constructor called\n");
@@ -26,10 +28,11 @@ public:
         start(name, taskFunction, taskArgument, priority, stack_size, pstack);
     }
 
-    ~OSALThread() override { stop(); }
+    ~OSALThread() { doStop(); }
 
-    int start(const char *name, std::function<void(void *)> taskFunction, void *taskArgument = nullptr,
-              int priority = OSAL_PORT_THREAD_DEFAULT_PRIORITY, int stack_size = 0, void *pstack = nullptr) override {
+private:
+    int doStart(const char *name, std::function<void(void *)> taskFunction, void *taskArgument = nullptr,
+                int priority = OSAL_PORT_THREAD_DEFAULT_PRIORITY, int stack_size = 0, void *pstack = nullptr) {
         if (!isRunning()) {
             this->_taskFunction = taskFunction;
             this->_taskArgument = taskArgument;
@@ -65,7 +68,7 @@ public:
         return -1;  // 线程已经在运行
     }
 
-    void stop() override {
+    void doStop() {
         if (threadHandle) {
             /* Set the cooperative stop flag so sleep_ms() exits its osDelay
              * loop within 1 ms (the chunk granularity), without using FreeRTOS
@@ -87,7 +90,7 @@ public:
              * avoids pthread_cancel which — via glibc's SIGCANCEL with
              * SA_ONSTACK — triggers __asan_handle_no_return while on the
              * alternate signal stack, causing a GCC 11 ASan CHECK failure. */
-            join();
+            doJoin();
 
             /* Clean up after join(). */
             threadHandle = nullptr;
@@ -101,7 +104,7 @@ public:
         }
     }
 
-    int suspend() override {
+    int doSuspend() {
         if (isRunning()) {
             osThreadSuspend(threadHandle);
             suspended = true;
@@ -111,7 +114,7 @@ public:
         return -1;  // 线程未运行
     }
 
-    int resume() override {
+    int doResume() {
         /* Do NOT check isRunning() here: 'running' may be false due to a race
          * between the thread completing its first osDelay(1) tick and this
          * resume() call — even though the FreeRTOS task is still alive.
@@ -126,7 +129,7 @@ public:
         return -1;  // 线程未挂起
     }
 
-    void join() override {
+    void doJoin() {
         /* Capture exitSemaphore locally before checking isRunning().
          * stop() nulls exitSemaphore before deleting it, so if stop()
          * races with join(), the local copy is either valid (stop() not
@@ -139,21 +142,21 @@ public:
         }
     }
 
-    void detach() override {
+    void doDetach() {
         // Threre are inherently detached and will clean up after completion.
         OSAL_LOGD("Thread detached\n");
     }
 
-    bool isRunning() const override { return running; }
+    bool doIsRunning() const { return running; }
 
-    void setPriority(int priority) override {
+    void doSetPriority(int priority) {
         if (threadHandle) {
             osThreadSetPriority(threadHandle, (osPriority_t)priority);
             OSAL_LOGD("Thread priority set to %d\n", priority);
         }
     }
 
-    int getPriority() const override {
+    int doGetPriority() const {
         if (threadHandle) {
             osPriority_t priority = osThreadGetPriority(threadHandle);
             OSAL_LOGD("Thread priority retrieved: %d\n", priority);
@@ -162,7 +165,6 @@ public:
         return -1;  // 返回一个无效的优先级表示错误
     }
 
-private:
     static void taskRunner(void *parameters) {
         auto *thread = static_cast<OSALThread *>(parameters);
         /* Install this thread's stop flag as the thread-local pointer so that

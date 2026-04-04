@@ -10,7 +10,9 @@
 
 namespace osal {
 
-class OSALSemaphore : public ISemaphore {
+class OSALSemaphore : public SemaphoreBase<OSALSemaphore> {
+    friend class SemaphoreBase<OSALSemaphore>;
+
 public:
     OSALSemaphore() : semaphore_(nullptr) {
         osSemaphoreAttr_t semAttr = {};
@@ -24,14 +26,15 @@ public:
         }
     }
 
-    ~OSALSemaphore() override {
+    ~OSALSemaphore() {
         if (semaphore_ != nullptr) {
             osSemaphoreDelete(semaphore_);
             OSAL_LOGD("Semaphore destroyed\n");
         }
     }
 
-    void wait() override {
+private:
+    void doWait() {
         if (osSemaphoreAcquire(semaphore_, osWaitForever) == osOK) {
             OSAL_LOGD("Semaphore wait succeeded\n");
         } else {
@@ -39,7 +42,7 @@ public:
         }
     }
 
-    void signal() override {
+    void doSignal() {
         if (osSemaphoreRelease(semaphore_) == osOK) {
             OSAL_LOGD("Semaphore signal succeeded\n");
         } else {
@@ -47,9 +50,9 @@ public:
         }
     }
 
-    bool tryWait() override { return tryWaitFor(0); }
+    bool doTryWait() { return doTryWaitFor(0); }
 
-    bool tryWaitFor(const uint32_t timestamp) override {
+    bool doTryWaitFor(const uint32_t timestamp) {
         if (osSemaphoreAcquire(semaphore_, timestamp) == osOK) {
             OSAL_LOGD("Semaphore tryWait succeeded\n");
             return true;
@@ -58,13 +61,13 @@ public:
         return false;
     }
 
-    [[nodiscard]] int getValue() const override {
+    [[nodiscard]] int doGetValue() const {
         int count = (int)osSemaphoreGetCount(semaphore_);
         OSAL_LOGD("Semaphore value: %d\n", count);
         return count;
     }
 
-    void init(int initialValue) override {
+    void doInit(int initialValue) {
         if (semaphore_ != nullptr) {
             /* Drain the existing semaphore to zero: this is safe when no
              * threads are blocked in wait() — the precondition callers must
@@ -95,8 +98,6 @@ public:
             }
         }
     }
-
-private:
     osSemaphoreId_t semaphore_;
 };
 

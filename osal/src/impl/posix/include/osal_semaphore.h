@@ -13,27 +13,30 @@
 
 namespace osal {
 
-class OSALSemaphore : public ISemaphore {
+class OSALSemaphore : public SemaphoreBase<OSALSemaphore> {
+    friend class SemaphoreBase<OSALSemaphore>;
+
 public:
     OSALSemaphore() : count_(0) { OSAL_LOGD("Semaphore initialized\n"); }
 
     ~OSALSemaphore() { OSAL_LOGD("Semaphore destroyed\n"); }
 
-    void wait() override {
+private:
+    void doWait() {
         std::unique_lock<std::mutex> lock(mutex_);
         cond_.wait(lock, [this]() { return count_ > 0; });
         --count_;
         OSAL_LOGD("Semaphore wait succeeded\n");
     }
 
-    void signal() override {
+    void doSignal() {
         std::lock_guard<std::mutex> lock(mutex_);
         ++count_;
         cond_.notify_one();
         OSAL_LOGD("Semaphore signal succeeded\n");
     }
 
-    bool tryWait() override {
+    bool doTryWait() {
         std::lock_guard<std::mutex> lock(mutex_);
         if (count_ > 0) {
             --count_;
@@ -44,7 +47,7 @@ public:
         return false;
     }
 
-    bool tryWaitFor(uint32_t timestamp) override {
+    bool doTryWaitFor(uint32_t timestamp) {
         std::unique_lock<std::mutex> lock(mutex_);
         auto now = std::chrono::system_clock::now();
         if (cond_.wait_until(lock, now + std::chrono::milliseconds(timestamp), [this] { return count_ > 0; })) {
@@ -56,19 +59,17 @@ public:
         return false;
     }
 
-    int getValue() const override {
+    int doGetValue() const {
         std::lock_guard<std::mutex> lock(mutex_);
         OSAL_LOGD("Semaphore value: %d\n", count_);
         return count_;
     }
 
-    void init(int initialValue) override {
+    void doInit(int initialValue) {
         std::lock_guard<std::mutex> lock(mutex_);
         count_ = initialValue;
         OSAL_LOGD("Semaphore initialized with value %d\n", initialValue);
     }
-
-private:
     mutable std::mutex mutex_;
     std::condition_variable cond_;
     int count_;

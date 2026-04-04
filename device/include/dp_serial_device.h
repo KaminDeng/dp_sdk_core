@@ -33,6 +33,12 @@ public:
     }
 
     dp::hal::Status flush() override { return hal_.flush(); }
+    dp::hal::Status setRxCallback(void (*cb)(const uint8_t *data, size_t len, void *ctx), void *ctx) override {
+        return hal_.setRxCallback(cb, ctx);
+    }
+    dp::hal::Status setTxCompleteCallback(void (*cb)(void *ctx), void *ctx) override {
+        return hal_.setTxCompleteCallback(cb, ctx);
+    }
 
     void *interface() override { return static_cast<dp::hal::IUart *>(this); }
 

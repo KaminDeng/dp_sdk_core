@@ -8,7 +8,7 @@ Contains three modules:
 
 | Module | What it does | Design |
 |--------|-------------|--------|
-| **osal** | OS primitives (thread, mutex, queue, timer, …) | Virtual interfaces + backend selection |
+| **osal** | OS primitives (thread, mutex, queue, timer, …) | Zero-cost CRTP + backend selection |
 | **hal** | Hardware peripherals (UART, GPIO, SPI, I2C, …) | Zero-cost CRTP templates |
 | **device** | Device registry and lifecycle | Adapter pattern + singleton manager |
 
@@ -45,22 +45,23 @@ cmake -B build -DPRODUCT=posix_demo && cmake --build build
 
 | Header | Abstraction | Key operations |
 |--------|-------------|----------------|
-| `interface_thread.h` | `IThread` | `start`, `stop`, `join`, `detach`, `suspend`, `resume`, `setPriority` |
-| `interface_mutex.h` | `IMutex` | `lock`, `unlock`, `tryLock`, `tryLockFor` |
-| `interface_condition_variable.h` | `IConditionVariable` | `wait`, `waitFor`, `notifyOne`, `notifyAll` |
-| `interface_lockguard.h` | `ILockGuard` | RAII mutex guard |
-| `interface_rwlock.h` | `IRWLock` | read/write lock with try and timed variants |
-| `interface_semaphore.h` | `ISemaphore` | counting semaphore |
-| `interface_spin_lock.h` | `ISpinLock` | spinlock (atomic_flag) |
-| `interface_queue.h` | `MessageQueue<T>` | `send`, `receive`, `tryReceive`, `receiveFor`, `size`, `clear` |
-| `interface_memory_manager.h` | `IMemoryManager` | block pool: `allocate`, `deallocate`, `allocateAligned` |
-| `interface_timer.h` | `ITimer` | one-shot and periodic timers |
-| `interface_thread_pool.h` | `IThreadPool` | dynamic thread pool with task queue |
-| `interface_chrono.h` | `IChrono` | monotonic clock: `elapsed`, `to_time_t`, `from_time_t` |
-| `interface_system.h` | `ISystem` | `schedulerStart`, `sleep_ms`, `sleep_s` |
+| `interface_thread.h` | `ThreadBase<Impl>` | `start`, `stop`, `join`, `detach`, `suspend`, `resume`, `setPriority` |
+| `interface_mutex.h` | `MutexBase<Impl>` | `lock`, `unlock`, `tryLock`, `tryLockFor` |
+| `interface_condition_variable.h` | `ConditionVariableBase<Impl>` | `wait`, `waitFor`, `notifyOne`, `notifyAll` |
+| `interface_lockguard.h` | `LockGuard<MutexType>` | RAII mutex guard |
+| `interface_rwlock.h` | `RWLockBase<Impl>` | read/write lock with try and timed variants |
+| `interface_semaphore.h` | `SemaphoreBase<Impl>` | counting semaphore |
+| `interface_spin_lock.h` | `SpinLockBase<Impl>` | spinlock (atomic_flag) |
+| `interface_queue.h` | `QueueBase<Impl, T>` | `send`, `receive`, `tryReceive`, `receiveFor`, `size`, `clear` |
+| `interface_memory_manager.h` | `MemoryManagerBase<Impl>` | block pool: `allocate`, `deallocate`, `allocateAligned` |
+| `interface_timer.h` | `TimerBase<Impl>` | one-shot and periodic timers |
+| `interface_thread_pool.h` | `ThreadPoolBase<Impl>` | dynamic thread pool with task queue |
+| `interface_chrono.h` | `ChronoBase<Impl>` | monotonic clock: `elapsed`, `to_time_t`, `from_time_t` |
+| `interface_system.h` | `SystemBase<Impl>` | `schedulerStart`, `sleep_ms`, `sleep_s` |
+| `osal_virtual.h` | `IMutex` + `MutexVirtual<T>` (and others) | optional host-only virtual wrappers for injection/GMock |
 
-All interfaces are pure-virtual. The concrete implementation is selected at link
-time via the backend chosen in `osal_port.h`.
+CRTP interfaces have no vtable overhead. The concrete implementation is selected
+at compile/link time via the backend chosen in `osal_port.h`.
 
 ### Backend Selection
 
@@ -200,8 +201,33 @@ cmake --build build
 ### Test Controls (OSAL)
 
 In `osal_port.h`:
-- `OSAL_TEST_ALL = 1` — run all 12 suites (recommended for first bring-up)
+- `OSAL_TEST_ALL = 1` — run all OSAL suites (recommended for first bring-up)
 - `OSAL_TEST_ALL = 0` — use per-component flags (`OSAL_TEST_THREAD_ENABLED`, …)
+
+### Host Injection Example (OSAL)
+
+`osal/src/interface/osal_virtual.h` provides virtual wrappers on top of CRTP
+objects for host-only dependency injection:
+
+```cpp
+class CounterService {
+public:
+    explicit CounterService(osal::IMutex& m) : mutex_(m) {}
+    bool increment() {
+        if (!mutex_.lock()) return false;
+        ++value_;
+        (void)mutex_.unlock();
+        return true;
+    }
+private:
+    osal::IMutex& mutex_;
+    int value_ = 0;
+};
+
+FakeMutex fake;
+osal::MutexVirtual<FakeMutex> injected(fake);
+CounterService svc(injected);  // service depends on IMutex abstraction
+```
 
 ### Single Translation Unit Pattern
 
@@ -222,21 +248,24 @@ sleep 10 && kill %1 && cat /tmp/out.txt
 ## Resource Consumption on Microcontrollers
 
 All figures assume a 32-bit Cortex-M target with the CMSIS-OS2 backend.
+They are split into:
+- per-object structural overhead (OSAL itself), and
+- whole-firmware measurements from the current dpsdk product profile.
 
 ### RAM — extra bytes per OSAL object instance
 
 | Component | Direct OS handle | OSAL object | Extra RAM |
 |-----------|-----------------|-------------|-----------|
-| `OSALMutex` | 4 B (`osMutexId_t`) | 8 B | **+4 B** (vtable ptr) |
-| `OSALSemaphore` | 4 B | 8 B | **+4 B** |
-| `OSALThread` | 4 B (`osThreadId_t`) | ≥ 48 B | **+44 B** |
+| `OSALMutex` | 4 B (`osMutexId_t`) | 4 B | **+0 B** |
+| `OSALSemaphore` | 4 B | 4 B | **+0 B** |
+| `OSALThread` | 4 B (`osThreadId_t`) | ≥ 44 B | **+40 B** |
 | `OSALConditionVariable` | ~12 B | 12 B | ~0 B |
 | `OSALRWLock` | ~20 B | 20 B | ~0 B |
-| `OSALMessageQueue<T>` | 4 B | 8 B | **+4 B** |
-| `OSALLockGuard` | 0 B (stack) | 12 B (stack) | **+12 B** (stack) |
-| `OSALSpinLock` | 4 B | 8 B | **+4 B** |
+| `OSALMessageQueue<T>` | 4 B | 4 B | **+0 B** |
+| `OSALLockGuard` | 0 B (stack) | 8 B (stack) | **+8 B** (stack) |
+| `OSALSpinLock` | 4 B | 4 B | **+0 B** |
 
-**`OSALThread` dominates the overhead (+44 B)** due to `std::function` (16–32 B
+**`OSALThread` dominates the overhead (+40 B)** due to `std::function` (16–32 B
 in-object buffer; captures > ~16 B spill to heap), `exitSemaphore` for `join()`,
 and two `std::atomic<bool>` fields.
 
@@ -246,18 +275,45 @@ HAL interfaces add **zero overhead** — CRTP methods inline away entirely.
 
 | Source | Estimated size |
 |--------|---------------|
-| vtable per OSAL component (12) | ~60 B each → **~720 B total** |
+| vtable per OSAL component | **0 B** (CRTP removes virtual dispatch) |
 | `std::function` per lambda signature | 200–500 B each |
 | C++ runtime (ctors, dtors) | **2–4 KB** |
 | **Total OSAL overhead (typical, `-Os`)** | **~4–8 KB Flash** |
 
-### MCU Feasibility
+### Measured footprint (`dp_stm32f427_dev`, 2026-04-05)
+
+Build profile:
+- `PRODUCT=dp_stm32f427_dev`
+- `PRODUCT_APP=all_tests`
+- overlays include `test_all` (debug-oriented, not production trimming)
+- tool output: `arm-none-eabi-size build_stm32_full/dpsdk_firmware.elf`
+
+Result:
+- `text=952480`, `data=49996`, `bss=186440`
+- Flash estimate (`text+data`): `1,002,476 B` / `2,097,152 B` = **47.8%**
+- Main SRAM estimate (`.data + .bss + heap/stack`): `187,184 B` / `196,608 B` = **95.2%**
+- CCMRAM (`.ccmram`): `49,152 B` / `65,536 B` = **75.0%**
+
+Production-oriented baseline (`dp_stm32f427_dev_interactive`, Release):
+- `text=93,232`, `data=204`, `bss=27,488`
+- Flash estimate (`text+data`): `93,436 B` / `2,097,152 B` = **4.5%**
+- Main SRAM estimate (`.data + .bss + heap/stack`): `27,656 B` / `196,608 B` = **14.1%**
+- CCMRAM (`.ccmram`): `0 B` / `65,536 B` = **0.0%**
+
+### MCU Feasibility (re-evaluated)
 
 | Target | Feasibility | Notes |
 |--------|-------------|-------|
-| Cortex-M4 / M7, ≥ 64 KB RAM | ✅ **Recommended** | Full feature set |
-| Cortex-M3, 32–64 KB RAM | ⚠️ **Use with care** | Limit `OSALThread` instances; small captures only |
-| Cortex-M0 / M0+, ≤ 16 KB RAM | ❌ **Not recommended** | C++ runtime overhead is disproportionate |
+| Cortex-M4 / M7, RAM ≥ 192 KB (+ CCM preferred) | ✅ **Feasible in current full test profile** | `dp_stm32f427_dev + all_tests` has been built and validated |
+| Cortex-M3 / small M4, RAM 64–128 KB | ⚠️ **Feasible only with aggressive trimming** | Must disable `test_all`, reduce features via overlays, and re-measure |
+| Cortex-M0 / M0+, RAM ≤ 64 KB | ❌ **Not feasible with current profile** | Requires dedicated tiny profile and measurement evidence before claiming support |
+
+**Optimization priorities:**
+- Ship builds should not use `all_tests + test_all`; use product app + minimal overlays.
+- Enable `-Os -fno-exceptions -fno-rtti` and LTO for release firmware.
+- Keep `OSALThread` lambda captures < 16 B to avoid heap fallback.
+- Prefer `OSALMutex` over `OSALRWLock` unless concurrent readers are required.
+- If targeting M3/M0 class, prioritize replacing `std::function` in thread entry with a fixed-capacity callable wrapper.
 
 **Guidelines:**
 - Enable `-Os -fno-exceptions -fno-rtti` (saves 1–3 KB Flash).

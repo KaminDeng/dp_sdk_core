@@ -14,20 +14,23 @@
 
 namespace osal {
 
-class OSALMemoryManager : public IMemoryManager {
+class OSALMemoryManager : public MemoryManagerBase<OSALMemoryManager> {
+    friend class MemoryManagerBase<OSALMemoryManager>;
+
 public:
     OSALMemoryManager(size_t block_size, size_t block_count)
         : memPoolId(nullptr), _block_size(block_size), _block_count(block_count) {
         //        initialize(block_size, block_count);
     }
 
-    ~OSALMemoryManager() override {
+    ~OSALMemoryManager() {
         if (memPoolId != NULL) {
             osMemoryPoolDelete(memPoolId);
         }
     }
 
-    bool initialize(size_t block_size, size_t block_count) override {
+private:
+    bool doInitialize(size_t block_size, size_t block_count) {
         if (block_size == 0 || block_count == 0) {
             OSAL_LOGE("Invalid memory pool configuration\n");
             return false;
@@ -46,9 +49,9 @@ public:
         return true;
     }
 
-    void *allocate(size_t size) override {
+    void *doAllocate(size_t size) {
         if (memPoolId == NULL) {
-            is_inited = initialize(_block_size, _block_count);
+            is_inited = doInitialize(_block_size, _block_count);
             if (!is_inited) return nullptr;
         }
 
@@ -65,9 +68,9 @@ public:
         return ptr;
     }
 
-    void deallocate(void *ptr) override {
+    void doDeallocate(void *ptr) {
         if (memPoolId == NULL) {
-            is_inited = initialize(_block_size, _block_count);
+            is_inited = doInitialize(_block_size, _block_count);
         }
 
         // 检查指针是否为空
@@ -99,9 +102,9 @@ public:
         }
     }
 
-    void *reallocate(void *ptr, size_t newSize) override {
+    void *doReallocate(void *ptr, size_t newSize) {
         if (memPoolId == NULL) {
-            is_inited = initialize(_block_size, _block_count);
+            is_inited = doInitialize(_block_size, _block_count);
             if (!is_inited) return nullptr;
         }
         // CMSIS-RTOS2 不支持直接重新分配内存池中的内存块
@@ -110,21 +113,21 @@ public:
             OSAL_LOGE("Requested size exceeds pool block size\n");
             return nullptr;
         }
-        void *newPtr = allocate(newSize);
+        void *newPtr = doAllocate(newSize);
         if (!newPtr) {
             return nullptr;
         }
         if (ptr) {
             memcpy(newPtr, ptr, newSize);
-            deallocate(ptr);
+            doDeallocate(ptr);
         }
         OSAL_LOGD("Reallocated memory to %zu bytes from pool\n", newSize);
         return newPtr;
     }
 
-    void *allocateAligned(size_t size, size_t alignment) override {
+    void *doAllocateAligned(size_t size, size_t alignment) {
         if (memPoolId == NULL) {
-            is_inited = initialize(_block_size, _block_count);
+            is_inited = doInitialize(_block_size, _block_count);
             if (!is_inited) return nullptr;
         }
 
@@ -165,9 +168,8 @@ public:
         return reinterpret_cast<void *>(aligned);
     }
 
-    [[nodiscard]] size_t getAllocatedSize() const override { return _block_size; }
+    [[nodiscard]] size_t doGetAllocatedSize() const { return _block_size; }
 
-private:
     osMemoryPoolId_t memPoolId = nullptr;
     size_t _block_size = 0;   // 每个块的大小
     size_t _block_count = 0;  // 块的数量

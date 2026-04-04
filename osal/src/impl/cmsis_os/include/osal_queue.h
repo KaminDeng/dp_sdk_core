@@ -11,7 +11,9 @@
 namespace osal {
 
 template <typename T>
-class OSALMessageQueue : public MessageQueue<T> {
+class OSALMessageQueue : public QueueBase<OSALMessageQueue<T>, T> {
+    friend class QueueBase<OSALMessageQueue<T>, T>;
+
 public:
     explicit OSALMessageQueue(uint32_t queue_size = 16) {
         osMessageQueueAttr_t queueAttr = {};
@@ -23,13 +25,14 @@ public:
         }
     }
 
-    ~OSALMessageQueue() override {
+    ~OSALMessageQueue() {
         if (queue_ != nullptr) {
             osMessageQueueDelete(queue_);
         }
     }
 
-    void send(const T &message) override {
+private:
+    void doSend(const T &message) {
         if (osMessageQueuePut(queue_, &message, 0, osWaitForever) != osOK) {
             OSAL_LOGE("Failed to send message\n");
         } else {
@@ -37,7 +40,7 @@ public:
         }
     }
 
-    T receive() override {
+    T doReceive() {
         T message;
         if (osMessageQueueGet(queue_, &message, nullptr, osWaitForever) != osOK) {
             OSAL_LOGE("Failed to receive message\n");
@@ -48,7 +51,7 @@ public:
         return message;
     }
 
-    bool tryReceive(T &message) override {
+    bool doTryReceive(T &message) {
         if (osMessageQueueGet(queue_, &message, nullptr, 0) != osOK) {
             return false;
         }
@@ -56,7 +59,7 @@ public:
         return true;
     }
 
-    bool receiveFor(T &message, uint32_t timeout) override {
+    bool doReceiveFor(T &message, uint32_t timeout) {
         if (osMessageQueueGet(queue_, &message, nullptr, timeout) != osOK) {
             return false;
         }
@@ -64,17 +67,15 @@ public:
         return true;
     }
 
-    [[nodiscard]] size_t size() const override { return osMessageQueueGetCount(queue_); }
+    [[nodiscard]] size_t doSize() const { return osMessageQueueGetCount(queue_); }
 
-    void clear() override {
+    void doClear() {
         while (osMessageQueueGetCount(queue_) > 0) {
             T message;
             osMessageQueueGet(queue_, &message, nullptr, 0);
         }
         OSAL_LOGD("Message queue cleared\n");
     }
-
-private:
     osMessageQueueId_t queue_;
 };
 

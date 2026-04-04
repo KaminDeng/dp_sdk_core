@@ -14,7 +14,9 @@
 
 namespace osal {
 
-class OSALSpinLock : public ISpinLock {
+class OSALSpinLock : public SpinLockBase<OSALSpinLock> {
+    friend class SpinLockBase<OSALSpinLock>;
+
 public:
     OSALSpinLock() : locked_(false) {
         osMutexAttr_t mutexAttr = {};
@@ -28,14 +30,15 @@ public:
         }
     }
 
-    ~OSALSpinLock() override {
+    ~OSALSpinLock() {
         if (mutex_ != nullptr) {
             osMutexDelete(mutex_);
             OSAL_LOGD("SpinLock destroyed\n");
         }
     }
 
-    void lock() override {
+private:
+    void doLock() {
         if (osMutexAcquire(mutex_, osWaitForever) == osOK) {
             locked_.store(true, std::memory_order_release);
             OSAL_LOGD("Lock acquired\n");
@@ -44,7 +47,7 @@ public:
         }
     }
 
-    bool tryLock() override {
+    bool doTryLock() {
         if (osMutexAcquire(mutex_, 0) == osOK) {
             locked_.store(true, std::memory_order_release);
             OSAL_LOGD("Try lock succeeded\n");
@@ -54,7 +57,7 @@ public:
         return false;
     }
 
-    bool lockFor(uint32_t timeout) override {
+    bool doLockFor(uint32_t timeout) {
         if (osMutexAcquire(mutex_, timeout) == osOK) {
             locked_.store(true, std::memory_order_release);
             OSAL_LOGD("Lock with timeout succeeded\n");
@@ -64,7 +67,7 @@ public:
         return false;
     }
 
-    void unlock() override {
+    void doUnlock() {
         locked_.store(false, std::memory_order_release);
         if (osMutexRelease(mutex_) == osOK) {
             OSAL_LOGD("Lock released\n");
@@ -78,13 +81,12 @@ public:
      * internal scheduler interactions, causing TestOSALSpinLock.Lock
      * to deadlock. The atomic flag is updated under the mutex on
      * acquire/release, giving correct visibility without OS calls. */
-    [[nodiscard]] bool isLocked() const override {
+    [[nodiscard]] bool doIsLocked() const {
         bool result = locked_.load(std::memory_order_acquire);
         OSAL_LOGD("Requested lock status: %s\n", result ? "locked" : "unlocked");
         return result;
     }
 
-private:
     osMutexId_t mutex_;
     std::atomic<bool> locked_;
 };

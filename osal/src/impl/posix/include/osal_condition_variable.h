@@ -17,7 +17,9 @@
 
 namespace osal {
 
-class OSALConditionVariable : public IConditionVariable {
+class OSALConditionVariable : public ConditionVariableBase<OSALConditionVariable> {
+    friend class ConditionVariableBase<OSALConditionVariable>;
+
 public:
     OSALConditionVariable() {
         if (pthread_cond_init(&cond_, nullptr) != 0) {
@@ -35,8 +37,8 @@ public:
         }
     }
 
-    //        void wail(IMutex& mutex) = delete;
-    void wait(OSALMutex &mutex) override {
+private:
+    void doWait(OSALMutex &mutex) {
         waitCount++;
         if (pthread_cond_wait(&cond_, &mutex.getNativeHandle()) != 0) {
             OSAL_LOGE("Failed to wait on condition variable\n");
@@ -46,7 +48,7 @@ public:
         waitCount--;
     }
 
-    bool waitFor(OSALMutex &mutex, uint32_t timeout) override {
+    bool doWaitFor(OSALMutex &mutex, uint32_t timeout) {
         waitCount++;
 
         // 获取当前时间
@@ -77,7 +79,7 @@ public:
         }
     }
 
-    void notifyOne() override {
+    void doNotifyOne() {
         if (pthread_cond_signal(&cond_) != 0) {
             OSAL_LOGE("Failed to notify one on condition variable\n");
         } else {
@@ -85,7 +87,7 @@ public:
         }
     }
 
-    void notifyAll() override {
+    void doNotifyAll() {
         if (pthread_cond_broadcast(&cond_) != 0) {
             OSAL_LOGE("Failed to notify all on condition variable\n");
         } else {
@@ -93,9 +95,8 @@ public:
         }
     }
 
-    int getWaitCount() const override { return waitCount.load(); }
+    int doGetWaitCount() const { return waitCount.load(); }
 
-private:
     pthread_cond_t cond_;
     mutable std::atomic<int> waitCount{0};  // 当前等待线程数（原子，防止多线程竞争）
 };

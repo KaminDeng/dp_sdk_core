@@ -1,40 +1,28 @@
 /** @file interface_system.h
- *  @brief Abstract system/scheduler interface for OSAL. */
-//
-// Created by kamin.deng on 2024/8/23.
-//
-#ifndef ISYSTEM_H_
-#define ISYSTEM_H_
+ *  @brief CRTP system/scheduler interface for OSAL. */
+#ifndef OSAL_INTERFACE_SYSTEM_H_
+#define OSAL_INTERFACE_SYSTEM_H_
 
-#include <cstdint> /* uint32_t — required before any platform-specific includes */
+#include <cstdint>
 
 namespace osal {
 
-/** @brief Abstract system interface providing scheduler control and sleep.
- *
- *  @c StartScheduler() launches the RTOS scheduler on embedded targets; on
- *  POSIX it is a no-op.  @c sleep_ms() and @c sleep() allow OS-portable
- *  blocking delays without exposing platform-specific APIs. */
-class ISystem {
+template <typename Impl>
+class SystemBase {
 public:
-    /** @brief Starts the RTOS scheduler.
-     *
-     *  On bare-metal RTOS targets this function never returns.  On POSIX
-     *  (posix_native port) this is a no-op and returns immediately. */
-    virtual void StartScheduler() {}
+    void StartScheduler() { impl().doStartScheduler(); }
+    void sleep_ms(uint32_t milliseconds) const { impl().doSleepMs(milliseconds); }
+    void sleep(uint32_t seconds) const { impl().doSleep(seconds); }
+    [[nodiscard]] const char *get_system_info() const { return impl().doGetSystemInfo(); }
 
-    /** @brief Suspends the calling thread for the given number of milliseconds.
-     *  @param milliseconds  Sleep duration in milliseconds. */
-    virtual void sleep_ms(uint32_t milliseconds) const = 0;
+protected:
+    ~SystemBase() = default;
 
-    /** @brief Suspends the calling thread for the given number of seconds.
-     *  @param seconds  Sleep duration in seconds. */
-    virtual void sleep(uint32_t seconds) const = 0;
-
-    /** @brief Returns a human-readable string describing the underlying OS/RTOS.
-     *  @return Null-terminated platform description string. */
-    virtual const char *get_system_info() const = 0;
+private:
+    Impl &impl() { return *static_cast<Impl *>(this); }
+    const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
 }  // namespace osal
-#endif  // ISYSTEM_H_
+
+#endif  // OSAL_INTERFACE_SYSTEM_H_

@@ -28,6 +28,7 @@ using namespace osal;
 #include "gtest_thread.cpp"
 #include "gtest_thread_pool.cpp"
 #include "gtest_timer.cpp"
+#include "gtest_virtual_injection.cpp"
 
 extern "C" void osal_test_main(void) {
     OSAL_LOGI("System Type: %s\n", OSALSystem::getInstance().get_system_info());
@@ -37,7 +38,7 @@ extern "C" void osal_test_main(void) {
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::GTEST_FLAG(filter) =
         "OSALChrono*:OSALConditionVariable*:OSALLockGuard*:OSALMemoryManager*:OSALMutex*:OSALMessageQueue*:OSALRWLock*:"
-        "OSALSemaphore*:TestOSALSpinLock*:OSALThread*:OSALTimer*";
+        "OSALSemaphore*:TestOSALSpinLock*:OSALThread*:OSALTimer*:OSALVirtualInjection*";
     int gtest_result = RUN_ALL_TESTS();
     (void)gtest_result;
 }

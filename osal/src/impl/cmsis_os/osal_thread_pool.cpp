@@ -20,7 +20,7 @@ OSALThreadPool::OSALThreadPool()
 
 OSALThreadPool::~OSALThreadPool() { stop(); }
 
-void OSALThreadPool::start(uint32_t numThreads, int priority, int stack_size) {
+void OSALThreadPool::doStart(uint32_t numThreads, int priority, int stack_size) {
     stop();  // 停止任何现有的线程池
     isstarted_ = true;
     minThreads_ = numThreads;
@@ -56,7 +56,7 @@ bool OSALThreadPool::OSALDelTread() {
     return false;
 }
 
-void OSALThreadPool::stop() {
+void OSALThreadPool::doStop() {
     isstarted_ = false;
 
     /* Wake threads blocked in condition_.wait() so they can re-check
@@ -73,24 +73,24 @@ void OSALThreadPool::stop() {
     OSAL_LOGD("Thread pool stopped\n");
 }
 
-int OSALThreadPool::suspend() {
+int OSALThreadPool::doSuspend() {
     suspended_ = true;
     OSAL_LOGD("Thread pool suspended\n");
     return 0;
 }
 
-int OSALThreadPool::resume() {
+int OSALThreadPool::doResume() {
     suspended_ = false;
     condition_.notifyAll();
     OSAL_LOGD("Thread pool resumed\n");
     return 0;
 }
 
-bool OSALThreadPool::isStarted() const { return isstarted_; }
+bool OSALThreadPool::doIsStarted() const { return isstarted_; }
 
-bool OSALThreadPool::isSuspended() const { return suspended_; }
+bool OSALThreadPool::doIsSuspended() const { return suspended_; }
 
-uint32_t OSALThreadPool::submit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) {
+uint32_t OSALThreadPool::doSubmit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) {
     uint32_t id = nextTaskId_.fetch_add(1U, std::memory_order_relaxed);
     {
         OSALLockGuard lockGuard(queueMutex_);
@@ -105,7 +105,7 @@ uint32_t OSALThreadPool::submit(std::function<void(void *)> taskFunction, void *
     return id;
 }
 
-void OSALThreadPool::setPriority(int priority) {
+void OSALThreadPool::doSetPriority(int priority) {
     priority_ = priority;
     for (auto &thread : threads_) {
         thread->setPriority(priority);
@@ -113,16 +113,16 @@ void OSALThreadPool::setPriority(int priority) {
     OSAL_LOGD("Thread pool priority set to %d\n", priority);
 }
 
-int OSALThreadPool::getPriority() const { return priority_; }
+int OSALThreadPool::doGetPriority() const { return priority_; }
 
-size_t OSALThreadPool::getTaskQueueSize() {
+size_t OSALThreadPool::doGetTaskQueueSize() {
     OSALLockGuard lockGuard(queueMutex_);
     return taskQueue_.size();
 }
 
-uint32_t OSALThreadPool::getActiveThreadCount() const { return activeThreads_; }
+uint32_t OSALThreadPool::doGetActiveThreadCount() const { return activeThreads_; }
 
-bool OSALThreadPool::cancelTask(uint32_t taskId) {
+bool OSALThreadPool::doCancelTask(uint32_t taskId) {
     OSALLockGuard lockGuard(queueMutex_);
     std::queue<Task> newQueue;
     bool found = false;
@@ -140,7 +140,7 @@ bool OSALThreadPool::cancelTask(uint32_t taskId) {
     return found;
 }
 
-bool OSALThreadPool::cancelTask(std::function<void(void *)> &taskFunction) {
+bool OSALThreadPool::doCancelTask(std::function<void(void *)> &taskFunction) {
 #if defined(__GXX_RTTI) || defined(__cpp_rtti)
     OSALLockGuard lockGuard(queueMutex_);
     std::queue<Task> newQueue;
@@ -169,24 +169,24 @@ bool OSALThreadPool::cancelTask(std::function<void(void *)> &taskFunction) {
 #endif
 }
 
-void OSALThreadPool::setTaskFailureCallback(std::function<void(void *)> callback) {
+void OSALThreadPool::doSetTaskFailureCallback(std::function<void(void *)> callback) {
     taskFailureCallback_ = callback;
     OSAL_LOGD("Task failure callback set\n");
 }
 
-void OSALThreadPool::setMaxThreads(uint32_t maxThreads) {
+void OSALThreadPool::doSetMaxThreads(uint32_t maxThreads) {
     maxThreads_ = maxThreads;
     OSAL_LOGD("Max threads set to %u\n", static_cast<unsigned int>(maxThreads));
 }
 
-uint32_t OSALThreadPool::getMaxThreads() const { return maxThreads_; }
+uint32_t OSALThreadPool::doGetMaxThreads() const { return maxThreads_; }
 
-void OSALThreadPool::setMinThreads(uint32_t minThreads) {
+void OSALThreadPool::doSetMinThreads(uint32_t minThreads) {
     minThreads_ = minThreads;
     OSAL_LOGD("Min threads set to %u\n", static_cast<unsigned int>(minThreads));
 }
 
-uint32_t OSALThreadPool::getMinThreads() const { return minThreads_; }
+uint32_t OSALThreadPool::doGetMinThreads() const { return minThreads_; }
 
 void OSALThreadPool::threadEntry(void *arg) {
     auto *pool = static_cast<OSALThreadPool *>(arg);

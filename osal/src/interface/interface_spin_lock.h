@@ -1,46 +1,37 @@
 /** @file interface_spin_lock.h
- *  @brief Abstract spin-lock interface for OSAL. */
-//
-// Created by kamin.deng on 2024/8/23.
-//
-#ifndef ISPIN_LOCK_H_
-#define ISPIN_LOCK_H_
+ *  @brief CRTP spin-lock interface for OSAL. */
+#ifndef OSAL_INTERFACE_SPIN_LOCK_H_
+#define OSAL_INTERFACE_SPIN_LOCK_H_
+
+#include <cstdint>
 
 #if OSAL_ENABLE_SPIN_LOCK
 
 namespace osal {
 
-/** @brief Abstract spin-lock interface.
- *
- *  Provides busy-wait mutual exclusion suitable for short critical sections.
- *  On POSIX the implementation uses @c std::atomic<bool> to avoid calling
- *  OS primitives that may block; on CMSIS-OS2 it wraps an OS mutex. */
-class ISpinLock {
+template <typename Impl>
+class SpinLockBase {
 public:
-    virtual ~ISpinLock() = default;
+    void lock() { impl().doLock(); }
+    bool tryLock() { return impl().doTryLock(); }
+    bool lockFor(uint32_t timeout) { return impl().doLockFor(timeout); }
+    void unlock() { impl().doUnlock(); }
+    [[nodiscard]] bool isLocked() const { return impl().doIsLocked(); }
 
-    /** @brief Spins until the lock is acquired. */
-    virtual void lock() = 0;
+protected:
+    ~SpinLockBase() = default;
 
-    /** @brief Attempts to acquire the lock without spinning.
-     *  @return @c true if the lock was acquired, @c false if already held. */
-    virtual bool tryLock() = 0;
-
-    /** @brief Attempts to acquire the lock within a timeout.
-     *  @param timeout  Maximum wait time in milliseconds.
-     *  @return @c true if acquired, @c false on timeout. */
-    virtual bool lockFor(uint32_t timeout) = 0;
-
-    /** @brief Releases the spin lock. */
-    virtual void unlock() = 0;
-
-    /** @brief Checks whether the spin lock is currently held.
-     *  @return @c true if locked, @c false otherwise. */
-    [[nodiscard]] virtual bool isLocked() const = 0;
+private:
+    Impl &impl() { return *static_cast<Impl *>(this); }
+    const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
 }  // namespace osal
 
+#else
+namespace osal {
+/* SpinLock disabled */
+}
 #endif /* OSAL_ENABLE_SPIN_LOCK */
 
-#endif  // ISPIN_LOCK_H_
+#endif  // OSAL_INTERFACE_SPIN_LOCK_H_

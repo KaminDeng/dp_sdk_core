@@ -31,6 +31,10 @@ public:
     dp::hal::PinState read() override { return hal_.read(); }
 
     dp::hal::Status toggle() override { return hal_.toggle(); }
+    dp::hal::Status enableIrq(dp::hal::GpioIrqTrigger trigger, void (*cb)(void *ctx), void *ctx) override {
+        return hal_.enableIrq(trigger, cb, ctx);
+    }
+    dp::hal::Status disableIrq() override { return hal_.disableIrq(); }
 
     void *interface() override { return static_cast<dp::hal::IGpioPin *>(this); }
 

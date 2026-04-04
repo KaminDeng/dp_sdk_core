@@ -15,7 +15,9 @@
 
 namespace osal {
 
-class OSALConditionVariable : public IConditionVariable {
+class OSALConditionVariable : public ConditionVariableBase<OSALConditionVariable> {
+    friend class ConditionVariableBase<OSALConditionVariable>;
+
 public:
     OSALConditionVariable() {
         cond_ = osSemaphoreNew(16, 0, nullptr);
@@ -26,7 +28,7 @@ public:
         }
     }
 
-    ~OSALConditionVariable() override {
+    ~OSALConditionVariable() {
         if (osSemaphoreDelete(cond_) != osOK) {
             OSAL_LOGE("Failed to destroy condition variable\n");
         } else {
@@ -34,7 +36,8 @@ public:
         }
     }
 
-    void wait(OSALMutex &mutex) override {
+private:
+    void doWait(OSALMutex &mutex) {
         waitCount++;
         mutex.unlock();  // Release the mutex while waiting
         if (osSemaphoreAcquire(cond_, osWaitForever) != osOK) {
@@ -46,7 +49,7 @@ public:
         waitCount--;
     }
 
-    bool waitFor(OSALMutex &mutex, uint32_t timeout) override {
+    bool doWaitFor(OSALMutex &mutex, uint32_t timeout) {
         waitCount++;
         mutex.unlock();  // Release the mutex while waiting
 
@@ -71,7 +74,7 @@ public:
         }
     }
 
-    void notifyOne() override {
+    void doNotifyOne() {
         if (osSemaphoreRelease(cond_) != osOK) {
             OSAL_LOGE("Failed to notify one on condition variable\n");
         } else {
@@ -79,7 +82,7 @@ public:
         }
     }
 
-    void notifyAll() override {
+    void doNotifyAll() {
         // Snapshot waitCount to avoid TOCTOU: a timed-out waiter may decrement
         // waitCount mid-loop, causing extra semaphore tokens (I8).
         int count = waitCount.load();
@@ -92,9 +95,8 @@ public:
         OSAL_LOGD("Condition variable notifyAll succeeded\n");
     }
 
-    int getWaitCount() const override { return waitCount.load(); }
+    int doGetWaitCount() const { return waitCount.load(); }
 
-private:
     osSemaphoreId_t cond_;          // Condition variable semaphore
     std::atomic<int> waitCount{0};  // Number of waiting threads
 };

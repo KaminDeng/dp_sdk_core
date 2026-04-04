@@ -6,7 +6,7 @@
 
 | 模块 | 职责 | 设计模式 |
 |------|------|----------|
-| **osal** | OS 原语（线程、互斥锁、队列、定时器等） | 虚接口 + 后端选择 |
+| **osal** | OS 原语（线程、互斥锁、队列、定时器等） | 零开销 CRTP + 后端选择 |
 | **hal** | 硬件外设（UART、GPIO、SPI、I2C 等） | 零开销 CRTP 模板 |
 | **device** | 设备注册与生命周期 | 适配器模式 + 单例管理器 |
 
@@ -42,21 +42,22 @@ cmake -B build -DPRODUCT=posix_demo && cmake --build build
 
 | 接口头文件 | 抽象类 | 主要操作 |
 |-----------|--------|----------|
-| `interface_thread.h` | `IThread` | `start`、`stop`、`join`、`detach`、`suspend`、`resume`、`setPriority` |
-| `interface_mutex.h` | `IMutex` | `lock`、`unlock`、`tryLock`、`tryLockFor` |
-| `interface_condition_variable.h` | `IConditionVariable` | `wait`、`waitFor`、`notifyOne`、`notifyAll` |
-| `interface_lockguard.h` | `ILockGuard` | RAII 互斥锁守卫 |
-| `interface_rwlock.h` | `IRWLock` | 读写锁，含 try 和超时变体 |
-| `interface_semaphore.h` | `ISemaphore` | 计数信号量 |
-| `interface_spin_lock.h` | `ISpinLock` | 自旋锁（atomic_flag）|
-| `interface_queue.h` | `MessageQueue<T>` | `send`、`receive`、`tryReceive`、`receiveFor`、`size`、`clear` |
-| `interface_memory_manager.h` | `IMemoryManager` | 块内存池：`allocate`、`deallocate`、`allocateAligned` |
-| `interface_timer.h` | `ITimer` | 单次和周期定时器 |
-| `interface_thread_pool.h` | `IThreadPool` | 动态线程池，含任务队列 |
-| `interface_chrono.h` | `IChrono` | 单调时钟：`elapsed`、`to_time_t`、`from_time_t` |
-| `interface_system.h` | `ISystem` | `schedulerStart`、`sleep_ms`、`sleep_s` |
+| `interface_thread.h` | `ThreadBase<Impl>` | `start`、`stop`、`join`、`detach`、`suspend`、`resume`、`setPriority` |
+| `interface_mutex.h` | `MutexBase<Impl>` | `lock`、`unlock`、`tryLock`、`tryLockFor` |
+| `interface_condition_variable.h` | `ConditionVariableBase<Impl>` | `wait`、`waitFor`、`notifyOne`、`notifyAll` |
+| `interface_lockguard.h` | `LockGuard<MutexType>` | RAII 互斥锁守卫 |
+| `interface_rwlock.h` | `RWLockBase<Impl>` | 读写锁，含 try 和超时变体 |
+| `interface_semaphore.h` | `SemaphoreBase<Impl>` | 计数信号量 |
+| `interface_spin_lock.h` | `SpinLockBase<Impl>` | 自旋锁（atomic_flag）|
+| `interface_queue.h` | `QueueBase<Impl, T>` | `send`、`receive`、`tryReceive`、`receiveFor`、`size`、`clear` |
+| `interface_memory_manager.h` | `MemoryManagerBase<Impl>` | 块内存池：`allocate`、`deallocate`、`allocateAligned` |
+| `interface_timer.h` | `TimerBase<Impl>` | 单次和周期定时器 |
+| `interface_thread_pool.h` | `ThreadPoolBase<Impl>` | 动态线程池，含任务队列 |
+| `interface_chrono.h` | `ChronoBase<Impl>` | 单调时钟：`elapsed`、`to_time_t`、`from_time_t` |
+| `interface_system.h` | `SystemBase<Impl>` | `schedulerStart`、`sleep_ms`、`sleep_s` |
+| `osal_virtual.h` | `IMutex` + `MutexVirtual<T>`（及其他） | 仅 host 测试的可选虚包装（注入 / GMock） |
 
-所有接口均为纯虚类（包含时无实现依赖）。具体实现在链接阶段由
+CRTP 接口不引入 vtable。具体实现在编译/链接阶段由
 `osal_port.h` 中选择的后端决定。
 
 ### 后端选择
@@ -176,7 +177,7 @@ private:
 测试编译进静态库，在宿主应用的任务上下文中运行（无独立测试二进制文件）。入口函数：
 
 ```c
-extern "C" void osal_test_main(void);      // 12 个 OSAL 套件
+extern "C" void osal_test_main(void);      // OSAL 测试套件入口
 extern "C" void dp_hal_test_main(void);    // 10 个 HAL 套件（需 -DDP_HAL_BUILD_TESTS=ON）
 extern "C" void dp_device_test_main(void); // 5 个 Device 套件（需 -DDP_DEVICE_BUILD_TESTS=ON）
 ```
@@ -192,8 +193,33 @@ cmake --build build
 ### 测试控制（OSAL）
 
 在 `osal_port.h` 中：
-- `OSAL_TEST_ALL = 1` — 运行全部 12 个套件（首次移植推荐）
+- `OSAL_TEST_ALL = 1` — 运行全部 OSAL 套件（首次移植推荐）
 - `OSAL_TEST_ALL = 0` — 使用逐组件开关（`OSAL_TEST_THREAD_ENABLED` 等）
+
+### Host 注入示例（OSAL）
+
+`osal/src/interface/osal_virtual.h` 提供了 CRTP 对象上的虚接口包装，便于 host
+测试做依赖注入：
+
+```cpp
+class CounterService {
+public:
+    explicit CounterService(osal::IMutex& m) : mutex_(m) {}
+    bool increment() {
+        if (!mutex_.lock()) return false;
+        ++value_;
+        (void)mutex_.unlock();
+        return true;
+    }
+private:
+    osal::IMutex& mutex_;
+    int value_ = 0;
+};
+
+FakeMutex fake;
+osal::MutexVirtual<FakeMutex> injected(fake);
+CounterService svc(injected);  // 业务只依赖 IMutex 抽象
+```
 
 ### 单翻译单元模式
 
@@ -210,22 +236,24 @@ sleep 10 && kill %1 && cat /tmp/out.txt
 
 ## 单片机资源消耗
 
-以下数据基于 32-bit Cortex-M + CMSIS-OS2 后端。
+以下数据基于 32-bit Cortex-M + CMSIS-OS2 后端，并区分为：
+- OSAL 结构性开销（对象级）
+- 当前 dpsdk 产品配置的整机实测占用
 
 ### RAM — 每个 OSAL 对象实例的额外字节
 
 | 组件 | 直接 OS 句柄 | OSAL 对象 | 额外 RAM |
 |------|------------|-----------|---------|
-| `OSALMutex` | 4 B（`osMutexId_t`）| 8 B | **+4 B**（vtable 指针）|
-| `OSALSemaphore` | 4 B | 8 B | **+4 B** |
-| `OSALThread` | 4 B（`osThreadId_t`）| ≥ 48 B | **+44 B** |
+| `OSALMutex` | 4 B（`osMutexId_t`）| 4 B | **+0 B** |
+| `OSALSemaphore` | 4 B | 4 B | **+0 B** |
+| `OSALThread` | 4 B（`osThreadId_t`）| ≥ 44 B | **+40 B** |
 | `OSALConditionVariable` | ~12 B | 12 B | ~0 B |
 | `OSALRWLock` | ~20 B | 20 B | ~0 B |
-| `OSALMessageQueue<T>` | 4 B | 8 B | **+4 B** |
-| `OSALLockGuard` | 0 B（栈）| 12 B（栈）| **+12 B**（栈）|
-| `OSALSpinLock` | 4 B | 8 B | **+4 B** |
+| `OSALMessageQueue<T>` | 4 B | 4 B | **+0 B** |
+| `OSALLockGuard` | 0 B（栈）| 8 B（栈）| **+8 B**（栈）|
+| `OSALSpinLock` | 4 B | 4 B | **+0 B** |
 
-**`OSALThread` 额外开销最大（+44 B）**：`std::function` 16–32 B 内缓冲区（捕获 > ~16 B 触发堆分配）、`exitSemaphore` 用于 `join()`、两个 `std::atomic<bool>` 字段。
+**`OSALThread` 额外开销最大（+40 B）**：`std::function` 16–32 B 内缓冲区（捕获 > ~16 B 触发堆分配）、`exitSemaphore` 用于 `join()`、两个 `std::atomic<bool>` 字段。
 
 HAL 接口 **零额外开销** — CRTP 方法完全内联消除。
 
@@ -233,18 +261,45 @@ HAL 接口 **零额外开销** — CRTP 方法完全内联消除。
 
 | 来源 | 估算大小 |
 |------|---------|
-| 每个 OSAL 组件的 vtable（12 个）| 约 60 B/个 → **合计 ~720 B** |
+| OSAL 组件 vtable | **0 B**（CRTP 消除虚分发） |
 | `std::function` 每种 lambda 签名实例化 | 200–500 B/种 |
 | C++ 运行时（构造/析构函数）| **2–4 KB** |
 | **OSAL 总额外开销（典型值，`-Os`）** | **约 4–8 KB Flash** |
 
-### 单片机可行性
+### 实测占用（`dp_stm32f427_dev`，2026-04-05）
+
+构建配置：
+- `PRODUCT=dp_stm32f427_dev`
+- `PRODUCT_APP=all_tests`
+- overlays 包含 `test_all`（调试/验证配置，不是量产裁剪配置）
+- 统计命令：`arm-none-eabi-size build_stm32_full/dpsdk_firmware.elf`
+
+结果：
+- `text=952480`，`data=49996`，`bss=186440`
+- Flash 估算（`text+data`）：`1,002,476 B` / `2,097,152 B` = **47.8%**
+- 主 SRAM 估算（`.data + .bss + heap/stack`）：`187,184 B` / `196,608 B` = **95.2%**
+- CCMRAM（`.ccmram`）：`49,152 B` / `65,536 B` = **75.0%**
+
+量产向基线（`dp_stm32f427_dev_interactive`，Release）：
+- `text=93,232`，`data=204`，`bss=27,488`
+- Flash 估算（`text+data`）：`93,436 B` / `2,097,152 B` = **4.5%**
+- 主 SRAM 估算（`.data + .bss + heap/stack`）：`27,656 B` / `196,608 B` = **14.1%**
+- CCMRAM（`.ccmram`）：`0 B` / `65,536 B` = **0.0%**
+
+### 单片机可行性（重评）
 
 | 目标芯片 | 可行性 | 说明 |
 |---------|--------|------|
-| Cortex-M4 / M7，RAM ≥ 64 KB | ✅ **推荐** | 全功能可用 |
-| Cortex-M3，RAM 32–64 KB | ⚠️ **谨慎使用** | 控制 `OSALThread` 数量；lambda 捕获保持精简 |
-| Cortex-M0 / M0+，RAM ≤ 16 KB | ❌ **不推荐** | C++ 运行时占比过大 |
+| Cortex-M4 / M7，RAM ≥ 192 KB（建议带 CCM） | ✅ **当前全量测试配置可行** | `dp_stm32f427_dev + all_tests` 已完成构建与验证 |
+| Cortex-M3 / 小内存 M4，RAM 64–128 KB | ⚠️ **仅在强裁剪下可行** | 必须关闭 `test_all`，叠加最小化 overlays，并重新量化 |
+| Cortex-M0 / M0+，RAM ≤ 64 KB | ❌ **当前配置不可行** | 在没有 tiny 专用配置与实测前，不应宣称可支持 |
+
+**优化优先级：**
+- 量产构建不要使用 `all_tests + test_all`，应切到产品 app + minimal overlays。
+- Release 启用 `-Os -fno-exceptions -fno-rtti` + LTO。
+- `OSALThread` 的 lambda 捕获控制在 16 B 内，避免堆回退。
+- 无并发读需求时优先 `OSALMutex`，不要默认使用 `OSALRWLock`。
+- 面向 M3/M0 目标时，优先评估将线程入口从 `std::function` 改为定长可调用包装。
 
 **使用建议：**
 - 启用 `-Os -fno-exceptions -fno-rtti`（节省 1–3 KB Flash）。

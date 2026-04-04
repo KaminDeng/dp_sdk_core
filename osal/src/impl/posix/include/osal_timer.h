@@ -17,13 +17,16 @@
 
 namespace osal {
 
-class OSALTimer : public ITimer {
+class OSALTimer : public TimerBase<OSALTimer> {
+    friend class TimerBase<OSALTimer>;
+
 public:
     OSALTimer() : running_(false), periodic_(false), interval_(0) {}
 
     ~OSALTimer() { stop(); }
 
-    void start(uint32_t interval, bool periodic, std::function<void()> callback) override {
+private:
+    void doStart(uint32_t interval, bool periodic, std::function<void()> callback) {
         stop();  // 停止任何现有的定时器
         interval_ = interval;
         periodic_ = periodic;
@@ -33,7 +36,7 @@ public:
         OSAL_LOGD("Timer started\n");
     }
 
-    void stop() override {
+    void doStop() {
         running_ = false;
         cv_.notify_all();
         if (thread_.joinable()) {
@@ -42,9 +45,9 @@ public:
         OSAL_LOGD("Timer stopped\n");
     }
 
-    bool isRunning() const override { return running_; }
+    bool doIsRunning() const { return running_; }
 
-    uint32_t getRemainingTime() const override {
+    uint32_t doGetRemainingTime() const {
         std::lock_guard<std::mutex> lock(mutex_);
         if (!running_) {
             return 0;
@@ -54,7 +57,7 @@ public:
         return remaining.count() > 0 ? static_cast<uint32_t>(remaining.count()) : 0;
     }
 
-    void reset() override {
+    void doReset() {
         std::lock_guard<std::mutex> lock(mutex_);
         if (running_) {
             endTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(interval_);
@@ -63,7 +66,6 @@ public:
         OSAL_LOGD("Timer reset\n");
     }
 
-private:
     void run() {
         std::unique_lock<std::mutex> lock(mutex_);
         endTime_ = std::chrono::steady_clock::now() + std::chrono::milliseconds(interval_);

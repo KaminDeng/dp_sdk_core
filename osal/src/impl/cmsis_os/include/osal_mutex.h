@@ -10,7 +10,9 @@
 
 namespace osal {
 
-class OSALMutex : public IMutex {
+class OSALMutex : public MutexBase<OSALMutex> {
+    friend class MutexBase<OSALMutex>;
+
 public:
     OSALMutex() {
         osMutexAttr_t mutexAttr = {};
@@ -32,7 +34,13 @@ public:
         }
     }
 
-    bool lock() override {
+    OSALMutex(const OSALMutex &) = delete;
+    OSALMutex &operator=(const OSALMutex &) = delete;
+
+    osMutexId_t getNativeHandle() { return mutex_; }
+
+private:
+    bool doLock() {
         osStatus_t status = osMutexAcquire(mutex_, osWaitForever);
         if (status != osOK) {
             OSAL_LOGE("Failed to lock mutex, status code %d\n", status);
@@ -42,7 +50,7 @@ public:
         return true;
     }
 
-    bool unlock() override {
+    bool doUnlock() {
         osStatus_t status = osMutexRelease(mutex_);
         if (status != osOK) {
             OSAL_LOGE("Failed to unlock mutex, status code %d\n", status);
@@ -52,7 +60,7 @@ public:
         return true;
     }
 
-    bool tryLock() override {
+    bool doTryLock() {
         osStatus_t status = osMutexAcquire(mutex_, 0);
         if (status != osOK) {
             OSAL_LOGD("Failed to try lock mutex, status code %d\n", status);
@@ -62,7 +70,7 @@ public:
         return true;
     }
 
-    bool tryLockFor(const uint32_t timeout) override {
+    bool doTryLockFor(uint32_t timeout) {
         osStatus_t status = osMutexAcquire(mutex_, timeout);
         if (status != osOK) {
             OSAL_LOGD("Failed to timed lock mutex, status code %d\n", status);
@@ -72,9 +80,6 @@ public:
         return true;
     }
 
-    osMutexId_t getNativeHandle() { return mutex_; }
-
-private:
     osMutexId_t mutex_;
 };
 

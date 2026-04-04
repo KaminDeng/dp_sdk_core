@@ -7,7 +7,6 @@
 #include <pthread.h>
 
 #include <cerrno>
-#include <cstring>
 #include <ctime>
 
 #include "interface_mutex.h"
@@ -15,7 +14,9 @@
 
 namespace osal {
 
-class OSALMutex : public IMutex {
+class OSALMutex : public MutexBase<OSALMutex> {
+    friend class MutexBase<OSALMutex>;
+
 public:
     OSALMutex() {
         pthread_mutexattr_t attr;
@@ -27,7 +28,13 @@ public:
 
     ~OSALMutex() { pthread_mutex_destroy(&mutex_); }
 
-    bool lock() override {
+    OSALMutex(const OSALMutex &) = delete;
+    OSALMutex &operator=(const OSALMutex &) = delete;
+
+    pthread_mutex_t &getNativeHandle() { return mutex_; }
+
+private:
+    bool doLock() {
         int ret = pthread_mutex_lock(&mutex_);
         if (ret != 0) {
             OSAL_LOGE("Failed to lock mutex, return code %d\n", ret);
@@ -37,7 +44,7 @@ public:
         return true;
     }
 
-    bool unlock() override {
+    bool doUnlock() {
         int ret = pthread_mutex_unlock(&mutex_);
         if (ret != 0) {
             OSAL_LOGE("Failed to unlock mutex, return code %d\n", ret);
@@ -47,7 +54,7 @@ public:
         return true;
     }
 
-    bool tryLock() override {
+    bool doTryLock() {
         int ret = pthread_mutex_trylock(&mutex_);
         if (ret != 0) {
             OSAL_LOGD("Failed to try lock mutex, return code %d\n", ret);
@@ -57,7 +64,7 @@ public:
         return true;
     }
 
-    bool tryLockFor(const uint32_t timeout) override {
+    bool doTryLockFor(uint32_t timeout) {
         struct timespec ts;
         clock_gettime(CLOCK_REALTIME, &ts);
         ts.tv_sec += timeout / 1000;
@@ -76,11 +83,6 @@ public:
         return true;
     }
 
-    pthread_mutex_t &getNativeHandle() { return mutex_; }
-
-private:
-    pthread_mutex_t mutex_;
-
     int timed_mutex_lock(pthread_mutex_t *mutex, const struct timespec *timeout) {
         struct timespec now;
         while (clock_gettime(CLOCK_REALTIME, &now) == 0) {
@@ -90,15 +92,17 @@ private:
             int ret = pthread_mutex_trylock(mutex);
             if (ret == 0) {
                 return 0;
-            } else if (ret != EBUSY) {
+            }
+            if (ret != EBUSY) {
                 return ret;
             }
-            // 等待一段时间再重试
-            struct timespec wait_time = {0, 1000000};  // 1毫秒
-            nanosleep(&wait_time, NULL);
+            struct timespec wait_time = {0, 1000000};
+            nanosleep(&wait_time, nullptr);
         }
         return errno;
     }
+
+    pthread_mutex_t mutex_;
 };
 
 }  // namespace osal

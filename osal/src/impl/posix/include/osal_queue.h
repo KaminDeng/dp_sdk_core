@@ -15,20 +15,23 @@
 namespace osal {
 
 template <typename T>
-class OSALMessageQueue : public MessageQueue<T> {
+class OSALMessageQueue : public QueueBase<OSALMessageQueue<T>, T> {
+    friend class QueueBase<OSALMessageQueue<T>, T>;
+
 public:
     OSALMessageQueue() = default;
 
     ~OSALMessageQueue() = default;
 
-    void send(const T &message) override {
+private:
+    void doSend(const T &message) {
         std::lock_guard<std::mutex> lock(mutex_);
         queue_.push(message);
         OSAL_LOGD("Message sent\n");
         condVar_.notify_one();
     }
 
-    T receive() override {
+    T doReceive() {
         std::unique_lock<std::mutex> lock(mutex_);
         condVar_.wait(lock, [this] { return !queue_.empty(); });
         T message = queue_.front();
@@ -37,7 +40,7 @@ public:
         return message;
     }
 
-    bool tryReceive(T &message) override {
+    bool doTryReceive(T &message) {
         std::lock_guard<std::mutex> lock(mutex_);
         if (queue_.empty()) {
             return false;
@@ -48,7 +51,7 @@ public:
         return true;
     }
 
-    bool receiveFor(T &message, uint32_t timeout) override {
+    bool doReceiveFor(T &message, uint32_t timeout) {
         std::unique_lock<std::mutex> lock(mutex_);
         if (!condVar_.wait_for(lock, std::chrono::milliseconds(timeout), [this] { return !queue_.empty(); })) {
             return false;
@@ -59,19 +62,18 @@ public:
         return true;
     }
 
-    size_t size() const override {
+    size_t doSize() const {
         std::lock_guard<std::mutex> lock(mutex_);
         return queue_.size();
     }
 
-    void clear() override {
+    void doClear() {
         std::lock_guard<std::mutex> lock(mutex_);
         std::queue<T> empty;
         std::swap(queue_, empty);
         OSAL_LOGD("Message queue cleared\n");
     }
 
-private:
     mutable std::mutex mutex_;
     std::queue<T> queue_;
     std::condition_variable condVar_;

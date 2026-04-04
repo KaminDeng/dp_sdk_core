@@ -21,49 +21,50 @@
 
 namespace osal {
 
-class OSALThreadPool : public IThreadPool {
+class OSALThreadPool : public ThreadPoolBase<OSALThreadPool> {
+    friend class ThreadPoolBase<OSALThreadPool>;
+
 public:
     OSALThreadPool();
 
     ~OSALThreadPool();
 
-    void start(uint32_t numThreads, int priority = 0, int stack_size = 0) override;
-
-    void stop() override;
-
-    int suspend() override;
-
-    int resume() override;
-
-    bool isStarted() const override;
-
-    bool isSuspended() const override;
-
-    uint32_t submit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) override;
-
-    void setPriority(int priority) override;
-
-    int getPriority() const override;
-
-    size_t getTaskQueueSize() override;
-
-    uint32_t getActiveThreadCount() const override;
-
-    bool cancelTask(uint32_t taskId) override;
-
-    bool cancelTask(std::function<void(void *)> &taskFunction) override;
-
-    void setTaskFailureCallback(std::function<void(void *)> callback) override;
-
-    void setMaxThreads(uint32_t maxThreads) override;
-
-    uint32_t getMaxThreads() const override;
-
-    void setMinThreads(uint32_t minThreads) override;
-
-    uint32_t getMinThreads() const override;
-
 private:
+    void doStart(uint32_t numThreads, int priority = 0, int stack_size = 0);
+
+    void doStop();
+
+    int doSuspend();
+
+    int doResume();
+
+    bool doIsStarted() const;
+
+    bool doIsSuspended() const;
+
+    uint32_t doSubmit(std::function<void(void *)> taskFunction, void *taskArgument, int priority);
+
+    void doSetPriority(int priority);
+
+    int doGetPriority() const;
+
+    size_t doGetTaskQueueSize();
+
+    uint32_t doGetActiveThreadCount() const;
+
+    bool doCancelTask(uint32_t taskId);
+
+    bool doCancelTask(std::function<void(void *)> &taskFunction);
+
+    void doSetTaskFailureCallback(std::function<void(void *)> callback);
+
+    void doSetMaxThreads(uint32_t maxThreads);
+
+    uint32_t doGetMaxThreads() const;
+
+    void doSetMinThreads(uint32_t minThreads);
+
+    uint32_t doGetMinThreads() const;
     struct Task {
         std::function<void(void *)> function;
         void *argument;
