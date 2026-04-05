@@ -4,6 +4,8 @@
 #ifndef OSAL_SYSTEM_H_
 #define OSAL_SYSTEM_H_
 
+#include <cstring>
+
 #include "interface_system.h"
 #include "osal.h"
 #include "osal_thread_stop.h"
@@ -75,6 +77,44 @@ private:
         // Return some basic system information
         return "CMSIS-RTOS2 System";
     }
+
+#if OSAL_ENABLE_TASK_SNAPSHOT
+    size_t doGetTaskSnapshot(TaskSnapshot *buf, size_t max) const {
+        if (buf == nullptr || max == 0) {
+            return 0;
+        }
+
+        uint32_t count = osThreadGetCount();
+        if (count == 0) {
+            return 0;
+        }
+
+        osThreadId_t ids[32] = {nullptr};
+        uint32_t cap = count;
+        if (cap > max) {
+            cap = static_cast<uint32_t>(max);
+        }
+        if (cap > 32U) {
+            cap = 32U;
+        }
+        uint32_t got = osThreadEnumerate(ids, cap);
+
+        size_t out = 0;
+        for (uint32_t i = 0; i < got && out < max; ++i, ++out) {
+            const char *name = osThreadGetName(ids[i]);
+            if (name == nullptr) {
+                name = "unknown";
+            }
+            std::strncpy(buf[out].name, name, sizeof(buf[out].name) - 1U);
+            buf[out].name[sizeof(buf[out].name) - 1U] = '\0';
+            buf[out].cpu_pct_x10 = 0;
+            buf[out].stack_hwm = osThreadGetStackSpace(ids[i]);
+            buf[out].state = static_cast<uint8_t>(osThreadGetState(ids[i]));
+        }
+        return out;
+    }
+#endif
+
     OSALSystem(){};
 
     ~OSALSystem(){};
