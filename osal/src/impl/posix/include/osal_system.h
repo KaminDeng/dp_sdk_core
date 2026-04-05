@@ -48,8 +48,8 @@ private:
         return "POSIX System";
     }
 
-#if OSAL_ENABLE_TASK_SNAPSHOT
-    size_t doGetTaskSnapshot(TaskSnapshot *buf, size_t max) const {
+#if OSAL_ENABLE_THREAD_SNAPSHOT
+    size_t doGetThreadSnapshot(ThreadSnapshot *buf, size_t max) const {
         if (buf == nullptr || max == 0U) {
             return 0U;
         }

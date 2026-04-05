@@ -346,8 +346,8 @@ public:
     virtual void sleep_ms(uint32_t milliseconds) const = 0;
     virtual void sleep(uint32_t seconds) const = 0;
     virtual const char *get_system_info() const = 0;
-#if OSAL_ENABLE_TASK_SNAPSHOT
-    virtual size_t get_task_snapshot(TaskSnapshot *buf, size_t max) const = 0;
+#if OSAL_ENABLE_THREAD_SNAPSHOT
+    virtual size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const = 0;
 #endif
 };
 
@@ -360,9 +360,9 @@ public:
     void sleep_ms(uint32_t milliseconds) const override { impl_.sleep_ms(milliseconds); }
     void sleep(uint32_t seconds) const override { impl_.sleep(seconds); }
     const char *get_system_info() const override { return impl_.get_system_info(); }
-#if OSAL_ENABLE_TASK_SNAPSHOT
-    size_t get_task_snapshot(TaskSnapshot *buf, size_t max) const override {
-        return impl_.get_task_snapshot(buf, max);
+#if OSAL_ENABLE_THREAD_SNAPSHOT
+    size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const override {
+        return impl_.get_thread_snapshot(buf, max);
     }
 #endif
 

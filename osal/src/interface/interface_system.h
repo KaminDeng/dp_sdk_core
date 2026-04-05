@@ -6,10 +6,10 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "osal_task_snapshot.h"
+#include "osal_thread_snapshot.h"
 
-#ifndef OSAL_ENABLE_TASK_SNAPSHOT
-#define OSAL_ENABLE_TASK_SNAPSHOT 0
+#ifndef OSAL_ENABLE_THREAD_SNAPSHOT
+#define OSAL_ENABLE_THREAD_SNAPSHOT 0
 #endif
 
 namespace osal {
@@ -21,8 +21,8 @@ public:
     void sleep_ms(uint32_t milliseconds) const { impl().doSleepMs(milliseconds); }
     void sleep(uint32_t seconds) const { impl().doSleep(seconds); }
     [[nodiscard]] const char *get_system_info() const { return impl().doGetSystemInfo(); }
-#if OSAL_ENABLE_TASK_SNAPSHOT
-    size_t get_task_snapshot(TaskSnapshot *buf, size_t max) const { return impl().doGetTaskSnapshot(buf, max); }
+#if OSAL_ENABLE_THREAD_SNAPSHOT
+    size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const { return impl().doGetThreadSnapshot(buf, max); }
 #endif
 
 protected:

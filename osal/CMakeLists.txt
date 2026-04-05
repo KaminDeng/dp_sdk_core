@@ -19,7 +19,7 @@ option(OSAL_ENABLE_CONDITION_VAR  "条件变量"        ON)
 option(OSAL_ENABLE_TIMER          "软件定时器"      ON)
 option(OSAL_ENABLE_CHRONO         "高精度时钟"      ON)
 option(OSAL_ENABLE_MEMORY_MANAGER "OSAL 内存管理"   ON)
-option(OSAL_ENABLE_TASK_SNAPSHOT  "任务快照（top）"  ON)
+option(OSAL_ENABLE_THREAD_SNAPSHOT  "线程快照（top）"  ON)
 option(OSAL_STATIC_ALLOC          "静态分配模式"    OFF)
 
 # ── Port directory resolution ──────────────────────────────────────────────────
@@ -98,7 +98,7 @@ target_link_libraries(osal PUBLIC gtest)
 target_compile_options(osal PUBLIC -Wno-gnu-zero-variadic-macro-arguments)
 
 # ── 原语裁剪：传播编译定义 ────────────────────────────────────────────────────
-foreach(_feat THREAD_POOL RW_LOCK SPIN_LOCK CONDITION_VAR TIMER CHRONO MEMORY_MANAGER TASK_SNAPSHOT)
+foreach(_feat THREAD_POOL RW_LOCK SPIN_LOCK CONDITION_VAR TIMER CHRONO MEMORY_MANAGER THREAD_SNAPSHOT)
     if(OSAL_ENABLE_${_feat})
         target_compile_definitions(osal PUBLIC OSAL_ENABLE_${_feat}=1)
     else()
