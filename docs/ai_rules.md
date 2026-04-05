@@ -113,7 +113,7 @@ Port provides: `hal_port.h` (typedef bindings), implementation headers (e.g. `mo
 
 ## Cross-Platform Module Compliance
 
-All three modules follow cross-platform-module skill conventions:
+All three modules follow the parent project's cross-platform module guideline:
 - Compat headers with module-specific prefixes (`DP_HAL_*`, `DP_DEV_*`)
 - Port isolation (zero platform API in `src/` or `include/`)
 - Fixed-width types throughout; no VLAs
