@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/23.
 //
-#ifndef __OSAL_MESSAGE_QUEUE_H__
-#define __OSAL_MESSAGE_QUEUE_H__
+#ifndef OSAL_POSIX_QUEUE_H_
+#define OSAL_POSIX_QUEUE_H_
 
 #include <chrono>
 #include <condition_variable>
@@ -81,4 +81,4 @@ private:
 
 }  // namespace osal
 
-#endif  // __OSAL_MESSAGE_QUEUE_H__
+#endif  // OSAL_POSIX_QUEUE_H_

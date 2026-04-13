@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/23.
 //
-#ifndef _OSAL_MUTEX_H__
-#define _OSAL_MUTEX_H__
+#ifndef OSAL_POSIX_MUTEX_H_
+#define OSAL_POSIX_MUTEX_H_
 
 #include <pthread.h>
 
@@ -107,4 +107,4 @@ private:
 
 }  // namespace osal
 
-#endif  // _OSAL_MUTEX_H__
+#endif  // OSAL_POSIX_MUTEX_H_

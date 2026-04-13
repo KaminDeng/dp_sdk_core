@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/23.
 //
-#ifndef __OSAL_SPINLOCK_H__
-#define __OSAL_SPINLOCK_H__
+#ifndef OSAL_POSIX_SPIN_LOCK_H_
+#define OSAL_POSIX_SPIN_LOCK_H_
 
 #if OSAL_ENABLE_SPIN_LOCK
 
@@ -71,4 +71,4 @@ private:
 
 #endif /* OSAL_ENABLE_SPIN_LOCK */
 
-#endif  // __OSAL_SPINLOCK_H__
+#endif  // OSAL_POSIX_SPIN_LOCK_H_

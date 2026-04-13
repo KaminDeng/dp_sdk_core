@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/22.
 //
-#ifndef _OSAL_MUTEX_H__
-#define _OSAL_MUTEX_H__
+#ifndef OSAL_CMSIS_MUTEX_H_
+#define OSAL_CMSIS_MUTEX_H_
 
 #include "interface_mutex.h"
 #include "osal.h"
@@ -85,4 +85,4 @@ private:
 
 }  // namespace osal
 
-#endif  // _OSAL_MUTEX_H__
+#endif  // OSAL_CMSIS_MUTEX_H_

@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/23.
 //
-#ifndef __OSAL_THREADPOOL_H__
-#define __OSAL_THREADPOOL_H__
+#ifndef OSAL_POSIX_THREAD_POOL_H_
+#define OSAL_POSIX_THREAD_POOL_H_
 
 #if OSAL_ENABLE_THREAD_POOL
 
@@ -99,4 +99,4 @@ private:
 
 #endif /* OSAL_ENABLE_THREAD_POOL */
 
-#endif  // __OSAL_THREADPOOL_H__
+#endif  // OSAL_POSIX_THREAD_POOL_H_

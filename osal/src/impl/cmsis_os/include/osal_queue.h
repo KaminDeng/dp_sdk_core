@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/22.
 //
-#ifndef __OSAL_MESSAGE_QUEUE_H__
-#define __OSAL_MESSAGE_QUEUE_H__
+#ifndef OSAL_CMSIS_QUEUE_H_
+#define OSAL_CMSIS_QUEUE_H_
 
 #include "interface_queue.h"
 #include "osal.h"
@@ -81,4 +81,4 @@ private:
 
 }  // namespace osal
 
-#endif  // __OSAL_MESSAGE_QUEUE_H__
+#endif  // OSAL_CMSIS_QUEUE_H_

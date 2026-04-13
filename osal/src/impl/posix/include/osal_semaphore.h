@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/23.
 //
-#ifndef __OSAL_SEMAPHORE_H__
-#define __OSAL_SEMAPHORE_H__
+#ifndef OSAL_POSIX_SEMAPHORE_H_
+#define OSAL_POSIX_SEMAPHORE_H_
 
 #include <chrono>
 #include <condition_variable>
@@ -77,4 +77,4 @@ private:
 
 }  // namespace osal
 
-#endif  // __OSAL_SEMAPHORE_H__
+#endif  // OSAL_POSIX_SEMAPHORE_H_

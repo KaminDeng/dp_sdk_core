@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/23.
 //
-#ifndef __OSAL_MEMORY_MANAGER_H__
-#define __OSAL_MEMORY_MANAGER_H__
+#ifndef OSAL_POSIX_MEMORY_MANAGER_H_
+#define OSAL_POSIX_MEMORY_MANAGER_H_
 
 #if OSAL_ENABLE_MEMORY_MANAGER
 
@@ -165,4 +165,4 @@ private:
 
 #endif /* OSAL_ENABLE_MEMORY_MANAGER */
 
-#endif  // __OSAL_MEMORY_MANAGER_H__
+#endif  // OSAL_POSIX_MEMORY_MANAGER_H_

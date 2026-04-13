@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/22.
 //
-#ifndef __OSAL_TIMER_H__
-#define __OSAL_TIMER_H__
+#ifndef OSAL_CMSIS_TIMER_H_
+#define OSAL_CMSIS_TIMER_H_
 
 #if OSAL_ENABLE_TIMER
 
@@ -113,4 +113,4 @@ private:
 
 #endif /* OSAL_ENABLE_TIMER */
 
-#endif  // __OSAL_TIMER_H__
+#endif  // OSAL_CMSIS_TIMER_H_

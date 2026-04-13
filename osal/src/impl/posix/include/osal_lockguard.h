@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/23.
 //
-#ifndef __OSAL_LOCK_GUARD_H__
-#define __OSAL_LOCK_GUARD_H__
+#ifndef OSAL_POSIX_LOCKGUARD_H_
+#define OSAL_POSIX_LOCKGUARD_H_
 
 #include "interface_lockguard.h"
 #include "osal_mutex.h"
@@ -13,4 +13,4 @@ using OSALLockGuard = LockGuard<OSALMutex>;
 
 }  // namespace osal
 
-#endif  // __OSAL_LOCK_GUARD_H__
+#endif  // OSAL_POSIX_LOCKGUARD_H_

@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/22.
 //
-#ifndef __OSAL_THREAD_H__
-#define __OSAL_THREAD_H__
+#ifndef OSAL_CMSIS_THREAD_H_
+#define OSAL_CMSIS_THREAD_H_
 
 #include <atomic>
 #include <functional>
@@ -209,4 +209,4 @@ private:
 };
 }  // namespace osal
 
-#endif  // __OSAL_THREAD_H__
+#endif  // OSAL_CMSIS_THREAD_H_

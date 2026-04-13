@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/23.
 //
-#ifndef __OSAL_RWLOCK_H__
-#define __OSAL_RWLOCK_H__
+#ifndef OSAL_POSIX_RWLOCK_H_
+#define OSAL_POSIX_RWLOCK_H_
 
 #if OSAL_ENABLE_RW_LOCK
 
@@ -84,4 +84,4 @@ private:
 
 #endif /* OSAL_ENABLE_RW_LOCK */
 
-#endif  // __OSAL_RWLOCK_H__
+#endif  // OSAL_POSIX_RWLOCK_H_

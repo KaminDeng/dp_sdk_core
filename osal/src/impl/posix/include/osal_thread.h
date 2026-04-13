@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/23.
 //
-#ifndef __OSAL_THREAD_H__
-#define __OSAL_THREAD_H__
+#ifndef OSAL_POSIX_THREAD_H_
+#define OSAL_POSIX_THREAD_H_
 
 #include <pthread.h>
 
@@ -274,4 +274,4 @@ private:
 };
 }  // namespace osal
 
-#endif  // __OSAL_THREAD_H__
+#endif  // OSAL_POSIX_THREAD_H_

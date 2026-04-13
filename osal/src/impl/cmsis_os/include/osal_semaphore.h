@@ -1,8 +1,8 @@
 //
 // Created by kamin.deng on 2024/8/22.
 //
-#ifndef __OSAL_SEMAPHORE_H__
-#define __OSAL_SEMAPHORE_H__
+#ifndef OSAL_CMSIS_SEMAPHORE_H_
+#define OSAL_CMSIS_SEMAPHORE_H_
 
 #include "interface_semaphore.h"
 #include "osal.h"
@@ -103,4 +103,4 @@ private:
 
 }  // namespace osal
 
-#endif  // __OSAL_SEMAPHORE_H__
+#endif  // OSAL_CMSIS_SEMAPHORE_H_
