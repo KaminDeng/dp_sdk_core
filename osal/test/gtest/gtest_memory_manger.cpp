@@ -2,6 +2,8 @@
 #include <cstring>
 
 #include "gtest/gtest.h"
+
+#if OSAL_ENABLE_MEMORY_MANAGER
 #include "osal_memory_manager.h"
 
 using namespace osal;
@@ -67,7 +69,7 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerReallocate) {
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateAligned) {
 #if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
     // Use block size large enough for metadata + alignment + data
-    // 2*sizeof(uintptr_t)=16 + 63 padding + 30 data = 109 bytes minimum → use 256
+    // 2*sizeof(uintptr_t)=16 + 63 padding + 30 data = 109 bytes minimum -> use 256
     OSALMemoryManager mm(256, 10);
     void *ptr = mm.allocateAligned(30, 64);
     ASSERT_NE(ptr, nullptr);
@@ -91,7 +93,7 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateAligned) {
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerGetAllocatedSize) {
 #if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
-    // getAllocatedSize() takes no arguments — returns blockSize_
+    // getAllocatedSize() takes no arguments -- returns blockSize_
     OSALMemoryManager mm(128, 10);
     EXPECT_EQ(mm.getAllocatedSize(), 128u);
 #else
@@ -126,3 +128,5 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateOversize) {
     GTEST_SKIP();
 #endif
 }
+
+#endif /* OSAL_ENABLE_MEMORY_MANAGER */

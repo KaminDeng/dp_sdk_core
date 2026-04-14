@@ -6,7 +6,9 @@
 
 #include <atomic>
 
+#if OSAL_ENABLE_CHRONO
 #include "osal_chrono.h"
+#endif
 #include "osal_system.h"
 #include "osal_thread.h"
 
@@ -26,11 +28,11 @@ TEST(OSALThreadTest, TestOSALThreadStart) {
         },
         nullptr, 0, 1024);
 
-    auto timestamp_now = OSALChrono::getInstance().now();
+    auto timestamp_now = OSALSystem::getInstance().get_tick_ms();
     OSALSystem::getInstance().sleep_ms(100);
     EXPECT_EQ(taskExecuted, 2);
     thread.stop();
-    auto interval = OSALChrono::getInstance().now() - timestamp_now;
+    auto interval = OSALSystem::getInstance().get_tick_ms() - timestamp_now;
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
     /* Exception build: sleep_ms throws, task function aborted at sleep site.
      * taskExecuted stays 2 — the line after sleep_ms never runs. */

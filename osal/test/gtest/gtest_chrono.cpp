@@ -1,6 +1,8 @@
 #include "gtest/gtest.h"
-#include "osal_chrono.h"
 #include "osal_system.h"
+
+#if OSAL_ENABLE_CHRONO
+#include "osal_chrono.h"
 
 using namespace osal;
 
@@ -26,7 +28,7 @@ TEST(OSALChronoTest, TestOSALChronoNow) {
 }
 
 // Test: elapsed() converts a tick-count difference into seconds accurately.
-// 15 ms sleep → elapsed should be in [0.010, 0.050] seconds.
+// 15 ms sleep -> elapsed should be in [0.010, 0.050] seconds.
 TEST(OSALChronoTest, TestOSALChronoElapsed) {
 #if (OSAL_TEST_CHRONO_ENABLED || OSAL_TEST_ALL)
     auto timePoint1 = OSALChrono::getInstance().now();
@@ -72,3 +74,5 @@ TEST(OSALChronoTest, TestOSALChronoToString) {
     GTEST_SKIP();
 #endif
 }
+
+#endif /* OSAL_ENABLE_CHRONO */

@@ -1,11 +1,19 @@
 #include <atomic>
 
 #include "gtest/gtest.h"
+#if OSAL_ENABLE_CHRONO
 #include "osal_chrono.h"
+#endif
 #include "osal_system.h"
+#if OSAL_ENABLE_THREAD_POOL
 #include "osal_thread_pool.h"
+#endif
 
 using namespace osal;
+
+#if !OSAL_ENABLE_THREAD_POOL
+/* Entire test file is disabled when OSAL_ENABLE_THREAD_POOL=0. */
+#else
 
 TEST(OSALThreadPoolTests, TestOSALThreadPoolStartStop) {
 #if (OSAL_TEST_THREAD_POOL_ENABLED || OSAL_TEST_ALL)
@@ -202,3 +210,4 @@ TEST(OSALThreadPoolTests, TestOSALThreadPoolSetMinThreads) {
     GTEST_SKIP();
 #endif
 }
+#endif /* OSAL_ENABLE_THREAD_POOL */

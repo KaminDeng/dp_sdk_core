@@ -1,11 +1,17 @@
 #include <atomic>
 
 #include "gtest/gtest.h"
+#if OSAL_ENABLE_RW_LOCK
 #include "osal_rwlock.h"
+#endif
 #include "osal_system.h"
 #include "osal_thread.h"
 
 using namespace osal;
+
+#if !OSAL_ENABLE_RW_LOCK
+/* Entire test file is disabled when OSAL_ENABLE_RW_LOCK=0. */
+#else
 
 TEST(OSALRWLockTest, TestOSALRWLockReadLock) {
 #if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
@@ -261,3 +267,4 @@ TEST(OSALRWLockTest, TestOSALRWLockConcurrentReads) {
     GTEST_SKIP();
 #endif
 }
+#endif /* OSAL_ENABLE_RW_LOCK */

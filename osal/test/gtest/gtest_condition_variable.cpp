@@ -1,12 +1,18 @@
 #include <atomic>
 
 #include "gtest/gtest.h"
+#if OSAL_ENABLE_CONDITION_VAR
 #include "osal_condition_variable.h"
+#endif
 #include "osal_mutex.h"
 #include "osal_system.h"
 #include "osal_thread.h"
 
 using namespace osal;
+
+#if !OSAL_ENABLE_CONDITION_VAR
+/* Entire test file is disabled when OSAL_ENABLE_CONDITION_VAR=0. */
+#else
 
 TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitAndNotifyOne) {
 #if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
@@ -191,3 +197,4 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableTimeoutDoesNotCorruptWa
     GTEST_SKIP();
 #endif
 }
+#endif /* OSAL_ENABLE_CONDITION_VAR */

@@ -2,9 +2,15 @@
 
 #include "gtest/gtest.h"
 #include "osal_system.h"
+#if OSAL_ENABLE_TIMER
 #include "osal_timer.h"
+#endif
 
 using namespace osal;
+
+#if !OSAL_ENABLE_TIMER
+/* Entire test file is disabled when OSAL_ENABLE_TIMER=0. */
+#else
 
 TEST(OSALTimerTest, TestOSALTimerRepeat) {
 #if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
@@ -146,3 +152,4 @@ TEST(OSALTimerTest, TestOSALTimerStopIdempotent) {
     GTEST_SKIP();
 #endif
 }
+#endif /* OSAL_ENABLE_TIMER */

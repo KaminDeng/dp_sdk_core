@@ -2,11 +2,17 @@
 
 #include <atomic>
 
+#if OSAL_ENABLE_SPIN_LOCK
 #include "osal_spin_lock.h"
+#endif
 #include "osal_system.h"
 #include "osal_thread.h"
 
 using namespace osal;
+
+#if !OSAL_ENABLE_SPIN_LOCK
+/* Entire test file is disabled when OSAL_ENABLE_SPIN_LOCK=0. */
+#else
 
 // Test: lock() acquires the lock; isLocked() reflects the state; unlock() releases it.
 TEST(TestOSALSpinLock, Lock) {
@@ -161,3 +167,5 @@ TEST(TestOSALSpinLock, IsLockedCrossThread) {
     GTEST_SKIP();
 #endif
 }
+
+#endif /* OSAL_ENABLE_SPIN_LOCK */
