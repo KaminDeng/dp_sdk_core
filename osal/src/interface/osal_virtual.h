@@ -346,6 +346,8 @@ public:
     virtual void sleep_ms(uint32_t milliseconds) const = 0;
     virtual void sleep(uint32_t seconds) const = 0;
     virtual uint32_t get_tick_ms() const = 0;
+    virtual void enter_critical() const = 0;
+    virtual void exit_critical() const = 0;
     virtual const char *get_system_info() const = 0;
 #if OSAL_ENABLE_THREAD_SNAPSHOT
     virtual size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const = 0;
@@ -361,6 +363,8 @@ public:
     void sleep_ms(uint32_t milliseconds) const override { impl_.sleep_ms(milliseconds); }
     void sleep(uint32_t seconds) const override { impl_.sleep(seconds); }
     uint32_t get_tick_ms() const override { return impl_.get_tick_ms(); }
+    void enter_critical() const override { impl_.enter_critical(); }
+    void exit_critical() const override { impl_.exit_critical(); }
     const char *get_system_info() const override { return impl_.get_system_info(); }
 #if OSAL_ENABLE_THREAD_SNAPSHOT
     size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const override {

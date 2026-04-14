@@ -77,6 +77,13 @@ private:
         return static_cast<uint32_t>(osKernelGetTickCount() * 1000U / osKernelGetTickFreq());
     }
 
+    void doEnterCritical() const {
+        taskENTER_CRITICAL();
+    }
+    void doExitCritical() const {
+        taskEXIT_CRITICAL();
+    }
+
     [[nodiscard]] const char *doGetSystemInfo() const {
         // Return some basic system information
         return "CMSIS-RTOS2 System";

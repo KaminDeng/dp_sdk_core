@@ -49,6 +49,14 @@ private:
         return static_cast<uint32_t>(ts.tv_sec * 1000U + ts.tv_nsec / 1000000U);
     }
 
+    void doEnterCritical() const {
+        // POSIX: 使用 signal mask 模拟（非嵌套）
+        // 在 POSIX 仿真环境中临界区不是真正需要的，
+        // 但提供空实现保持接口一致性
+    }
+    void doExitCritical() const {
+    }
+
     const char *doGetSystemInfo() const {
         // 返回一些基本的系统信息
         return "POSIX System";
