@@ -20,6 +20,7 @@ public:
     void StartScheduler() { impl().doStartScheduler(); }
     void sleep_ms(uint32_t milliseconds) const { impl().doSleepMs(milliseconds); }
     void sleep(uint32_t seconds) const { impl().doSleep(seconds); }
+    [[nodiscard]] uint32_t get_tick_ms() const { return impl().doGetTickMs(); }
     [[nodiscard]] const char *get_system_info() const { return impl().doGetSystemInfo(); }
 #if OSAL_ENABLE_THREAD_SNAPSHOT
     size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const { return impl().doGetThreadSnapshot(buf, max); }

@@ -43,6 +43,12 @@ private:
 
     void doSleep(const uint32_t seconds) const { std::this_thread::sleep_for(std::chrono::seconds(seconds)); }
 
+    [[nodiscard]] uint32_t doGetTickMs() const {
+        struct timespec ts {};
+        clock_gettime(CLOCK_MONOTONIC, &ts);
+        return static_cast<uint32_t>(ts.tv_sec * 1000U + ts.tv_nsec / 1000000U);
+    }
+
     const char *doGetSystemInfo() const {
         // 返回一些基本的系统信息
         return "POSIX System";

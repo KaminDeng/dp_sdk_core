@@ -345,6 +345,7 @@ public:
     virtual void StartScheduler() = 0;
     virtual void sleep_ms(uint32_t milliseconds) const = 0;
     virtual void sleep(uint32_t seconds) const = 0;
+    virtual uint32_t get_tick_ms() const = 0;
     virtual const char *get_system_info() const = 0;
 #if OSAL_ENABLE_THREAD_SNAPSHOT
     virtual size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const = 0;
@@ -359,6 +360,7 @@ public:
     void StartScheduler() override { impl_.StartScheduler(); }
     void sleep_ms(uint32_t milliseconds) const override { impl_.sleep_ms(milliseconds); }
     void sleep(uint32_t seconds) const override { impl_.sleep(seconds); }
+    uint32_t get_tick_ms() const override { return impl_.get_tick_ms(); }
     const char *get_system_info() const override { return impl_.get_system_info(); }
 #if OSAL_ENABLE_THREAD_SNAPSHOT
     size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const override {
