@@ -40,6 +40,15 @@ private:
         }
     }
 
+    bool doTrySend(const T &message) {
+        if (osMessageQueuePut(queue_, &message, 0, 0) == osOK) {
+            OSAL_LOGD("Message try-sent\n");
+            return true;
+        }
+        OSAL_LOGD("Message try-send failed (queue full)\n");
+        return false;
+    }
+
     T doReceive() {
         T message;
         if (osMessageQueueGet(queue_, &message, nullptr, osWaitForever) != osOK) {

@@ -15,6 +15,8 @@ template <typename Impl, typename T>
 class QueueBase {
 public:
     void send(const T &message) { impl().doSend(message); }
+    /** @brief 尝试发送（timeout=0），队列满时立即返回 false。 */
+    bool trySend(const T &message) { return impl().doTrySend(message); }
     T receive() { return impl().doReceive(); }
     bool tryReceive(T &message) { return impl().doTryReceive(message); }
     bool receiveFor(T &message, uint32_t timeout) { return impl().doReceiveFor(message, timeout); }

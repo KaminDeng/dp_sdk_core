@@ -31,6 +31,14 @@ private:
         condVar_.notify_one();
     }
 
+    bool doTrySend(const T &message) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        queue_.push(message);
+        OSAL_LOGD("Message try-sent\n");
+        condVar_.notify_one();
+        return true;
+    }
+
     T doReceive() {
         std::unique_lock<std::mutex> lock(mutex_);
         condVar_.wait(lock, [this] { return !queue_.empty(); });
