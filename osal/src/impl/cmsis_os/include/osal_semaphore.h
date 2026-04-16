@@ -14,13 +14,12 @@ class OSALSemaphore : public SemaphoreBase<OSALSemaphore> {
     friend class SemaphoreBase<OSALSemaphore>;
 
 public:
-    OSALSemaphore() : semaphore_(nullptr) {
+    explicit OSALSemaphore(uint32_t max_count = 16U) : semaphore_(nullptr) {
         osSemaphoreAttr_t semAttr = {};
         semAttr.name = "OSALSemaphore";
-        semaphore_ = osSemaphoreNew(16, 0, &semAttr);  // max_count=16 supports counting semaphores; initial count=0
+        semaphore_ = osSemaphoreNew(max_count, 0U, &semAttr);
         if (semaphore_ == nullptr) {
             OSAL_LOGE("Failed to create semaphore\n");
-            // 处理创建失败的情况
         } else {
             OSAL_LOGD("Semaphore initialized\n");
         }
