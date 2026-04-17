@@ -14,8 +14,8 @@ namespace dp::osal {
 template <typename Impl>
 class ConditionVariableBase {
 public:
-    void wait(OSALMutex &mutex) { impl().doWait(mutex); }
-    bool waitFor(OSALMutex &mutex, uint32_t timeout) { return impl().doWaitFor(mutex, timeout); }
+    void wait(Mutex &mutex) { impl().doWait(mutex); }
+    bool waitFor(Mutex &mutex, uint32_t timeout) { return impl().doWaitFor(mutex, timeout); }
     void notifyOne() { impl().doNotifyOne(); }
     void notifyAll() { impl().doNotifyAll(); }
     [[nodiscard]] int getWaitCount() const { return impl().doGetWaitCount(); }
