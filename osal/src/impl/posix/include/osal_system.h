@@ -174,6 +174,7 @@ private:
             buf[out].name[sizeof(buf[out].name) - 1U] = '\0';
             buf[out].cpu_pct_x10 = 0U;
             buf[out].stack_hwm = 0U;     // POSIX backend has no portable stack high-water metric.
+            buf[out].stack_pointer = 0U;  // POSIX: 线程 SP 无可移植获取方式
             switch (state_ch) {
                 case 'R':
                     buf[out].state = 1U;  // running

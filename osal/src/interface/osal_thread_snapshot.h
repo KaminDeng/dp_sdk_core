@@ -12,6 +12,7 @@ struct ThreadSnapshot {
     uint32_t cpu_pct_x10;
     uint32_t stack_hwm;
     uint8_t state;
+    uint32_t stack_pointer;  ///< 任务保存的栈指针（预缓存用，0 = 未知）
 };
 
 }  // namespace osal

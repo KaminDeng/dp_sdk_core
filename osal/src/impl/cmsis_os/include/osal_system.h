@@ -121,6 +121,12 @@ private:
             buf[out].cpu_pct_x10 = 0;
             buf[out].stack_hwm = osThreadGetStackSpace(ids[i]);
             buf[out].state = static_cast<uint8_t>(osThreadGetState(ids[i]));
+            /* 获取任务保存的 SP (FreeRTOS TCB 首字段 = pxTopOfStack) */
+#if defined(configUSE_TRACE_FACILITY)
+            buf[out].stack_pointer = *reinterpret_cast<uint32_t *>(ids[i]);
+#else
+            buf[out].stack_pointer = 0U;
+#endif
         }
         return out;
     }
