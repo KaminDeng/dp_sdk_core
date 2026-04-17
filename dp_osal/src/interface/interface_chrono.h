@@ -7,7 +7,7 @@
 #include <ctime>
 #include <string>
 
-#if OSAL_ENABLE_CHRONO
+#if DP_OSAL_ENABLE_CHRONO
 
 namespace dp::osal {
 
@@ -34,6 +34,6 @@ private:
 
 } // namespace dp::osal
 
-#endif /* OSAL_ENABLE_CHRONO */
+#endif /* DP_OSAL_ENABLE_CHRONO */
 
 #endif  // DP_OSAL_INTERFACE_CHRONO_H_

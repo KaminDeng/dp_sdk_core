@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "interface_thread_pool.h"
-#include "osal.h"
+#include "dp_osal_port.h"
 #include "dp_osal_condition_variable.h"
 #include "dp_osal_debug.h"
 #include "dp_osal_lockguard.h"

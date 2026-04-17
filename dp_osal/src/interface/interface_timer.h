@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <functional>
 
-#if OSAL_ENABLE_TIMER
+#if DP_OSAL_ENABLE_TIMER
 
 namespace dp::osal {
 
@@ -31,6 +31,6 @@ private:
 
 } // namespace dp::osal
 
-#endif /* OSAL_ENABLE_TIMER */
+#endif /* DP_OSAL_ENABLE_TIMER */
 
 #endif  // DP_OSAL_INTERFACE_TIMER_H_

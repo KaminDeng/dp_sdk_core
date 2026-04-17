@@ -9,7 +9,7 @@
 #include <atomic>
 
 #include "interface_spin_lock.h"
-#include "osal.h"
+#include "dp_osal_port.h"
 #include "dp_osal_debug.h"
 
 namespace dp::osal {

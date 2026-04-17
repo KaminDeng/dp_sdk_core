@@ -5,7 +5,7 @@
 
 #include <cstddef>
 
-#if OSAL_ENABLE_MEMORY_MANAGER
+#if DP_OSAL_ENABLE_MEMORY_MANAGER
 
 namespace dp::osal {
 
@@ -29,6 +29,6 @@ private:
 
 } // namespace dp::osal
 
-#endif /* OSAL_ENABLE_MEMORY_MANAGER */
+#endif /* DP_OSAL_ENABLE_MEMORY_MANAGER */
 
 #endif  // DP_OSAL_INTERFACE_MEMORY_MANAGER_H_

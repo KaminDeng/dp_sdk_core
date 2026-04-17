@@ -5,7 +5,7 @@
 
 #include <cstdint>
 
-#if OSAL_ENABLE_SPIN_LOCK
+#if DP_OSAL_ENABLE_SPIN_LOCK
 
 namespace dp::osal {
 
@@ -32,6 +32,6 @@ private:
 namespace dp::osal {
 /* SpinLock disabled */
 }
-#endif /* OSAL_ENABLE_SPIN_LOCK */
+#endif /* DP_OSAL_ENABLE_SPIN_LOCK */
 
 #endif  // DP_OSAL_INTERFACE_SPIN_LOCK_H_

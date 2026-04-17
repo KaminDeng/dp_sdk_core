@@ -5,7 +5,7 @@
 #define DP_OSAL_CMSIS_SEMAPHORE_H_
 
 #include "interface_semaphore.h"
-#include "osal.h"
+#include "dp_osal_port.h"
 #include "dp_osal_debug.h"
 
 namespace dp::osal {

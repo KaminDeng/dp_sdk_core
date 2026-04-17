@@ -5,9 +5,9 @@
 
 #include <cstdint>
 
-#if OSAL_ENABLE_CONDITION_VAR
+#if DP_OSAL_ENABLE_CONDITION_VAR
 
-#include "osal_mutex.h"
+#include "dp_osal_mutex.h"
 
 namespace dp::osal {
 
@@ -30,6 +30,6 @@ private:
 
 } // namespace dp::osal
 
-#endif /* OSAL_ENABLE_CONDITION_VAR */
+#endif /* DP_OSAL_ENABLE_CONDITION_VAR */
 
 #endif  // DP_OSAL_INTERFACE_CONDITION_VARIABLE_H_

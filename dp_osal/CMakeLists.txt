@@ -65,7 +65,7 @@ message(STATUS "[dp_osal] Impl sources:   ${SYSTEM_IMPL_SOURCES}")
 
 # ── Library target ─────────────────────────────────────────────────────────────
 add_library(dp_osal STATIC
-    src/debug/osal_debug.cpp
+    src/debug/dp_osal_debug.cpp
     ${SYSTEM_IMPL_SOURCES}
     test/dp_osal_test_main.cpp
     ${GTEST_SUITE_SOURCES}

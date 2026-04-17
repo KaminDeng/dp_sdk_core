@@ -8,8 +8,8 @@
 
 #include "dp_osal_thread_snapshot.h"
 
-#ifndef OSAL_ENABLE_THREAD_SNAPSHOT
-#define OSAL_ENABLE_THREAD_SNAPSHOT 0
+#ifndef DP_OSAL_ENABLE_THREAD_SNAPSHOT
+#define DP_OSAL_ENABLE_THREAD_SNAPSHOT 0
 #endif
 
 namespace dp::osal {
@@ -24,7 +24,7 @@ public:
     void enter_critical() const { impl().doEnterCritical(); }
     void exit_critical() const { impl().doExitCritical(); }
     [[nodiscard]] const char *get_system_info() const { return impl().doGetSystemInfo(); }
-#if OSAL_ENABLE_THREAD_SNAPSHOT
+#if DP_OSAL_ENABLE_THREAD_SNAPSHOT
     size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const { return impl().doGetThreadSnapshot(buf, max); }
 #endif
 

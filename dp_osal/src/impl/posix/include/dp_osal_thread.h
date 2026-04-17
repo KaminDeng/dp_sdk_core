@@ -16,7 +16,7 @@
 #include <thread>
 
 #include "interface_thread.h"
-#include "osal.h"  // provides DP_OSAL_PORT_THREAD_MIN_STACK_SIZE
+#include "dp_osal_port.h"  // provides DP_OSAL_PORT_THREAD_MIN_STACK_SIZE
 #include "dp_osal_debug.h"
 
 namespace dp::osal {

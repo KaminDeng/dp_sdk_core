@@ -47,7 +47,7 @@ using namespace dp::osal;
 #include "gtest_virtual_injection.cpp"
 
 extern "C" void dp_osal_test_main(void) {
-    OSAL_LOGI("System Type: %s\n", System::getInstance().get_system_info());
+    DP_OSAL_LOGI("System Type: %s\n", System::getInstance().get_system_info());
 
     int argc = 1;
     char *argv[1] = {const_cast<char *>("osal_gtest")};

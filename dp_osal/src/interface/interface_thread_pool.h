@@ -7,7 +7,7 @@
 #include <cstdint>
 #include <functional>
 
-#if OSAL_ENABLE_THREAD_POOL
+#if DP_OSAL_ENABLE_THREAD_POOL
 
 namespace dp::osal {
 
@@ -47,6 +47,6 @@ private:
 
 } // namespace dp::osal
 
-#endif /* OSAL_ENABLE_THREAD_POOL */
+#endif /* DP_OSAL_ENABLE_THREAD_POOL */
 
 #endif  // DP_OSAL_INTERFACE_THREAD_POOL_H_

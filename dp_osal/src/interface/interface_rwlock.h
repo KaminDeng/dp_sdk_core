@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#if OSAL_ENABLE_RW_LOCK
+#if DP_OSAL_ENABLE_RW_LOCK
 
 namespace dp::osal {
 
@@ -38,6 +38,6 @@ private:
 namespace dp::osal {
 /* RWLock disabled */
 }
-#endif /* OSAL_ENABLE_RW_LOCK */
+#endif /* DP_OSAL_ENABLE_RW_LOCK */
 
 #endif  // DP_OSAL_INTERFACE_RWLOCK_H_

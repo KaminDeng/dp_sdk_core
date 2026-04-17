@@ -11,7 +11,7 @@
 #include <ctime>   // for std::tm and std::time_t
 
 #include "interface_chrono.h"
-#include "osal.h"
+#include "dp_osal_port.h"
 
 namespace dp::osal {
 

@@ -5,7 +5,7 @@
 #define DP_OSAL_CMSIS_MUTEX_H_
 
 #include "interface_mutex.h"
-#include "osal.h"
+#include "dp_osal_port.h"
 #include "dp_osal_debug.h"
 
 namespace dp::osal {

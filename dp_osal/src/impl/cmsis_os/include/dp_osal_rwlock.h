@@ -7,7 +7,7 @@
 #if DP_OSAL_ENABLE_RW_LOCK
 
 #include "interface_rwlock.h"
-#include "osal.h"
+#include "dp_osal_port.h"
 #include "dp_osal_debug.h"
 
 namespace dp::osal {
