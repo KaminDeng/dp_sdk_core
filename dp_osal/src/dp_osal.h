@@ -1,0 +1,27 @@
+// dp_osal.h — Entry point for the dp_osal library's platform configuration.
+//
+// This header is included by all dp_osal implementation files to pull in
+// dp_osal_port.h (the single-file user port). It must resolve via the
+// include path set by CMakeLists.txt from OSAL_PORT_DIR.
+//
+// Users: do NOT include this file directly. Include the individual
+// component headers (osal_thread.h, osal_mutex.h, etc.) instead.
+#pragma once
+
+#if __has_include("dp_osal_port.h")
+#include "dp_osal_port.h"
+#else
+#error \
+    "[dp_osal] dp_osal_port.h not found. " \
+         "Set OSAL_PORT_DIR in your CMakeLists.txt BEFORE add_subdirectory(dp_osal):\n" \
+         "  set(OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/your_port_dir)\n" \
+         "Template: copy dp_osal/port/template/dp_osal_port.h to your port directory."
+#endif
+
+// Optional per-port hook:
+// - CMSIS-OS backends can provide a port-specific way to derive saved stack
+//   pointer from osThreadId_t (used by thread snapshot).
+// - Default keeps behavior portable on non-FreeRTOS / unknown ports.
+#ifndef DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID
+#define DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (0U)
+#endif

@@ -1,18 +1,18 @@
 /** @file interface_system.h
  *  @brief CRTP system/scheduler interface for OSAL. */
-#ifndef OSAL_INTERFACE_SYSTEM_H_
-#define OSAL_INTERFACE_SYSTEM_H_
+#ifndef DP_OSAL_INTERFACE_SYSTEM_H_
+#define DP_OSAL_INTERFACE_SYSTEM_H_
 
 #include <cstddef>
 #include <cstdint>
 
-#include "osal_thread_snapshot.h"
+#include "dp_osal_thread_snapshot.h"
 
 #ifndef OSAL_ENABLE_THREAD_SNAPSHOT
 #define OSAL_ENABLE_THREAD_SNAPSHOT 0
 #endif
 
-namespace osal {
+namespace dp::osal {
 
 template <typename Impl>
 class SystemBase {
@@ -36,6 +36,6 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
-#endif  // OSAL_INTERFACE_SYSTEM_H_
+#endif  // DP_OSAL_INTERFACE_SYSTEM_H_

@@ -1,15 +1,15 @@
 #include <atomic>
 
 #include "gtest/gtest.h"
-#include "osal_semaphore.h"
-#include "osal_system.h"
-#include "osal_thread.h"
+#include "dp_osal_semaphore.h"
+#include "dp_osal_system.h"
+#include "dp_osal_thread.h"
 
-using namespace osal;
+using namespace dp::osal;
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreInit) {
-#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSemaphore semaphore;
+#if (DP_OSAL_TEST_SEMAPHORE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Semaphore semaphore;
     semaphore.init(5);
     EXPECT_EQ(semaphore.getValue(), 5);
 #else
@@ -18,8 +18,8 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreInit) {
 }
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreWaitSignal) {
-#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSemaphore semaphore;
+#if (DP_OSAL_TEST_SEMAPHORE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Semaphore semaphore;
     semaphore.init(1);
     semaphore.wait();
     EXPECT_EQ(semaphore.getValue(), 0);
@@ -31,8 +31,8 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreWaitSignal) {
 }
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreTryWait) {
-#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSemaphore semaphore;
+#if (DP_OSAL_TEST_SEMAPHORE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Semaphore semaphore;
     semaphore.init(1);
     EXPECT_TRUE(semaphore.tryWait());
     EXPECT_FALSE(semaphore.tryWait());
@@ -44,8 +44,8 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreTryWait) {
 }
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreTryWaitFor) {
-#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSemaphore semaphore;
+#if (DP_OSAL_TEST_SEMAPHORE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Semaphore semaphore;
     semaphore.init(1);
     EXPECT_TRUE(semaphore.tryWaitFor(500));
     EXPECT_FALSE(semaphore.tryWaitFor(500));
@@ -57,8 +57,8 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreTryWaitFor) {
 }
 
 TEST(OSALSemaphoreTest, TestOSALSemaphoreGetValue) {
-#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSemaphore semaphore;
+#if (DP_OSAL_TEST_SEMAPHORE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Semaphore semaphore;
     semaphore.init(3);
     EXPECT_EQ(semaphore.getValue(), 3);
     semaphore.wait();
@@ -72,12 +72,12 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreGetValue) {
 
 // Test: wait() blocks the calling thread until another thread calls signal()
 TEST(OSALSemaphoreTest, TestOSALSemaphoreBlockingWait) {
-#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSemaphore semaphore;
+#if (DP_OSAL_TEST_SEMAPHORE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Semaphore semaphore;
     semaphore.init(0);
     std::atomic<bool> consumerDone(false);
 
-    OSALThread producer, consumer;
+    Thread producer, consumer;
     consumer.start(
         "Consumer",
         [&](void *) {
@@ -86,7 +86,7 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreBlockingWait) {
         },
         nullptr, 0, 2048);
 
-    OSALSystem::getInstance().sleep_ms(100);
+    System::getInstance().sleep_ms(100);
     EXPECT_FALSE(consumerDone.load());  // still blocking
 
     producer.start(
@@ -102,24 +102,24 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreBlockingWait) {
 
 // Test: producer-consumer pattern — N signals allow N waits
 TEST(OSALSemaphoreTest, TestOSALSemaphoreProducerConsumer) {
-#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSemaphore semaphore;
+#if (DP_OSAL_TEST_SEMAPHORE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Semaphore semaphore;
     semaphore.init(0);
     std::atomic<int> consumed(0);
     const int N = 5;
 
-    OSALThread producer;
+    Thread producer;
     producer.start(
         "Producer",
         [&](void *) {
             for (int i = 0; i < N; ++i) {
-                OSALSystem::getInstance().sleep_ms(20);
+                System::getInstance().sleep_ms(20);
                 semaphore.signal();
             }
         },
         nullptr, 0, 2048);
 
-    OSALThread consumer;
+    Thread consumer;
     consumer.start(
         "Consumer",
         [&](void *) {
@@ -144,8 +144,8 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreProducerConsumer) {
 // with a dangling pointer).  This test verifies init() is idempotent in the
 // single-threaded (no waiters) case that is always safe to call.
 TEST(OSALSemaphoreTest, TestOSALSemaphoreReinit) {
-#if (OSAL_TEST_SEMAPHORE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSemaphore semaphore;
+#if (DP_OSAL_TEST_SEMAPHORE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Semaphore semaphore;
     semaphore.init(3);
     EXPECT_EQ(semaphore.getValue(), 3);
 

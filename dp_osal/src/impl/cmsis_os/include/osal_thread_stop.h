@@ -13,15 +13,15 @@
 #include <exception>
 #endif
 
-namespace osal {
+namespace dp::osal {
 
-/* Thrown by OSALSystem::sleep_ms() when the current thread's stop flag is set.
- * Caught by OSALThread::taskRunner() so code after the sleep call is skipped.
+/* Thrown by System::sleep_ms() when the current thread's stop flag is set.
+ * Caught by Thread::taskRunner() so code after the sleep call is skipped.
  * Under -fno-exceptions (MCU firmware), the struct has no base class and is never
  * thrown; stop() relies on cooperative task exit instead. */
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
 struct OSALCmsisThreadStopException : public std::exception {
-    const char *what() const noexcept override { return "OSALThread (CMSIS-OS): stop requested"; }
+    const char *what() const noexcept override { return "Thread (CMSIS-OS): stop requested"; }
 };
 #else
 struct OSALCmsisThreadStopException {};
@@ -31,7 +31,7 @@ struct OSALCmsisThreadStopException {};
 
 #ifdef DPSDK_MCU_FIRMWARE
 /* ARM MCU firmware: use FreeRTOS per-task TLS slot 0.
- * Thread-local pointer to the running OSALThread's stop flag.
+ * Thread-local pointer to the running Thread's stop flag.
  * Set by taskRunner() before calling the user function; cleared on exit.
  * sleep_ms() reads this to detect stop requests.                            */
 #include "FreeRTOS.h"
@@ -58,4 +58,4 @@ inline void osal_cmsis_stop_flag_set(std::atomic<bool>* p) { tl_cmsis_stop_flag_
 inline thread_local std::atomic<bool> *&tl_cmsis_stop_flag = tl_cmsis_stop_flag_storage;
 #endif
 
-}  // namespace osal
+} // namespace dp::osal

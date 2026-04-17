@@ -1,7 +1,7 @@
 /** @file interface_condition_variable.h
  *  @brief CRTP condition-variable interface for OSAL. */
-#ifndef OSAL_INTERFACE_CONDITION_VARIABLE_H_
-#define OSAL_INTERFACE_CONDITION_VARIABLE_H_
+#ifndef DP_OSAL_INTERFACE_CONDITION_VARIABLE_H_
+#define DP_OSAL_INTERFACE_CONDITION_VARIABLE_H_
 
 #include <cstdint>
 
@@ -9,7 +9,7 @@
 
 #include "osal_mutex.h"
 
-namespace osal {
+namespace dp::osal {
 
 template <typename Impl>
 class ConditionVariableBase {
@@ -28,8 +28,8 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
 #endif /* OSAL_ENABLE_CONDITION_VAR */
 
-#endif  // OSAL_INTERFACE_CONDITION_VARIABLE_H_
+#endif  // DP_OSAL_INTERFACE_CONDITION_VARIABLE_H_

@@ -1,25 +1,25 @@
 #include <atomic>
 
 #include "gtest/gtest.h"
-#include "osal_system.h"
-#if OSAL_ENABLE_TIMER
-#include "osal_timer.h"
+#include "dp_osal_system.h"
+#if DP_OSAL_ENABLE_TIMER
+#include "dp_osal_timer.h"
 #endif
 
-using namespace osal;
+using namespace dp::osal;
 
-#if !OSAL_ENABLE_TIMER
-/* Entire test file is disabled when OSAL_ENABLE_TIMER=0. */
+#if !DP_OSAL_ENABLE_TIMER
+/* Entire test file is disabled when DP_OSAL_ENABLE_TIMER=0. */
 #else
 
 TEST(OSALTimerTest, TestOSALTimerRepeat) {
-#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
-    osal::OSALTimer timer;
+#if (DP_OSAL_TEST_TIMER_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Timer timer;
     std::atomic<int> count(0);
 
     timer.start(100, true, [&]() { count++; });
     EXPECT_LE(count, 5);
-    OSALSystem::getInstance().sleep_ms(700);
+    System::getInstance().sleep_ms(700);
     EXPECT_GT(count, 5);
     timer.stop();
 #else
@@ -28,14 +28,14 @@ TEST(OSALTimerTest, TestOSALTimerRepeat) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerStart) {
-#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
-    osal::OSALTimer timer;
+#if (DP_OSAL_TEST_TIMER_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Timer timer;
     std::atomic<bool> callbackExecuted(false);
 
     timer.start(100, false, [&]() { callbackExecuted = true; });
 
     EXPECT_FALSE(callbackExecuted);
-    OSALSystem::getInstance().sleep_ms(200);
+    System::getInstance().sleep_ms(200);
     EXPECT_TRUE(callbackExecuted);
     timer.stop();
 #else
@@ -44,15 +44,15 @@ TEST(OSALTimerTest, TestOSALTimerStart) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerStop) {
-#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
-    osal::OSALTimer timer;
+#if (DP_OSAL_TEST_TIMER_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Timer timer;
     std::atomic<bool> callbackExecuted(false);
 
     timer.start(100, false, [&]() { callbackExecuted = true; });
 
-    OSALSystem::getInstance().sleep_ms(50);
+    System::getInstance().sleep_ms(50);
     timer.stop();
-    OSALSystem::getInstance().sleep_ms(100);
+    System::getInstance().sleep_ms(100);
     EXPECT_FALSE(callbackExecuted);
 #else
     GTEST_SKIP();
@@ -60,8 +60,8 @@ TEST(OSALTimerTest, TestOSALTimerStop) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerIsRunning) {
-#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
-    osal::OSALTimer timer;
+#if (DP_OSAL_TEST_TIMER_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Timer timer;
 
     EXPECT_FALSE(timer.isRunning());
 
@@ -76,11 +76,11 @@ TEST(OSALTimerTest, TestOSALTimerIsRunning) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerGetRemainingTime) {
-#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
-    osal::OSALTimer timer;
+#if (DP_OSAL_TEST_TIMER_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Timer timer;
 
     timer.start(200, false, []() {});
-    OSALSystem::getInstance().sleep_ms(100);
+    System::getInstance().sleep_ms(100);
     uint32_t remainingTime = timer.getRemainingTime();
     // After sleeping ~100 ms of a 200 ms timer, at most ~150 ms should remain.
     // The upper bound of 150 (not 100) gives headroom for scheduler jitter.
@@ -95,18 +95,18 @@ TEST(OSALTimerTest, TestOSALTimerGetRemainingTime) {
 }
 
 TEST(OSALTimerTest, TestOSALTimerReset) {
-#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
-    osal::OSALTimer timer;
+#if (DP_OSAL_TEST_TIMER_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Timer timer;
     std::atomic<bool> callbackExecuted(false);
 
     timer.start(200, false, [&]() { callbackExecuted = true; });
 
-    OSALSystem::getInstance().sleep_ms(100);
+    System::getInstance().sleep_ms(100);
     timer.reset();
-    OSALSystem::getInstance().sleep_ms(150);
+    System::getInstance().sleep_ms(150);
     EXPECT_FALSE(callbackExecuted);
 
-    OSALSystem::getInstance().sleep_ms(100);
+    System::getInstance().sleep_ms(100);
     EXPECT_TRUE(callbackExecuted);
 
     timer.stop();
@@ -117,18 +117,18 @@ TEST(OSALTimerTest, TestOSALTimerReset) {
 
 // Test: timer can be restarted after stop()
 TEST(OSALTimerTest, TestOSALTimerRestartAfterStop) {
-#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
-    osal::OSALTimer timer;
+#if (DP_OSAL_TEST_TIMER_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Timer timer;
     std::atomic<int> count(0);
 
     timer.start(100, false, [&]() { count++; });
-    OSALSystem::getInstance().sleep_ms(200);
+    System::getInstance().sleep_ms(200);
     EXPECT_EQ(count.load(), 1);
     timer.stop();
 
     // Restart — callback should fire again
     timer.start(100, false, [&]() { count++; });
-    OSALSystem::getInstance().sleep_ms(200);
+    System::getInstance().sleep_ms(200);
     EXPECT_EQ(count.load(), 2);
     timer.stop();
 #else
@@ -138,8 +138,8 @@ TEST(OSALTimerTest, TestOSALTimerRestartAfterStop) {
 
 // Test: stop() on an already-stopped timer must not crash
 TEST(OSALTimerTest, TestOSALTimerStopIdempotent) {
-#if (OSAL_TEST_TIMER_ENABLED || OSAL_TEST_ALL)
-    osal::OSALTimer timer;
+#if (DP_OSAL_TEST_TIMER_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Timer timer;
 
     timer.stop();  // never started — must be safe
     EXPECT_FALSE(timer.isRunning());
@@ -152,4 +152,4 @@ TEST(OSALTimerTest, TestOSALTimerStopIdempotent) {
     GTEST_SKIP();
 #endif
 }
-#endif /* OSAL_ENABLE_TIMER */
+#endif /* DP_OSAL_ENABLE_TIMER */

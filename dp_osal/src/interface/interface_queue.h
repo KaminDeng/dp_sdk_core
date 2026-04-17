@@ -1,12 +1,12 @@
 /** @file interface_queue.h
  *  @brief CRTP typed message-queue interface for OSAL. */
-#ifndef OSAL_INTERFACE_QUEUE_H_
-#define OSAL_INTERFACE_QUEUE_H_
+#ifndef DP_OSAL_INTERFACE_QUEUE_H_
+#define DP_OSAL_INTERFACE_QUEUE_H_
 
 #include <cstddef>
 #include <cstdint>
 
-namespace osal {
+namespace dp::osal {
 
 /** @brief CRTP base for FIFO message queues.
  *  @tparam Impl Concrete implementation type.
@@ -31,6 +31,6 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
-#endif  // OSAL_INTERFACE_QUEUE_H_
+#endif  // DP_OSAL_INTERFACE_QUEUE_H_

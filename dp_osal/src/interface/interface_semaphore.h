@@ -1,11 +1,11 @@
 /** @file interface_semaphore.h
  *  @brief CRTP semaphore interface for OSAL. */
-#ifndef OSAL_INTERFACE_SEMAPHORE_H_
-#define OSAL_INTERFACE_SEMAPHORE_H_
+#ifndef DP_OSAL_INTERFACE_SEMAPHORE_H_
+#define DP_OSAL_INTERFACE_SEMAPHORE_H_
 
 #include <cstdint>
 
-namespace osal {
+namespace dp::osal {
 
 /** @brief CRTP base for semaphore implementations. */
 template <typename Impl>
@@ -26,6 +26,6 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
-#endif  // OSAL_INTERFACE_SEMAPHORE_H_
+#endif  // DP_OSAL_INTERFACE_SEMAPHORE_H_

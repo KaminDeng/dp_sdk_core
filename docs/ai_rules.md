@@ -31,7 +31,7 @@ cmake -B build -DPRODUCT=posix_demo -DASAN=OFF -DTSAN=ON && cmake --build build
 Tests are compiled into static libraries and invoked from the host application task context (not standalone binaries). Entry points are extern "C" functions:
 
 ```c
-extern "C" void osal_test_main(void);     // OSAL GTest suites
+extern "C" void dp_osal_test_main(void);     // OSAL GTest suites
 extern "C" void dp_hal_test_main(void);   // HAL GTest suites (requires -DDP_HAL_BUILD_TESTS=ON)
 extern "C" void dp_device_test_main(void);// Device GTest suites (requires -DDP_DEVICE_BUILD_TESTS=ON)
 ```
@@ -40,9 +40,9 @@ From parent dpsdk: use `/dpsdk-test` skill or `docs/ai_docs/workflow/dpsdk-test.
 
 ### Test Controls (OSAL)
 
-In `osal_port.h`:
-- `OSAL_TEST_ALL = 1` -- run all 12 suites
-- `OSAL_TEST_ALL = 0` -- per-component flags: `OSAL_TEST_THREAD_ENABLED`, `OSAL_TEST_MUTEX_ENABLED`, etc.
+In `dp_osal_port.h`:
+- `DP_OSAL_TEST_ALL = 1` -- run all 12 suites
+- `DP_OSAL_TEST_ALL = 0` -- per-component flags: `DP_OSAL_TEST_THREAD_ENABLED`, `DP_OSAL_TEST_MUTEX_ENABLED`, etc.
 
 ### Single Translation Unit Pattern
 
@@ -66,9 +66,9 @@ CRTP base interfaces (`src/interface/`: ThreadBase<Impl>, MutexBase<Impl>, Queue
 - **POSIX** (`src/impl/posix/`) -- pthreads, std::thread, std::mutex
 - **CMSIS-OS2** (`src/impl/cmsis_os/`) -- maps to FreeRTOS/Zephyr/RT-Thread
 
-Backend selected at CMake time by scanning `osal_port.h` for `#define OSAL_BACKEND_CMSIS_OS` (POSIX is default).
+Backend selected at CMake time by scanning `dp_osal_port.h` for `#define DP_OSAL_BACKEND_CMSIS_OS` (POSIX is default).
 
-For host dependency injection / GMock only, use `src/interface/osal_virtual.h`
+For host dependency injection / GMock only, use `src/interface/dp_osal_virtual.h`
 (`IMutex` + `MutexVirtual<T>` and related wrappers). Production code should use
 CRTP concrete types directly.
 
@@ -86,14 +86,14 @@ Both OSAL and HAL use a port mechanism to isolate platform-specific code.
 
 ### OSAL Port
 
-Set `OSAL_PORT_DIR` before `add_subdirectory(osal)`. Defaults to `port/builtin_posix/`.
+Set `DP_OSAL_PORT_DIR` before `add_subdirectory(osal)`. Defaults to `port/builtin_posix/`.
 
-Port directory must contain `osal_port.h` with:
-1. Backend selection macro (`OSAL_BACKEND_POSIX` or `OSAL_BACKEND_CMSIS_OS`)
+Port directory must contain `dp_osal_port.h` with:
+1. Backend selection macro (`DP_OSAL_BACKEND_POSIX` or `DP_OSAL_BACKEND_CMSIS_OS`)
 2. Platform includes (CMSIS-OS: `cmsis_os2.h`)
-3. Constants (`OSAL_PORT_THREAD_MIN_STACK_SIZE`, `OSAL_PORT_THREAD_DEFAULT_PRIORITY`)
+3. Constants (`DP_OSAL_PORT_THREAD_MIN_STACK_SIZE`, `DP_OSAL_PORT_THREAD_DEFAULT_PRIORITY`)
 4. Debug output function (`osal_port_debug_write`)
-5. Test feature flags (`OSAL_TEST_ALL` or per-component)
+5. Test feature flags (`DP_OSAL_TEST_ALL` or per-component)
 
 ### HAL Port
 
@@ -109,11 +109,11 @@ Port provides: `hal_port.h` (typedef bindings), implementation headers (e.g. `mo
 - **RWLock.isWriteLocked()**: uses `writeLocked_` atomic flag (readers also hold writeSemaphore)
 - **SpinLock.isLocked()**: uses `atomic<bool> locked_` (osMutexGetOwner deadlocks on POSIX sim)
 - **Semaphore**: constructor `max_count=16` for counting semaphore support
-- **OSALThread stop**: cooperative via atomic flag + osDelay chunks in CMSIS-OS backend
+- **Thread stop**: cooperative via atomic flag + osDelay chunks in CMSIS-OS backend
 
 ## Cross-Platform Module Compliance
 
 All three modules follow the parent project's cross-platform module guideline:
-- Compat headers with module-specific prefixes (`DP_HAL_*`, `DP_DEV_*`)
+- Compat headers with module-specific prefixes (`DP_HAL_*`, `DP_DEV_*`, `DP_OSAL_*`)
 - Port isolation (zero platform API in `src/` or `include/`)
 - Fixed-width types throughout; no VLAs

@@ -1,13 +1,13 @@
 /** @file interface_spin_lock.h
  *  @brief CRTP spin-lock interface for OSAL. */
-#ifndef OSAL_INTERFACE_SPIN_LOCK_H_
-#define OSAL_INTERFACE_SPIN_LOCK_H_
+#ifndef DP_OSAL_INTERFACE_SPIN_LOCK_H_
+#define DP_OSAL_INTERFACE_SPIN_LOCK_H_
 
 #include <cstdint>
 
 #if OSAL_ENABLE_SPIN_LOCK
 
-namespace osal {
+namespace dp::osal {
 
 template <typename Impl>
 class SpinLockBase {
@@ -26,12 +26,12 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
 #else
-namespace osal {
+namespace dp::osal {
 /* SpinLock disabled */
 }
 #endif /* OSAL_ENABLE_SPIN_LOCK */
 
-#endif  // OSAL_INTERFACE_SPIN_LOCK_H_
+#endif  // DP_OSAL_INTERFACE_SPIN_LOCK_H_

@@ -1,9 +1,9 @@
 #include <gtest/gtest.h>
 
 #include "interface_mutex.h"
-#include "osal_virtual.h"
+#include "dp_osal_virtual.h"
 
-using namespace osal;
+using namespace dp::osal;
 
 namespace {
 
@@ -66,7 +66,7 @@ private:
 
 // Host 注入示例：业务代码依赖 IMutex，由 MutexVirtual<FakeMutex> 注入实现。
 TEST(OSALVirtualInjectionTest, MutexVirtualInjectsHostFakeIntoService) {
-#if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
+#if (DP_OSAL_TEST_MUTEX_ENABLED || DP_OSAL_TEST_ALL)
     FakeMutex fake;
     MutexVirtual<FakeMutex> injected(fake);
     CounterService service(injected);
@@ -81,7 +81,7 @@ TEST(OSALVirtualInjectionTest, MutexVirtualInjectsHostFakeIntoService) {
 }
 
 TEST(OSALVirtualInjectionTest, MutexVirtualPropagatesFailureFromInjectedFake) {
-#if (OSAL_TEST_MUTEX_ENABLED || OSAL_TEST_ALL)
+#if (DP_OSAL_TEST_MUTEX_ENABLED || DP_OSAL_TEST_ALL)
     FakeMutex fake;
     fake.lock_result = false;
     MutexVirtual<FakeMutex> injected(fake);

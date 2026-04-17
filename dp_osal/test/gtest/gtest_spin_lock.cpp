@@ -2,22 +2,22 @@
 
 #include <atomic>
 
-#if OSAL_ENABLE_SPIN_LOCK
-#include "osal_spin_lock.h"
+#if DP_OSAL_ENABLE_SPIN_LOCK
+#include "dp_osal_spin_lock.h"
 #endif
-#include "osal_system.h"
-#include "osal_thread.h"
+#include "dp_osal_system.h"
+#include "dp_osal_thread.h"
 
-using namespace osal;
+using namespace dp::osal;
 
-#if !OSAL_ENABLE_SPIN_LOCK
-/* Entire test file is disabled when OSAL_ENABLE_SPIN_LOCK=0. */
+#if !DP_OSAL_ENABLE_SPIN_LOCK
+/* Entire test file is disabled when DP_OSAL_ENABLE_SPIN_LOCK=0. */
 #else
 
 // Test: lock() acquires the lock; isLocked() reflects the state; unlock() releases it.
 TEST(TestOSALSpinLock, Lock) {
-#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSpinLock spinlock;
+#if (DP_OSAL_TEST_SPINLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::SpinLock spinlock;
     EXPECT_FALSE(spinlock.isLocked());
     spinlock.lock();
     EXPECT_TRUE(spinlock.isLocked());
@@ -30,8 +30,8 @@ TEST(TestOSALSpinLock, Lock) {
 
 // Test: tryLock() succeeds when unlocked and isLocked() reflects the acquired state.
 TEST(TestOSALSpinLock, TryLock) {
-#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSpinLock spinlock;
+#if (DP_OSAL_TEST_SPINLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::SpinLock spinlock;
     EXPECT_TRUE(spinlock.tryLock());
     EXPECT_TRUE(spinlock.isLocked());
     spinlock.unlock();
@@ -43,8 +43,8 @@ TEST(TestOSALSpinLock, TryLock) {
 
 // Test: lockFor() succeeds when the lock is available within the timeout.
 TEST(TestOSALSpinLock, LockFor) {
-#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSpinLock spinlock;
+#if (DP_OSAL_TEST_SPINLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::SpinLock spinlock;
     EXPECT_TRUE(spinlock.lockFor(500));
     EXPECT_TRUE(spinlock.isLocked());
     spinlock.unlock();
@@ -56,8 +56,8 @@ TEST(TestOSALSpinLock, LockFor) {
 
 // Test: unlock() transitions isLocked() from true to false.
 TEST(TestOSALSpinLock, Unlock) {
-#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSpinLock spinlock;
+#if (DP_OSAL_TEST_SPINLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::SpinLock spinlock;
     spinlock.lock();
     EXPECT_TRUE(spinlock.isLocked());
     spinlock.unlock();
@@ -69,8 +69,8 @@ TEST(TestOSALSpinLock, Unlock) {
 
 // Test: isLocked() accurately tracks the lock state before, during, and after locking.
 TEST(TestOSALSpinLock, IsLocked) {
-#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSpinLock spinlock;
+#if (DP_OSAL_TEST_SPINLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::SpinLock spinlock;
     EXPECT_FALSE(spinlock.isLocked());
     spinlock.lock();
     EXPECT_TRUE(spinlock.isLocked());
@@ -85,25 +85,25 @@ TEST(TestOSALSpinLock, IsLocked) {
 // and lockFor() both fail; thread2's lockFor() times out before thread1 releases.
 // Previously this identical block was copy-pasted into every single-method test above.
 TEST(TestOSALSpinLock, ConcurrentContention) {
-#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSpinLock spinlock;
+#if (DP_OSAL_TEST_SPINLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::SpinLock spinlock;
     std::atomic<bool> thread1Done(false);
     std::atomic<bool> thread2Done(false);
 
-    OSALThread thread1, thread2;
+    Thread thread1, thread2;
 
     thread1.start(
         "Holder",
         [&](void *) {
             spinlock.lock();
             EXPECT_TRUE(spinlock.isLocked());
-            OSALSystem::getInstance().sleep_ms(1000);  // hold lock for 1 s
+            System::getInstance().sleep_ms(1000);  // hold lock for 1 s
             spinlock.unlock();
             thread1Done = true;
         },
         nullptr, 0, 2048);
 
-    OSALSystem::getInstance().sleep_ms(100);  // ensure thread1 holds the lock
+    System::getInstance().sleep_ms(100);  // ensure thread1 holds the lock
 
     thread2.start(
         "Contender",
@@ -132,19 +132,19 @@ TEST(TestOSALSpinLock, ConcurrentContention) {
 // to query ownership directly from the OS.
 // On the POSIX backend this verifies the equivalent atomic_flag / OS query path.
 TEST(TestOSALSpinLock, IsLockedCrossThread) {
-#if (OSAL_TEST_SPINLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALSpinLock spinlock;
+#if (DP_OSAL_TEST_SPINLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::SpinLock spinlock;
     std::atomic<bool> holderReady(false);
     std::atomic<bool> holderDone(false);
 
     // Holder thread acquires the lock and holds it for 500ms
-    OSALThread holder;
+    Thread holder;
     holder.start(
         "Holder",
         [&](void *) {
             spinlock.lock();
             holderReady = true;
-            OSALSystem::getInstance().sleep_ms(500);
+            System::getInstance().sleep_ms(500);
             spinlock.unlock();
             holderDone = true;
         },
@@ -152,7 +152,7 @@ TEST(TestOSALSpinLock, IsLockedCrossThread) {
 
     // Wait until holder has the lock
     for (int i = 0; i < 100 && !holderReady.load(); ++i) {
-        OSALSystem::getInstance().sleep_ms(10);
+        System::getInstance().sleep_ms(10);
     }
 
     // isLocked() must return true while holder holds it
@@ -168,4 +168,4 @@ TEST(TestOSALSpinLock, IsLockedCrossThread) {
 #endif
 }
 
-#endif /* OSAL_ENABLE_SPIN_LOCK */
+#endif /* DP_OSAL_ENABLE_SPIN_LOCK */

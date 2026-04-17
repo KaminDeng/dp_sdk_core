@@ -1,11 +1,11 @@
 /** @file interface_thread.h
  *  @brief CRTP thread interface for OSAL. */
-#ifndef OSAL_INTERFACE_THREAD_H_
-#define OSAL_INTERFACE_THREAD_H_
+#ifndef DP_OSAL_INTERFACE_THREAD_H_
+#define DP_OSAL_INTERFACE_THREAD_H_
 
 #include <functional>
 
-namespace osal {
+namespace dp::osal {
 
 /** @brief CRTP base for OS thread implementations. */
 template <typename Impl>
@@ -33,6 +33,6 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
-#endif  // OSAL_INTERFACE_THREAD_H_
+#endif  // DP_OSAL_INTERFACE_THREAD_H_

@@ -1,14 +1,14 @@
 /** @file interface_timer.h
  *  @brief CRTP one-shot and periodic timer interface for OSAL. */
-#ifndef OSAL_INTERFACE_TIMER_H_
-#define OSAL_INTERFACE_TIMER_H_
+#ifndef DP_OSAL_INTERFACE_TIMER_H_
+#define DP_OSAL_INTERFACE_TIMER_H_
 
 #include <cstdint>
 #include <functional>
 
 #if OSAL_ENABLE_TIMER
 
-namespace osal {
+namespace dp::osal {
 
 template <typename Impl>
 class TimerBase {
@@ -29,8 +29,8 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
 #endif /* OSAL_ENABLE_TIMER */
 
-#endif  // OSAL_INTERFACE_TIMER_H_
+#endif  // DP_OSAL_INTERFACE_TIMER_H_

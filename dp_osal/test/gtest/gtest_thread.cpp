@@ -6,33 +6,33 @@
 
 #include <atomic>
 
-#if OSAL_ENABLE_CHRONO
-#include "osal_chrono.h"
+#if DP_OSAL_ENABLE_CHRONO
+#include "dp_osal_chrono.h"
 #endif
-#include "osal_system.h"
-#include "osal_thread.h"
+#include "dp_osal_system.h"
+#include "dp_osal_thread.h"
 
-using namespace osal;
+using namespace dp::osal;
 
 TEST(OSALThreadTest, TestOSALThreadStart) {
-#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
-    OSALThread thread;
+#if (DP_OSAL_TEST_THREAD_ENABLED || DP_OSAL_TEST_ALL)
+    Thread thread;
     std::atomic<int> taskExecuted(1);
 
     thread.start(
         "TestThread",
         [&](void *) {
             taskExecuted = 2;
-            OSALSystem::getInstance().sleep_ms(10000);
+            System::getInstance().sleep_ms(10000);
             taskExecuted = 3;
         },
         nullptr, 0, 1024);
 
-    auto timestamp_now = OSALSystem::getInstance().get_tick_ms();
-    OSALSystem::getInstance().sleep_ms(100);
+    auto timestamp_now = System::getInstance().get_tick_ms();
+    System::getInstance().sleep_ms(100);
     EXPECT_EQ(taskExecuted, 2);
     thread.stop();
-    auto interval = OSALSystem::getInstance().get_tick_ms() - timestamp_now;
+    auto interval = System::getInstance().get_tick_ms() - timestamp_now;
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
     /* Exception build: sleep_ms throws, task function aborted at sleep site.
      * taskExecuted stays 2 — the line after sleep_ms never runs. */
@@ -53,8 +53,8 @@ TEST(OSALThreadTest, TestOSALThreadStart) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadStop) {
-#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
-    OSALThread thread;
+#if (DP_OSAL_TEST_THREAD_ENABLED || DP_OSAL_TEST_ALL)
+    Thread thread;
     std::atomic<bool> taskExecuted(false);
 
     thread.start(
@@ -71,8 +71,8 @@ TEST(OSALThreadTest, TestOSALThreadStop) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadStopIdempotent) {
-#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
-    OSALThread thread;
+#if (DP_OSAL_TEST_THREAD_ENABLED || DP_OSAL_TEST_ALL)
+    Thread thread;
     std::atomic<bool> taskExecuted(false);
 
     thread.start(
@@ -90,8 +90,8 @@ TEST(OSALThreadTest, TestOSALThreadStopIdempotent) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadJoin) {
-#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
-    OSALThread thread;
+#if (DP_OSAL_TEST_THREAD_ENABLED || DP_OSAL_TEST_ALL)
+    Thread thread;
     std::atomic<bool> taskExecuted(false);
 
     thread.start(
@@ -108,20 +108,20 @@ TEST(OSALThreadTest, TestOSALThreadJoin) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadDetach) {
-#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
-    OSALThread thread;
+#if (DP_OSAL_TEST_THREAD_ENABLED || DP_OSAL_TEST_ALL)
+    Thread thread;
     std::atomic<bool> taskExecuted(false);
 
     thread.start(
         "TestThread",
         [&](void *) {
-            OSALSystem::getInstance().sleep_ms(50);
+            System::getInstance().sleep_ms(50);
             taskExecuted = true;
         },
         nullptr, 0, 1024);
 
     thread.detach();
-    OSALSystem::getInstance().sleep_ms(100);
+    System::getInstance().sleep_ms(100);
     EXPECT_TRUE(taskExecuted);
 
     // 尝试再次detach同一个线程，应该安全
@@ -132,14 +132,14 @@ TEST(OSALThreadTest, TestOSALThreadDetach) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadIsRunning) {
-#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
-    OSALThread thread;
+#if (DP_OSAL_TEST_THREAD_ENABLED || DP_OSAL_TEST_ALL)
+    Thread thread;
     std::atomic<bool> taskExecuted(false);
 
     thread.start(
         "TestThread",
         [&](void *) {
-            OSALSystem::getInstance().sleep_ms(100);
+            System::getInstance().sleep_ms(100);
             taskExecuted = true;
         },
         nullptr, 0, 1024);
@@ -156,8 +156,8 @@ TEST(OSALThreadTest, TestOSALThreadIsRunning) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadSetAndGetPriority) {
-#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
-    OSALThread thread;
+#if (DP_OSAL_TEST_THREAD_ENABLED || DP_OSAL_TEST_ALL)
+    Thread thread;
     std::atomic<bool> taskExecuted(false);
 
     thread.start(
@@ -191,12 +191,12 @@ TEST(OSALThreadTest, TestOSALThreadSetAndGetPriority) {
 }
 
 TEST(OSALThreadTest, TestOSALThreadSuspendAndResume) {
-#if (OSAL_TEST_THREAD_ENABLED || OSAL_TEST_ALL)
-    OSALThread thread;
+#if (DP_OSAL_TEST_THREAD_ENABLED || DP_OSAL_TEST_ALL)
+    Thread thread;
     std::atomic<bool> taskExecuted(false);
 
     std::function<void(void *)> taskFunction = [&](void *) {
-        OSALSystem::getInstance().sleep_ms(100);
+        System::getInstance().sleep_ms(100);
         taskExecuted = true;
     };
 
@@ -204,7 +204,7 @@ TEST(OSALThreadTest, TestOSALThreadSuspendAndResume) {
 
     // 暂停线程
     thread.suspend();
-    OSALSystem::getInstance().sleep_ms(200);
+    System::getInstance().sleep_ms(200);
     EXPECT_FALSE(taskExecuted.load());
 
     // 恢复线程

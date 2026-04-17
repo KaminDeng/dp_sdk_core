@@ -1,17 +1,17 @@
 /** @file interface_lockguard.h
  *  @brief RAII lock guard template. */
-#ifndef OSAL_INTERFACE_LOCKGUARD_H_
-#define OSAL_INTERFACE_LOCKGUARD_H_
+#ifndef DP_OSAL_INTERFACE_LOCKGUARD_H_
+#define DP_OSAL_INTERFACE_LOCKGUARD_H_
 
-namespace osal {
+namespace dp::osal {
 
 /** @brief RAII lock guard for any mutex-like type exposing lock/unlock. */
 template <typename MutexType>
-class LockGuard {
+class LockGuardBase {
 public:
-    explicit LockGuard(MutexType &mutex) : mutex_(mutex), locked_(mutex_.lock()) {}
+    explicit LockGuardBase(MutexType &mutex) : mutex_(mutex), locked_(mutex_.lock()) {}
 
-    ~LockGuard() {
+    ~LockGuardBase() {
         if (locked_) {
             (void)mutex_.unlock();
         }
@@ -19,14 +19,14 @@ public:
 
     [[nodiscard]] bool isLocked() const { return locked_; }
 
-    LockGuard(const LockGuard &) = delete;
-    LockGuard &operator=(const LockGuard &) = delete;
+    LockGuardBase(const LockGuardBase &) = delete;
+    LockGuardBase &operator=(const LockGuardBase &) = delete;
 
 private:
     MutexType &mutex_;
     bool locked_;
 };
 
-}  // namespace osal
+}  // namespace dp::osal
 
-#endif  // OSAL_INTERFACE_LOCKGUARD_H_
+#endif  // DP_OSAL_INTERFACE_LOCKGUARD_H_

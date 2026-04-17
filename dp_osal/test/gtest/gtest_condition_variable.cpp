@@ -1,33 +1,33 @@
 #include <atomic>
 
 #include "gtest/gtest.h"
-#if OSAL_ENABLE_CONDITION_VAR
-#include "osal_condition_variable.h"
+#if DP_OSAL_ENABLE_CONDITION_VAR
+#include "dp_osal_condition_variable.h"
 #endif
-#include "osal_mutex.h"
-#include "osal_system.h"
-#include "osal_thread.h"
+#include "dp_osal_mutex.h"
+#include "dp_osal_system.h"
+#include "dp_osal_thread.h"
 
-using namespace osal;
+using namespace dp::osal;
 
-#if !OSAL_ENABLE_CONDITION_VAR
-/* Entire test file is disabled when OSAL_ENABLE_CONDITION_VAR=0. */
+#if !DP_OSAL_ENABLE_CONDITION_VAR
+/* Entire test file is disabled when DP_OSAL_ENABLE_CONDITION_VAR=0. */
 #else
 
 TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitAndNotifyOne) {
-#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMutex mutex;
-    osal::OSALConditionVariable condVar;
+#if (DP_OSAL_TEST_CONDITION_VARIABLE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Mutex mutex;
+    dp::osal::ConditionVariable condVar;
 
     EXPECT_TRUE(mutex.lock());
 
     // Start a thread to notify the condition variable after a delay
-    OSALThread notifyThread;
+    Thread notifyThread;
     notifyThread.start(
         "NotifyThread",
         [](void *arg) {
-            OSALSystem::getInstance().sleep_ms(200);  // Simulate a delay
-            static_cast<osal::OSALConditionVariable *>(arg)->notifyOne();
+            System::getInstance().sleep_ms(200);  // Simulate a delay
+            static_cast<dp::osal::ConditionVariable *>(arg)->notifyOne();
         },
         &condVar, 0, 1024);
 
@@ -42,19 +42,19 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitAndNotifyOne) {
 }
 
 TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitForTimeout) {
-#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMutex mutex;
-    osal::OSALConditionVariable condVar;
+#if (DP_OSAL_TEST_CONDITION_VARIABLE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Mutex mutex;
+    dp::osal::ConditionVariable condVar;
 
     EXPECT_TRUE(mutex.lock());
 
     // Start a thread to notify the condition variable after a longer delay
-    OSALThread timeoutThread;
+    Thread timeoutThread;
     timeoutThread.start(
         "TimeoutThread",
         [](void *arg) {
-            OSALSystem::getInstance().sleep_ms(1000);  // Simulate a delay longer than the timeout
-            static_cast<osal::OSALConditionVariable *>(arg)->notifyOne();
+            System::getInstance().sleep_ms(1000);  // Simulate a delay longer than the timeout
+            static_cast<dp::osal::ConditionVariable *>(arg)->notifyOne();
         },
         &condVar, 0, 1024);
 
@@ -69,9 +69,9 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitForTimeout) {
 }
 
 TEST(OSALConditionVariableTest, TestOSALConditionVariableNotifyAll) {
-#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMutex mutex;
-    osal::OSALConditionVariable condVar;
+#if (DP_OSAL_TEST_CONDITION_VARIABLE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Mutex mutex;
+    dp::osal::ConditionVariable condVar;
     std::atomic<int> taskExecutedCount(0);
 
     // Start multiple threads to wait on the condition variable
@@ -83,11 +83,11 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableNotifyAll) {
         taskExecutedCount++;
     };
 
-    OSALThread thread1("test_thread1", worker, nullptr, 0, 1024);
-    OSALThread thread2("test_thread2", worker, nullptr, 0, 1024);
-    OSALThread thread3("test_thread3", worker, nullptr, 0, 1024);
+    Thread thread1("test_thread1", worker, nullptr, 0, 1024);
+    Thread thread2("test_thread2", worker, nullptr, 0, 1024);
+    Thread thread3("test_thread3", worker, nullptr, 0, 1024);
 
-    OSALSystem::getInstance().sleep_ms(100);  // Ensure all threads are waiting
+    System::getInstance().sleep_ms(100);  // Ensure all threads are waiting
     EXPECT_EQ(taskExecutedCount.load(), 0);
     {
         mutex.lock();
@@ -105,9 +105,9 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableNotifyAll) {
 }
 
 TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitCount) {
-#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
-    OSALConditionVariable condVar;
-    OSALMutex mutex;
+#if (DP_OSAL_TEST_CONDITION_VARIABLE_ENABLED || DP_OSAL_TEST_ALL)
+    ConditionVariable condVar;
+    Mutex mutex;
 
     auto workerTask = [&](void *) {
         mutex.lock();
@@ -115,13 +115,13 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitCount) {
         mutex.unlock();
     };
 
-    OSALThread thread1, thread2;
+    Thread thread1, thread2;
     thread1.start("TestThread1", workerTask, nullptr, 0, 1024);
     thread2.start("TestThread2", workerTask, nullptr, 0, 1024);
 
     // Spin until both threads are actually inside condVar.wait()
     for (int i = 0; i < 200 && condVar.getWaitCount() < 2; ++i) {
-        OSALSystem::getInstance().sleep_ms(10);
+        System::getInstance().sleep_ms(10);
     }
     EXPECT_EQ(condVar.getWaitCount(), 2);
 
@@ -144,13 +144,13 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableWaitCount) {
 // waiters.  In the CMSIS-OS2 backend this required moving waitCount--
 // to AFTER mutex.lock() (not before it).
 TEST(OSALConditionVariableTest, TestOSALConditionVariableTimeoutDoesNotCorruptWaitCount) {
-#if (OSAL_TEST_CONDITION_VARIABLE_ENABLED || OSAL_TEST_ALL)
-    OSALConditionVariable condVar;
-    OSALMutex mutex;
+#if (DP_OSAL_TEST_CONDITION_VARIABLE_ENABLED || DP_OSAL_TEST_ALL)
+    ConditionVariable condVar;
+    Mutex mutex;
     std::atomic<int> woken(0);
 
     // Thread A: infinite waiter — must be woken by notifyAll()
-    OSALThread infiniteWaiter;
+    Thread infiniteWaiter;
     infiniteWaiter.start(
         "InfiniteWaiter",
         [&](void *) {
@@ -162,7 +162,7 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableTimeoutDoesNotCorruptWa
         nullptr, 0, 2048);
 
     // Thread B: timed waiter — times out after 200ms
-    OSALThread timedWaiter;
+    Thread timedWaiter;
     timedWaiter.start(
         "TimedWaiter",
         [&](void *) {
@@ -174,7 +174,7 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableTimeoutDoesNotCorruptWa
 
     // Wait for both threads to enter condVar
     for (int i = 0; i < 100 && condVar.getWaitCount() < 2; ++i) {
-        OSALSystem::getInstance().sleep_ms(10);
+        System::getInstance().sleep_ms(10);
     }
     EXPECT_EQ(condVar.getWaitCount(), 2);
 
@@ -197,4 +197,4 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableTimeoutDoesNotCorruptWa
     GTEST_SKIP();
 #endif
 }
-#endif /* OSAL_ENABLE_CONDITION_VAR */
+#endif /* DP_OSAL_ENABLE_CONDITION_VAR */

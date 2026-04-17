@@ -10,8 +10,8 @@
 
 #include "dp_device.h"
 #include "dp_hal_types.h"
-#include "osal_lockguard.h"
-#include "osal_mutex.h"
+#include "dp_osal_lockguard.h"
+#include "dp_osal_mutex.h"
 
 namespace dp::device {
 
@@ -43,7 +43,7 @@ public:
         if (dev == nullptr) {
             return dp::hal::Status::kInvalidArg;
         }
-        osal::OSALLockGuard lock(mutex_);
+        dp::osal::LockGuard lock(mutex_);
         /* Check duplicate name. */
         for (size_t i = 0; i < count_; ++i) {
             if (strcmp(devices_[i]->name(), dev->name()) == 0) {
@@ -64,7 +64,7 @@ public:
      *  @return kOk on success, kBusy if the device is still open,
      *          kError if not found. */
     dp::hal::Status unregisterDevice(const char *name) {
-        osal::OSALLockGuard lock(mutex_);
+        dp::osal::LockGuard lock(mutex_);
         for (size_t i = 0; i < count_; ++i) {
             if (strcmp(devices_[i]->name(), name) == 0) {
                 if (devices_[i]->isOpen()) {
@@ -86,7 +86,7 @@ public:
      *  @param  name  Device name to search for.
      *  @return Pointer to the device, or nullptr if not found. */
     Device *find(const char *name) {
-        osal::OSALLockGuard lock(mutex_);
+        dp::osal::LockGuard lock(mutex_);
         for (size_t i = 0; i < count_; ++i) {
             if (strcmp(devices_[i]->name(), name) == 0) {
                 return devices_[i];
@@ -111,7 +111,7 @@ public:
      *  @param  cb   Callback invoked for each device.
      *  @param  ctx  User context pointer forwarded to the callback. */
     void forEach(DeviceForEachCallback cb, void *ctx) {
-        osal::OSALLockGuard lock(mutex_);
+        dp::osal::LockGuard lock(mutex_);
         for (size_t i = 0; i < count_; ++i) {
             cb(devices_[i], ctx);
         }
@@ -119,13 +119,13 @@ public:
 
     /** @brief  Get the number of registered devices. */
     size_t count() {
-        osal::OSALLockGuard lock(mutex_);
+        dp::osal::LockGuard lock(mutex_);
         return count_;
     }
 
     /** @brief  Remove all registered devices (for testing). */
     void clear() {
-        osal::OSALLockGuard lock(mutex_);
+        dp::osal::LockGuard lock(mutex_);
         for (size_t i = 0; i < count_; ++i) {
             devices_[i] = nullptr;
         }
@@ -138,7 +138,7 @@ private:
     DeviceManager(const DeviceManager &) = delete;
     DeviceManager &operator=(const DeviceManager &) = delete;
 
-    osal::OSALMutex mutex_;
+    dp::osal::Mutex mutex_;
     Device *devices_[kMaxDevices] = {};
     size_t count_ = 0;
 };

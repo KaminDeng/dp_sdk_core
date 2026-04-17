@@ -1,15 +1,15 @@
 #include <atomic>
 
 #include "gtest/gtest.h"
-#include "osal_queue.h"
-#include "osal_system.h"
-#include "osal_thread.h"
+#include "dp_osal_queue.h"
+#include "dp_osal_system.h"
+#include "dp_osal_thread.h"
 
-using namespace osal;
+using namespace dp::osal;
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueSendReceive) {
-#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMessageQueue<int> queue;
+#if (DP_OSAL_TEST_QUEUE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::MessageQueue<int> queue;
     queue.send(42);
     int message = queue.receive();
     EXPECT_EQ(message, 42);
@@ -19,8 +19,8 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueSendReceive) {
 }
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueTryReceive) {
-#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMessageQueue<int> queue;
+#if (DP_OSAL_TEST_QUEUE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::MessageQueue<int> queue;
     int message;
     EXPECT_FALSE(queue.tryReceive(message));
     queue.send(42);
@@ -32,8 +32,8 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueTryReceive) {
 }
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueReceiveFor) {
-#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMessageQueue<int> queue;
+#if (DP_OSAL_TEST_QUEUE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::MessageQueue<int> queue;
     int message;
     EXPECT_FALSE(queue.receiveFor(message, 100));
     queue.send(42);
@@ -45,8 +45,8 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueReceiveFor) {
 }
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueSize) {
-#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMessageQueue<int> queue;
+#if (DP_OSAL_TEST_QUEUE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::MessageQueue<int> queue;
     EXPECT_EQ(queue.size(), 0);
     queue.send(42);
     EXPECT_EQ(queue.size(), 1);
@@ -58,8 +58,8 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueSize) {
 }
 
 TEST(OSALMessageQueueTest, TestOSALMessageQueueClear) {
-#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMessageQueue<int> queue;
+#if (DP_OSAL_TEST_QUEUE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::MessageQueue<int> queue;
     queue.send(42);
     queue.send(43);
     EXPECT_EQ(queue.size(), 2);
@@ -72,8 +72,8 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueClear) {
 
 // Test: messages are received in FIFO order
 TEST(OSALMessageQueueTest, TestOSALMessageQueueFIFOOrder) {
-#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMessageQueue<int> queue;
+#if (DP_OSAL_TEST_QUEUE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::MessageQueue<int> queue;
     queue.send(1);
     queue.send(2);
     queue.send(3);
@@ -87,15 +87,15 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueFIFOOrder) {
 
 // Test: receive() blocks until a message is sent from another thread
 TEST(OSALMessageQueueTest, TestOSALMessageQueueBlockingReceive) {
-#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMessageQueue<int> queue;
+#if (DP_OSAL_TEST_QUEUE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::MessageQueue<int> queue;
     std::atomic<int> received(-1);
 
-    OSALThread consumer, producer;
+    Thread consumer, producer;
     consumer.start(
         "Consumer", [&](void *) { received = queue.receive(); }, nullptr, 0, 2048);
 
-    OSALSystem::getInstance().sleep_ms(100);
+    System::getInstance().sleep_ms(100);
     EXPECT_EQ(received.load(), -1);  // still blocking
 
     producer.start(
@@ -111,13 +111,13 @@ TEST(OSALMessageQueueTest, TestOSALMessageQueueBlockingReceive) {
 
 // Test: multiple producers and consumers — total message count is preserved
 TEST(OSALMessageQueueTest, TestOSALMessageQueueMultiProducerConsumer) {
-#if (OSAL_TEST_QUEUE_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMessageQueue<int> queue;
+#if (DP_OSAL_TEST_QUEUE_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::MessageQueue<int> queue;
     std::atomic<int> totalReceived(0);
     const int MSGS_PER_PRODUCER = 10;
     const int NUM_THREADS = 3;
 
-    OSALThread producers[NUM_THREADS], consumers[NUM_THREADS];
+    Thread producers[NUM_THREADS], consumers[NUM_THREADS];
 
     for (int t = 0; t < NUM_THREADS; ++t) {
         producers[t].start(

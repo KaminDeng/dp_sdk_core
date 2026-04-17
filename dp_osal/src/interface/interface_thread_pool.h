@@ -1,7 +1,7 @@
 /** @file interface_thread_pool.h
  *  @brief CRTP thread-pool interface for OSAL. */
-#ifndef OSAL_INTERFACE_THREAD_POOL_H_
-#define OSAL_INTERFACE_THREAD_POOL_H_
+#ifndef DP_OSAL_INTERFACE_THREAD_POOL_H_
+#define DP_OSAL_INTERFACE_THREAD_POOL_H_
 
 #include <cstddef>
 #include <cstdint>
@@ -9,7 +9,7 @@
 
 #if OSAL_ENABLE_THREAD_POOL
 
-namespace osal {
+namespace dp::osal {
 
 template <typename Impl>
 class ThreadPoolBase {
@@ -45,8 +45,8 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
 #endif /* OSAL_ENABLE_THREAD_POOL */
 
-#endif  // OSAL_INTERFACE_THREAD_POOL_H_
+#endif  // DP_OSAL_INTERFACE_THREAD_POOL_H_

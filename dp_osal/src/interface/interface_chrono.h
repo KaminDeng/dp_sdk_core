@@ -1,7 +1,7 @@
 /** @file interface_chrono.h
  *  @brief CRTP interface for OSAL time/clock services. */
-#ifndef OSAL_INTERFACE_CHRONO_H_
-#define OSAL_INTERFACE_CHRONO_H_
+#ifndef DP_OSAL_INTERFACE_CHRONO_H_
+#define DP_OSAL_INTERFACE_CHRONO_H_
 
 #include <cstdint>
 #include <ctime>
@@ -9,7 +9,7 @@
 
 #if OSAL_ENABLE_CHRONO
 
-namespace osal {
+namespace dp::osal {
 
 template <typename Impl>
 class ChronoBase {
@@ -32,8 +32,8 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
 #endif /* OSAL_ENABLE_CHRONO */
 
-#endif  // OSAL_INTERFACE_CHRONO_H_
+#endif  // DP_OSAL_INTERFACE_CHRONO_H_

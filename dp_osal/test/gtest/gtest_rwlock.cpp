@@ -1,21 +1,21 @@
 #include <atomic>
 
 #include "gtest/gtest.h"
-#if OSAL_ENABLE_RW_LOCK
-#include "osal_rwlock.h"
+#if DP_OSAL_ENABLE_RW_LOCK
+#include "dp_osal_rwlock.h"
 #endif
-#include "osal_system.h"
-#include "osal_thread.h"
+#include "dp_osal_system.h"
+#include "dp_osal_thread.h"
 
-using namespace osal;
+using namespace dp::osal;
 
-#if !OSAL_ENABLE_RW_LOCK
-/* Entire test file is disabled when OSAL_ENABLE_RW_LOCK=0. */
+#if !DP_OSAL_ENABLE_RW_LOCK
+/* Entire test file is disabled when DP_OSAL_ENABLE_RW_LOCK=0. */
 #else
 
 TEST(OSALRWLockTest, TestOSALRWLockReadLock) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::RWLock rwlock;
     // Two readLocks must both succeed (concurrent reads are allowed)
     rwlock.readLock();
     EXPECT_EQ(rwlock.getReadLockCount(), 1u);
@@ -38,8 +38,8 @@ TEST(OSALRWLockTest, TestOSALRWLockReadLock) {
 // readCount_ below zero (size_t wraps to SIZE_MAX). This is a known implementation
 // limitation; the shared_timed_mutex stays balanced so the test is functionally correct.
 TEST(OSALRWLockTest, TestOSALRWLockTryReadLock) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::RWLock rwlock;
     // tryReadLock() acquires the shared lock but does NOT increment readCount_.
     // readUnlock() is still required to release the shared lock, but it decrements
     // readCount_ to SIZE_MAX (impl limitation). Do not assert readCount_ after this pair.
@@ -53,8 +53,8 @@ TEST(OSALRWLockTest, TestOSALRWLockTryReadLock) {
 // Test: readLockFor() acquires a timed shared lock when available.
 // Same readCount_ caveat as tryReadLock() applies here.
 TEST(OSALRWLockTest, TestOSALRWLockReadLockFor) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::RWLock rwlock;
     // readLockFor() acquires shared lock without incrementing readCount_.
     // readUnlock() is still required to release the shared lock; readCount_ underflows.
     EXPECT_TRUE(rwlock.readLockFor(500));
@@ -69,25 +69,25 @@ TEST(OSALRWLockTest, TestOSALRWLockReadLockFor) {
 // behaviour: calling try_lock() on std::shared_timed_mutex from the same thread
 // that already owns the write lock is UB per the C++ standard.
 TEST(OSALRWLockTest, TestOSALRWLockWriteLock) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::RWLock rwlock;
     std::atomic<bool> writerDone(false);
     std::atomic<bool> contenderDone(false);
     std::atomic<bool> contenderBlocked(false);
 
-    OSALThread writer, contender;
+    Thread writer, contender;
     writer.start(
         "Writer",
         [&](void *) {
             rwlock.writeLock();
             EXPECT_TRUE(rwlock.isWriteLocked());
-            OSALSystem::getInstance().sleep_ms(500);  // hold write lock
+            System::getInstance().sleep_ms(500);  // hold write lock
             rwlock.writeUnlock();
             writerDone = true;
         },
         nullptr, 0, 2048);
 
-    OSALSystem::getInstance().sleep_ms(100);  // ensure writer has the lock
+    System::getInstance().sleep_ms(100);  // ensure writer has the lock
 
     contender.start(
         "Contender",
@@ -109,8 +109,8 @@ TEST(OSALRWLockTest, TestOSALRWLockWriteLock) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockTryWriteLock) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::RWLock rwlock;
     EXPECT_TRUE(rwlock.tryWriteLock());
     rwlock.writeUnlock();
 #else
@@ -119,8 +119,8 @@ TEST(OSALRWLockTest, TestOSALRWLockTryWriteLock) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockWriteLockFor) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::RWLock rwlock;
     EXPECT_TRUE(rwlock.writeLockFor(500));
     rwlock.writeUnlock();
 #else
@@ -129,8 +129,8 @@ TEST(OSALRWLockTest, TestOSALRWLockWriteLockFor) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockGetReadLockCount) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    RWLock rwlock;
     EXPECT_EQ(rwlock.getReadLockCount(), 0u);
     rwlock.readLock();
     EXPECT_EQ(rwlock.getReadLockCount(), 1u);
@@ -146,8 +146,8 @@ TEST(OSALRWLockTest, TestOSALRWLockGetReadLockCount) {
 }
 
 TEST(OSALRWLockTest, TestOSALRWLockIsWriteLocked) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    RWLock rwlock;
     EXPECT_FALSE(rwlock.isWriteLocked());
     rwlock.writeLock();
     EXPECT_TRUE(rwlock.isWriteLocked());
@@ -160,22 +160,22 @@ TEST(OSALRWLockTest, TestOSALRWLockIsWriteLocked) {
 
 // Test: write lock blocks concurrent reads (tryReadLock returns false from another thread)
 TEST(OSALRWLockTest, TestOSALRWLockWriteExcludesRead) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::RWLock rwlock;
     std::atomic<bool> readBlocked(false);
     std::atomic<bool> readerDone(false);
 
-    OSALThread writer, reader;
+    Thread writer, reader;
     writer.start(
         "Writer",
         [&](void *) {
             rwlock.writeLock();
-            OSALSystem::getInstance().sleep_ms(500);  // hold write lock
+            System::getInstance().sleep_ms(500);  // hold write lock
             rwlock.writeUnlock();
         },
         nullptr, 0, 2048);
 
-    OSALSystem::getInstance().sleep_ms(100);  // ensure writer has the lock
+    System::getInstance().sleep_ms(100);  // ensure writer has the lock
 
     reader.start(
         "Reader",
@@ -197,22 +197,22 @@ TEST(OSALRWLockTest, TestOSALRWLockWriteExcludesRead) {
 
 // Test: read lock blocks concurrent writes (tryWriteLock returns false from another thread)
 TEST(OSALRWLockTest, TestOSALRWLockReadExcludesWrite) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::RWLock rwlock;
     std::atomic<bool> writeBlocked(false);
     std::atomic<bool> writerDone(false);
 
-    OSALThread reader, writer;
+    Thread reader, writer;
     reader.start(
         "Reader",
         [&](void *) {
             rwlock.readLock();
-            OSALSystem::getInstance().sleep_ms(500);  // hold read lock
+            System::getInstance().sleep_ms(500);  // hold read lock
             rwlock.readUnlock();
         },
         nullptr, 0, 2048);
 
-    OSALSystem::getInstance().sleep_ms(100);  // ensure reader has the lock
+    System::getInstance().sleep_ms(100);  // ensure reader has the lock
 
     writer.start(
         "Writer",
@@ -234,13 +234,13 @@ TEST(OSALRWLockTest, TestOSALRWLockReadExcludesWrite) {
 
 // Test: multiple threads can hold read locks simultaneously
 TEST(OSALRWLockTest, TestOSALRWLockConcurrentReads) {
-#if (OSAL_TEST_RWLOCK_ENABLED || OSAL_TEST_ALL)
-    osal::OSALRWLock rwlock;
+#if (DP_OSAL_TEST_RWLOCK_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::RWLock rwlock;
     std::atomic<int> concurrentReaders(0);
     std::atomic<int> maxObserved(0);
     const int NUM_READERS = 4;
 
-    OSALThread readers[NUM_READERS];
+    Thread readers[NUM_READERS];
     for (int i = 0; i < NUM_READERS; ++i) {
         readers[i].start(
             "Reader",
@@ -250,12 +250,12 @@ TEST(OSALRWLockTest, TestOSALRWLockConcurrentReads) {
                 int prev = maxObserved.load();
                 while (cur > prev && !maxObserved.compare_exchange_weak(prev, cur)) {
                 }
-                OSALSystem::getInstance().sleep_ms(200);
+                System::getInstance().sleep_ms(200);
                 concurrentReaders.fetch_sub(1);
                 rwlock.readUnlock();
             },
             nullptr, 0, 2048);
-        OSALSystem::getInstance().sleep_ms(10);
+        System::getInstance().sleep_ms(10);
     }
 
     for (int i = 0; i < NUM_READERS; ++i) {
@@ -267,4 +267,4 @@ TEST(OSALRWLockTest, TestOSALRWLockConcurrentReads) {
     GTEST_SKIP();
 #endif
 }
-#endif /* OSAL_ENABLE_RW_LOCK */
+#endif /* DP_OSAL_ENABLE_RW_LOCK */

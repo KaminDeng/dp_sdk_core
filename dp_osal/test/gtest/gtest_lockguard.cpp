@@ -1,19 +1,19 @@
 #include <atomic>
 
 #include "gtest/gtest.h"
-#include "osal_lockguard.h"
-#include "osal_thread.h"
+#include "dp_osal_lockguard.h"
+#include "dp_osal_thread.h"
 
-using namespace osal;
+using namespace dp::osal;
 
 // Test: LockGuard acquires the mutex on construction (isLocked()==true inside scope)
 // and releases it automatically on destruction (mutex usable again after scope exits).
 // This combines the Constructor, IsLocked, and Destructor cases into one coherent RAII test.
 TEST(OSALLockGuardTest, TestOSALLockGuardRAII) {
-#if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
-    osal::OSALMutex mutex;
+#if (DP_OSAL_TEST_LOCKGUARD_ENABLED || DP_OSAL_TEST_ALL)
+    dp::osal::Mutex mutex;
     {
-        osal::OSALLockGuard lockGuard(mutex);
+        dp::osal::LockGuard lockGuard(mutex);
         EXPECT_TRUE(lockGuard.isLocked());
     }  // lockGuard goes out of scope — must release the lock
 
@@ -27,13 +27,13 @@ TEST(OSALLockGuardTest, TestOSALLockGuardRAII) {
 
 // Test: LockGuard works correctly when acquired inside a worker thread.
 TEST(OSALLockGuardTest, TestOSALLockGuardMultiThread) {
-#if (OSAL_TEST_LOCKGUARD_ENABLED || OSAL_TEST_ALL)
-    OSALThread thread;
-    osal::OSALMutex mutex;
+#if (DP_OSAL_TEST_LOCKGUARD_ENABLED || DP_OSAL_TEST_ALL)
+    Thread thread;
+    dp::osal::Mutex mutex;
     std::atomic<bool> taskExecuted(false);
 
     auto workerTask = [&](void *) {
-        osal::OSALLockGuard lockGuard(mutex);
+        dp::osal::LockGuard lockGuard(mutex);
         // Wrap EXPECT inside a lambda to avoid compiler warning about
         // returning non-void from a void lambda via the gtest macro.
         auto check = [&]() {

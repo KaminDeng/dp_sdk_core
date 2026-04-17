@@ -1,14 +1,14 @@
 /** @file interface_rwlock.h
  *  @brief CRTP reader-writer lock interface for OSAL. */
-#ifndef OSAL_INTERFACE_RWLOCK_H_
-#define OSAL_INTERFACE_RWLOCK_H_
+#ifndef DP_OSAL_INTERFACE_RWLOCK_H_
+#define DP_OSAL_INTERFACE_RWLOCK_H_
 
 #include <cstddef>
 #include <cstdint>
 
 #if OSAL_ENABLE_RW_LOCK
 
-namespace osal {
+namespace dp::osal {
 
 template <typename Impl>
 class RWLockBase {
@@ -32,12 +32,12 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
 #else
-namespace osal {
+namespace dp::osal {
 /* RWLock disabled */
 }
 #endif /* OSAL_ENABLE_RW_LOCK */
 
-#endif  // OSAL_INTERFACE_RWLOCK_H_
+#endif  // DP_OSAL_INTERFACE_RWLOCK_H_

@@ -3,14 +3,14 @@
 
 #include "gtest/gtest.h"
 
-#if OSAL_ENABLE_MEMORY_MANAGER
-#include "osal_memory_manager.h"
+#if DP_OSAL_ENABLE_MEMORY_MANAGER
+#include "dp_osal_memory_manager.h"
 
-using namespace osal;
+using namespace dp::osal;
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocate) {
-#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
-    OSALMemoryManager mm(128, 10);
+#if (DP_OSAL_TEST_MEMORY_MANAGER_ENABLED || DP_OSAL_TEST_ALL)
+    MemoryManager mm(128, 10);
     void *ptr = mm.allocate(50);
     ASSERT_NE(ptr, nullptr);
     mm.deallocate(ptr);
@@ -24,8 +24,8 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocate) {
 }
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerDeallocate) {
-#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
-    OSALMemoryManager mm(128, 10);
+#if (DP_OSAL_TEST_MEMORY_MANAGER_ENABLED || DP_OSAL_TEST_ALL)
+    MemoryManager mm(128, 10);
     // Exhaust all blocks
     void *ptrs[10];
     for (int i = 0; i < 10; ++i) {
@@ -48,8 +48,8 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerDeallocate) {
 }
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerReallocate) {
-#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
-    OSALMemoryManager mm(128, 10);
+#if (DP_OSAL_TEST_MEMORY_MANAGER_ENABLED || DP_OSAL_TEST_ALL)
+    MemoryManager mm(128, 10);
     void *ptr = mm.allocate(50);
     ASSERT_NE(ptr, nullptr);
     std::memset(ptr, 0xAB, 50);
@@ -67,10 +67,10 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerReallocate) {
 }
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateAligned) {
-#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
+#if (DP_OSAL_TEST_MEMORY_MANAGER_ENABLED || DP_OSAL_TEST_ALL)
     // Use block size large enough for metadata + alignment + data
     // 2*sizeof(uintptr_t)=16 + 63 padding + 30 data = 109 bytes minimum -> use 256
-    OSALMemoryManager mm(256, 10);
+    MemoryManager mm(256, 10);
     void *ptr = mm.allocateAligned(30, 64);
     ASSERT_NE(ptr, nullptr);
     // Verify alignment
@@ -92,9 +92,9 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateAligned) {
 }
 
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerGetAllocatedSize) {
-#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
+#if (DP_OSAL_TEST_MEMORY_MANAGER_ENABLED || DP_OSAL_TEST_ALL)
     // getAllocatedSize() takes no arguments -- returns blockSize_
-    OSALMemoryManager mm(128, 10);
+    MemoryManager mm(128, 10);
     EXPECT_EQ(mm.getAllocatedSize(), 128u);
 #else
     GTEST_SKIP();
@@ -103,8 +103,8 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerGetAllocatedSize) {
 
 // Test: deallocate(nullptr) must not crash and pool remains usable
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerDeallocateNull) {
-#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
-    OSALMemoryManager mm(128, 10);
+#if (DP_OSAL_TEST_MEMORY_MANAGER_ENABLED || DP_OSAL_TEST_ALL)
+    MemoryManager mm(128, 10);
     mm.deallocate(nullptr);  // must not crash or corrupt state
     void *p = mm.allocate(10);
     EXPECT_NE(p, nullptr);
@@ -116,8 +116,8 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerDeallocateNull) {
 
 // Test: allocate(size > block_size) must return nullptr
 TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateOversize) {
-#if (OSAL_TEST_MEMORY_MANAGER_ENABLED || OSAL_TEST_ALL)
-    OSALMemoryManager mm(64, 10);
+#if (DP_OSAL_TEST_MEMORY_MANAGER_ENABLED || DP_OSAL_TEST_ALL)
+    MemoryManager mm(64, 10);
     void *p = mm.allocate(65);  // one byte over block_size
     EXPECT_EQ(p, nullptr);
     // Normal allocation still works
@@ -129,4 +129,4 @@ TEST(OSALMemoryManagerTest, TestOSALMemoryManagerAllocateOversize) {
 #endif
 }
 
-#endif /* OSAL_ENABLE_MEMORY_MANAGER */
+#endif /* DP_OSAL_ENABLE_MEMORY_MANAGER */

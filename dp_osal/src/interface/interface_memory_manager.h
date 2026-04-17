@@ -1,13 +1,13 @@
 /** @file interface_memory_manager.h
  *  @brief CRTP interface for OSAL memory pool/heap management. */
-#ifndef OSAL_INTERFACE_MEMORY_MANAGER_H_
-#define OSAL_INTERFACE_MEMORY_MANAGER_H_
+#ifndef DP_OSAL_INTERFACE_MEMORY_MANAGER_H_
+#define DP_OSAL_INTERFACE_MEMORY_MANAGER_H_
 
 #include <cstddef>
 
 #if OSAL_ENABLE_MEMORY_MANAGER
 
-namespace osal {
+namespace dp::osal {
 
 template <typename Impl>
 class MemoryManagerBase {
@@ -27,8 +27,8 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-}  // namespace osal
+} // namespace dp::osal
 
 #endif /* OSAL_ENABLE_MEMORY_MANAGER */
 
-#endif  // OSAL_INTERFACE_MEMORY_MANAGER_H_
+#endif  // DP_OSAL_INTERFACE_MEMORY_MANAGER_H_
