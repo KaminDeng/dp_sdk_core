@@ -4,11 +4,11 @@ cmake_minimum_required(VERSION 3.15)
 #
 # FreeRTOS-on-POSIX simulator port using CMSIS-OS2 adapter — new osal_port.h format.
 #
-# Usage in your project's CMakeLists.txt (before add_subdirectory(osal)):
+# Usage in your project's CMakeLists.txt (before add_subdirectory(dp_osal)):
 #   set(OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/path/to/osal_port_sim_freertos)
 #
 # The cmsis_os2_freertos/ subdirectory contains the CMSIS-OS2 implementation
-# that wraps FreeRTOS APIs. Its include paths are exported here so osal can
+# that wraps FreeRTOS APIs. Its include paths are exported here so dp_osal can
 # find cmsis_os2.h when OSAL_BACKEND_CMSIS_OS is selected.
 
 add_library(osal_port INTERFACE)

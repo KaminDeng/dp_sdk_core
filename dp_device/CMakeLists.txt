@@ -1,15 +1,15 @@
-# kernel/device/CMakeLists.txt
+# kernel/dp_device/CMakeLists.txt
 #
-# dp_device — device management framework on top of dp_hal.
+# dp_device — dp_device management framework on top of dp_hal.
 # Provides Device base class, DeviceManager registry, and per-class adapters.
 
 dpsdk_library(
     NAME          dp_device
     DESCRIPTION   "设备管理框架（注册、生命周期、Shell 集成）"
     PRIMARY_TAG   general
-    TAGS          general device
-    DEPENDS       dp_hal osal
-    NOTES         "dp_hal 为公开依赖，osal 为私有依赖（DeviceManager 互斥锁）"
+    TAGS          general dp_device
+    DEPENDS       dp_hal dp_osal
+    NOTES         "dp_hal 为公开依赖，dp_osal 为私有依赖（DeviceManager 互斥锁）"
 )
 
 add_library(dp_device STATIC
@@ -21,7 +21,7 @@ target_include_directories(dp_device PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
-target_link_libraries(dp_device PUBLIC dp_hal PRIVATE osal)
+target_link_libraries(dp_device PUBLIC dp_hal PRIVATE dp_osal)
 
 option(DP_DEVICE_BUILD_TESTS "Build dp_device GTest suite" OFF)
 if(DP_DEVICE_BUILD_TESTS)

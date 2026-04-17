@@ -1,4 +1,4 @@
-# kernel/hal/test/CMakeLists.txt
+# kernel/dp_hal/test/CMakeLists.txt
 #
 # dp_hal test static library (linked into firmware test binary).
 # Test .cpp files are #included by dp_hal_test_main.cpp (single TU pattern).

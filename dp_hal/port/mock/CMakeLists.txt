@@ -1,4 +1,4 @@
-# kernel/hal/port/mock/CMakeLists.txt
+# kernel/dp_hal/port/mock/CMakeLists.txt
 #
 # Mock port implementation for dp_hal host testing.
 

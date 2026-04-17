@@ -2,7 +2,7 @@
 #
 # STM32 FreeRTOS+CMSIS-OS2 port — new osal_port.h single-file format.
 #
-# Usage in your project's CMakeLists.txt (before add_subdirectory(osal)):
+# Usage in your project's CMakeLists.txt (before add_subdirectory(dp_osal)):
 #   set(OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/path/to/osal_port_freertos)
 #
 # NOTE: osal_port_debug_write uses HAL_UART_Transmit (huart6).

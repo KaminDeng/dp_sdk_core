@@ -1,6 +1,6 @@
-# kernel/hal/CMakeLists.txt
+# kernel/dp_hal/CMakeLists.txt
 #
-# dp_hal -- device abstraction layer (CRTP interfaces, zero platform flags).
+# dp_hal -- dp_device abstraction layer (CRTP interfaces, zero platform flags).
 #
 # Produces:
 #   dp_hal            -- INTERFACE: CRTP headers + port headers
@@ -13,7 +13,7 @@ dpsdk_library(
     NAME          dp_hal
     DESCRIPTION   "零开销 CRTP 硬件抽象层"
     PRIMARY_TAG   general
-    TAGS          general hal
+    TAGS          general dp_hal
     NOTES         "INTERFACE 库（仅头文件），通过 dp_hal_port_impl 提供实现"
 )
 
@@ -29,7 +29,7 @@ target_include_directories(dp_hal INTERFACE
 # product cmake. Fallback order:
 #   1. platform/<KERNEL_PORT>/hal_port/    (product-specific)
 #   2. platform/common/hal_port/           (shared default)
-#   3. kernel/hal/port/mock/               (built-in mock for host testing)
+#   3. kernel/dp_hal/port/mock/               (built-in mock for host testing)
 if(NOT DEFINED HAL_PORT_DIR)
     set(_product_hal "${CMAKE_SOURCE_DIR}/platform/${KERNEL_PORT}/hal_port")
     set(_common_hal  "${CMAKE_SOURCE_DIR}/platform/common/hal_port")

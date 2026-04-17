@@ -1,4 +1,4 @@
-# kernel/device/test/CMakeLists.txt
+# kernel/dp_device/test/CMakeLists.txt
 #
 # dp_device test static library (linked into firmware test binary).
 # Test .cpp files are #included by dp_device_test_main.cpp (single TU pattern).
