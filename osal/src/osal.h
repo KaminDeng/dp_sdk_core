@@ -17,3 +17,11 @@
          "  set(OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/your_port_dir)\n" \
          "Template: copy osal/port/template/osal_port.h to your port directory."
 #endif
+
+// Optional per-port hook:
+// - CMSIS-OS backends can provide a port-specific way to derive saved stack
+//   pointer from osThreadId_t (used by thread snapshot).
+// - Default keeps behavior portable on non-FreeRTOS / unknown ports.
+#ifndef OSAL_PORT_THREAD_STACK_POINTER_FROM_ID
+#define OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (0U)
+#endif

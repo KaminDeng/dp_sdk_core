@@ -54,6 +54,14 @@
 #define OSAL_PORT_THREAD_DEFAULT_PRIORITY 0
 #endif
 
+// Optional (CMSIS-OS backend):
+//   Provide saved stack pointer extraction from osThreadId_t for thread snapshot.
+//   Default in OSAL core is 0U (unknown). FreeRTOS ports may expose pxTopOfStack:
+// #if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1)
+// #define OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) \
+//     (*reinterpret_cast<uint32_t*>(thread_id))
+// #endif
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Section 4: Debug Output
 //

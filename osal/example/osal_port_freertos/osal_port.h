@@ -43,6 +43,16 @@
 #define OSAL_PORT_THREAD_DEFAULT_PRIORITY osPriorityNormal
 #endif
 
+// Optional: expose saved stack pointer from FreeRTOS TCB (pxTopOfStack).
+// Keep this in the FreeRTOS port instead of OSAL core.
+#ifndef OSAL_PORT_THREAD_STACK_POINTER_FROM_ID
+#if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1)
+#define OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (*reinterpret_cast<uint32_t *>(thread_id))
+#else
+#define OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (0U)
+#endif
+#endif
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // Section 4: Debug Output
 //
