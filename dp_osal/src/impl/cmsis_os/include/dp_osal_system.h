@@ -7,7 +7,7 @@
 #include <cstring>
 
 #include "interface_system.h"
-#include "dp_osal_port.h"
+#include "dp_osal.h"
 #include "dp_osal_thread_stop.h"
 
 namespace dp::osal {
