@@ -2,7 +2,7 @@
 
 ## Overview
 Device management framework on top of dp_hal. Provides device registration,
-name-based lookup, lifecycle (open/close/refcount), and dpsh shell commands.
+name-based lookup, lifecycle (open/close/refcount), and dp_shell shell commands.
 
 ## Build
 - Part of dpsdk: `cmake -B build -DPRODUCT=posix_demo && cmake --build build`

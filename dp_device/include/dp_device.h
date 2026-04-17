@@ -88,7 +88,7 @@ public:
     /** @brief  Get the primary dp_hal virtual interface pointer.
      *
      *  Subclasses override to return their dp::hal::IXxx* (e.g., IUart*, IGpioPin*).
-     *  Used by dpsh commands to access device-specific operations without RTTI.
+     *  Used by dp_shell commands to access device-specific operations without RTTI.
      *  @return Pointer to the virtual interface, or nullptr if not applicable. */
     virtual void *interface() { return nullptr; }
 
