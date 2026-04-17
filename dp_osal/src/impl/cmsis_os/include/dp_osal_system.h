@@ -7,7 +7,7 @@
 #include <cstring>
 
 #include "interface_system.h"
-#include "osal.h"
+#include "dp_osal_port.h"
 #include "dp_osal_thread_stop.h"
 
 namespace dp::osal {
@@ -40,7 +40,7 @@ private:
      *
      * Sleeps in SLEEP_CHUNK_MS chunks using osDelay().  After each chunk, the
      * per-thread stop flag is checked.  If set, the sleep is aborted:
-     *   - Exception build: throws OSALCmsisThreadStopException (caught by taskRunner)
+     *   - Exception build: throws CmsisThreadStopException (caught by taskRunner)
      *   - Bare-metal / -fno-exceptions: returns early
      *
      * On FreeRTOS (OSAL_PORT_THREAD_FLAGS_WAKE=1), stop() additionally calls
@@ -63,7 +63,7 @@ private:
             auto *stop_flag = osal::osal_cmsis_stop_flag_get();
             if (stop_flag != nullptr && stop_flag->load(std::memory_order_acquire)) {
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
-                throw OSALCmsisThreadStopException{};
+                throw CmsisThreadStopException{};
 #else
                 return;  /* cooperative early return on MCU firmware */
 #endif

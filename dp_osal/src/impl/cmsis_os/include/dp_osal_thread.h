@@ -8,7 +8,7 @@
 #include <functional>
 
 #include "interface_thread.h"
-#include "osal.h"
+#include "dp_osal_port.h"
 #include "dp_osal_debug.h"
 #include "dp_osal_thread_stop.h"
 
@@ -174,7 +174,7 @@ private:
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
             try {
                 thread->_taskFunction(thread->_taskArgument);
-            } catch (const OSALCmsisThreadStopException &) {
+            } catch (const CmsisThreadStopException &) {
                 /* stop() was requested: sleep_ms() threw to abort the task
                  * function before executing any code after the sleep call.
                  * Exit cleanly via the semaphore + osThreadExit path. */

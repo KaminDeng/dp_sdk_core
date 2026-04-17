@@ -1,4 +1,4 @@
-/** @file osal_virtual.h
+/** @file dp_osal_virtual.h
  *  @brief Optional virtual wrappers for OSAL CRTP interfaces (host testing).
  *
  *  These wrappers add vtable indirection on top of CRTP implementations.
@@ -134,7 +134,7 @@ private:
     Impl &impl_;
 };
 
-#if OSAL_ENABLE_RW_LOCK
+#if DP_OSAL_ENABLE_RW_LOCK
 class IRWLock {
 public:
     virtual ~IRWLock() = default;
@@ -171,7 +171,7 @@ private:
 };
 #endif
 
-#if OSAL_ENABLE_SPIN_LOCK
+#if DP_OSAL_ENABLE_SPIN_LOCK
 class ISpinLock {
 public:
     virtual ~ISpinLock() = default;
@@ -198,7 +198,7 @@ private:
 };
 #endif
 
-#if OSAL_ENABLE_CONDITION_VAR
+#if DP_OSAL_ENABLE_CONDITION_VAR
 class IConditionVariable {
 public:
     virtual ~IConditionVariable() = default;
@@ -225,7 +225,7 @@ private:
 };
 #endif
 
-#if OSAL_ENABLE_TIMER
+#if DP_OSAL_ENABLE_TIMER
 class ITimer {
 public:
     virtual ~ITimer() = default;
@@ -254,7 +254,7 @@ private:
 };
 #endif
 
-#if OSAL_ENABLE_THREAD_POOL
+#if DP_OSAL_ENABLE_THREAD_POOL
 class IThreadPool {
 public:
     virtual ~IThreadPool() = default;
@@ -309,7 +309,7 @@ private:
 };
 #endif
 
-#if OSAL_ENABLE_CHRONO
+#if DP_OSAL_ENABLE_CHRONO
 class IChrono {
 public:
     using TimePoint = uint32_t;
@@ -349,7 +349,7 @@ public:
     virtual void enter_critical() const = 0;
     virtual void exit_critical() const = 0;
     virtual const char *get_system_info() const = 0;
-#if OSAL_ENABLE_THREAD_SNAPSHOT
+#if DP_OSAL_ENABLE_THREAD_SNAPSHOT
     virtual size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const = 0;
 #endif
 };
@@ -366,7 +366,7 @@ public:
     void enter_critical() const override { impl_.enter_critical(); }
     void exit_critical() const override { impl_.exit_critical(); }
     const char *get_system_info() const override { return impl_.get_system_info(); }
-#if OSAL_ENABLE_THREAD_SNAPSHOT
+#if DP_OSAL_ENABLE_THREAD_SNAPSHOT
     size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const override {
         return impl_.get_thread_snapshot(buf, max);
     }
@@ -376,7 +376,7 @@ private:
     Impl &impl_;
 };
 
-#if OSAL_ENABLE_MEMORY_MANAGER
+#if DP_OSAL_ENABLE_MEMORY_MANAGER
 class IMemoryManager {
 public:
     virtual ~IMemoryManager() = default;

@@ -1,4 +1,4 @@
-// osal_thread_stop.h — Cooperative thread-stop support for CMSIS-OS backend.
+// dp_osal_thread_stop.h — Cooperative thread-stop support for CMSIS-OS backend.
 //
 // Provides the stop exception class and per-thread stop-flag access.
 //
@@ -20,11 +20,11 @@ namespace dp::osal {
  * Under -fno-exceptions (MCU firmware), the struct has no base class and is never
  * thrown; stop() relies on cooperative task exit instead. */
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
-struct OSALCmsisThreadStopException : public std::exception {
+struct CmsisThreadStopException : public std::exception {
     const char *what() const noexcept override { return "Thread (CMSIS-OS): stop requested"; }
 };
 #else
-struct OSALCmsisThreadStopException {};
+struct CmsisThreadStopException {};
 #endif
 
 /* ── Per-thread stop-flag access ──────────────────────────────────────────── */

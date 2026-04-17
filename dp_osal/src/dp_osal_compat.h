@@ -1,4 +1,4 @@
-/** @file   osal_compat.h
+/** @file   dp_osal_compat.h
  *  @brief  Compiler-portability macros for OSAL.
  *
  *  Self-contained -- no external dependencies.

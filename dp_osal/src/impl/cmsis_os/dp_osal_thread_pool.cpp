@@ -30,13 +30,13 @@ void ThreadPool::doStart(uint32_t numThreads, int priority, int stack_size) {
     for (uint32_t i = 0; i < numThreads; ++i) {
         ThreadPool::OSALAddTread();
     }
-    OSAL_LOGD("Thread pool started with %u threads\n", static_cast<unsigned int>(numThreads));
+    DP_OSAL_LOGD("Thread pool started with %u threads\n", static_cast<unsigned int>(numThreads));
 }
 
 bool ThreadPool::OSALAddTread() {
     auto thread = std::make_unique<Thread>();
     if (thread == nullptr) {
-        OSAL_LOGE("Failed to create thread\n");
+        DP_OSAL_LOGE("Failed to create thread\n");
         return false;
     } else {
         thread->start("ThreadPool", threadEntry, this, priority_, stack_size_);
@@ -70,19 +70,19 @@ void ThreadPool::doStop() {
         thread->stop();
     }
     threads_.clear();
-    OSAL_LOGD("Thread pool stopped\n");
+    DP_OSAL_LOGD("Thread pool stopped\n");
 }
 
 int ThreadPool::doSuspend() {
     suspended_ = true;
-    OSAL_LOGD("Thread pool suspended\n");
+    DP_OSAL_LOGD("Thread pool suspended\n");
     return 0;
 }
 
 int ThreadPool::doResume() {
     suspended_ = false;
     condition_.notifyAll();
-    OSAL_LOGD("Thread pool resumed\n");
+    DP_OSAL_LOGD("Thread pool resumed\n");
     return 0;
 }
 
@@ -93,7 +93,7 @@ bool ThreadPool::doIsSuspended() const { return suspended_; }
 uint32_t ThreadPool::doSubmit(std::function<void(void *)> taskFunction, void *taskArgument, int priority) {
     uint32_t id = nextTaskId_.fetch_add(1U, std::memory_order_relaxed);
     {
-        OSALLockGuard lockGuard(queueMutex_);
+        LockGuard lockGuard(queueMutex_);
         taskQueue_.emplace(Task{taskFunction, taskArgument, priority, id});
     }
     condition_.notifyOne();
@@ -101,7 +101,7 @@ uint32_t ThreadPool::doSubmit(std::function<void(void *)> taskFunction, void *ta
     if (activeThreads_ == std::size(threads_) && activeThreads_ < maxThreads_) {
         OSALAddTread();
     }
-    OSAL_LOGD("Task submitted (id=%u)\n", static_cast<unsigned>(id));
+    DP_OSAL_LOGD("Task submitted (id=%u)\n", static_cast<unsigned>(id));
     return id;
 }
 
@@ -110,20 +110,20 @@ void ThreadPool::doSetPriority(int priority) {
     for (auto &thread : threads_) {
         thread->setPriority(priority);
     }
-    OSAL_LOGD("Thread pool priority set to %d\n", priority);
+    DP_OSAL_LOGD("Thread pool priority set to %d\n", priority);
 }
 
 int ThreadPool::doGetPriority() const { return priority_; }
 
 size_t ThreadPool::doGetTaskQueueSize() {
-    OSALLockGuard lockGuard(queueMutex_);
+    LockGuard lockGuard(queueMutex_);
     return taskQueue_.size();
 }
 
 uint32_t ThreadPool::doGetActiveThreadCount() const { return activeThreads_; }
 
 bool ThreadPool::doCancelTask(uint32_t taskId) {
-    OSALLockGuard lockGuard(queueMutex_);
+    LockGuard lockGuard(queueMutex_);
     std::queue<Task> newQueue;
     bool found = false;
     while (!taskQueue_.empty()) {
@@ -136,13 +136,13 @@ bool ThreadPool::doCancelTask(uint32_t taskId) {
         }
     }
     taskQueue_ = std::move(newQueue);
-    OSAL_LOGD("cancelTask(id=%u): %s\n", static_cast<unsigned>(taskId), found ? "cancelled" : "not found");
+    DP_OSAL_LOGD("cancelTask(id=%u): %s\n", static_cast<unsigned>(taskId), found ? "cancelled" : "not found");
     return found;
 }
 
 bool ThreadPool::doCancelTask(std::function<void(void *)> &taskFunction) {
 #if defined(__GXX_RTTI) || defined(__cpp_rtti)
-    OSALLockGuard lockGuard(queueMutex_);
+    LockGuard lockGuard(queueMutex_);
     std::queue<Task> newQueue;
     bool found = false;
     auto targetPtr = taskFunction.template target<void (*)(void *)>();
@@ -158,32 +158,32 @@ bool ThreadPool::doCancelTask(std::function<void(void *)> &taskFunction) {
         }
     }
     taskQueue_ = std::move(newQueue);
-    OSAL_LOGD("Task %s\n", found ? "cancelled" : "not found");
+    DP_OSAL_LOGD("Task %s\n", found ? "cancelled" : "not found");
     return found;
 #else
     /* RTTI disabled (MCU firmware): task cancellation by function pointer
      * comparison is unavailable without std::function::target(). */
     (void)taskFunction;
-    OSAL_LOGD("cancelTask: RTTI unavailable, returning false\n");
+    DP_OSAL_LOGD("cancelTask: RTTI unavailable, returning false\n");
     return false;
 #endif
 }
 
 void ThreadPool::doSetTaskFailureCallback(std::function<void(void *)> callback) {
     taskFailureCallback_ = callback;
-    OSAL_LOGD("Task failure callback set\n");
+    DP_OSAL_LOGD("Task failure callback set\n");
 }
 
 void ThreadPool::doSetMaxThreads(uint32_t maxThreads) {
     maxThreads_ = maxThreads;
-    OSAL_LOGD("Max threads set to %u\n", static_cast<unsigned int>(maxThreads));
+    DP_OSAL_LOGD("Max threads set to %u\n", static_cast<unsigned int>(maxThreads));
 }
 
 uint32_t ThreadPool::doGetMaxThreads() const { return maxThreads_; }
 
 void ThreadPool::doSetMinThreads(uint32_t minThreads) {
     minThreads_ = minThreads;
-    OSAL_LOGD("Min threads set to %u\n", static_cast<unsigned int>(minThreads));
+    DP_OSAL_LOGD("Min threads set to %u\n", static_cast<unsigned int>(minThreads));
 }
 
 uint32_t ThreadPool::doGetMinThreads() const { return minThreads_; }
@@ -197,7 +197,7 @@ void ThreadPool::threadLoop() {
     while (isstarted_) {
         Task task;
         {
-            OSALLockGuard lockGuard(queueMutex_);
+            LockGuard lockGuard(queueMutex_);
             // Loop to handle spurious wakeups: condition_.wait has no predicate
             // support in the CMSIS-OS semaphore implementation (C3).
             while (isstarted_ && !suspended_ && taskQueue_.empty()) {
