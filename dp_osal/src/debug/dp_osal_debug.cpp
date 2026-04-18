@@ -2,6 +2,7 @@
 // Created by kamin.deng on 2024/8/23.
 //
 #include "dp_osal_debug.h"
+#include <cstring>
 
 namespace dp::osal {
 
@@ -24,6 +25,13 @@ bool getIncludeFileFunction() { return includeFileFunctionLine; }
 // 通用日志函数
 void common_log(const char *prefix, const char *file, const char *function, int line, const char *format,
                 va_list args) {
+#if defined(DP_OSAL_PORT_DEBUG_IN_ISR)
+    /* Never emit text logs from ISR context: debug output may take locks/semaphores
+     * and recurse back into OSAL primitives, causing assert/deadlock. */
+    if (DP_OSAL_PORT_DEBUG_IN_ISR()) {
+        return;
+    }
+#endif
     char buf[512];
     char *ptr = buf;
 
@@ -53,13 +61,12 @@ void common_log(const char *prefix, const char *file, const char *function, int 
         }
     }
 
-    // 计算实际需要发送的字节数
-    size_t prefix_len = (size_t)(ptr - buf);
-    size_t msg_len = (written > 0) ? (size_t)written : 0;
-    uint32_t total = (uint32_t)(prefix_len + msg_len);
+    // 计算实际需要发送的字节数（使用缓冲区实际字符串长度，避免 vsnprintf 截断时越界）
+    (void)written;
+    size_t total = strnlen(buf, sizeof(buf));
 
     // 输出日志
-    osal_port_debug_write(buf, total);
+    osal_port_debug_write(buf, static_cast<uint32_t>(total));
 }
 
 // 定义具体的日志函数

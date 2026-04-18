@@ -42,9 +42,16 @@ private:
     }
 
     void doSignal() {
-        if (osSemaphoreRelease(semaphore_) == osOK) {
+        const osStatus_t st = osSemaphoreRelease(semaphore_);
+        if (st == osOK) {
             DP_OSAL_LOGD("Semaphore signal succeeded\n");
         } else {
+            /* For bounded semaphores, release may hit max-count under bursty ISR
+             * producers. This is non-fatal; avoid error storms. */
+            if (st == osErrorResource) {
+                DP_OSAL_LOGD("Semaphore signal dropped (full)\n");
+                return;
+            }
             DP_OSAL_LOGE("Semaphore signal failed\n");
         }
     }
