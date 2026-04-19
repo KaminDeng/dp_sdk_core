@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="820" viewBox="0 0 1400 820">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#dbeafe" />
+      <stop offset="50%" stop-color="#dcfce7" />
+      <stop offset="100%" stop-color="#fef3c7" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="820" fill="url(#bg)" />
+
+  <text x="700" y="64" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="38" font-weight="700">dp_sdk_core: Stable Application Code Across Changing Targets</text>
+  <text x="700" y="103" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="22" font-weight="500">Port isolation + CRTP interfaces + device lifecycle management</text>
+
+  <rect x="360" y="135" width="680" height="78" rx="10" fill="#ffffff" stroke="#334155" stroke-width="2" />
+  <text x="700" y="166" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="24" font-weight="700">Application / Product Logic</text>
+  <text x="700" y="195" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="18">Business behavior depends on stable core contracts, not platform APIs</text>
+
+  <line x1="700" y1="213" x2="700" y2="250" stroke="#334155" stroke-width="3" />
+  <polygon points="690,248 700,266 710,248" fill="#334155" />
+
+  <rect x="105" y="266" width="1190" height="255" rx="16" fill="url(#core)" stroke="#1e293b" stroke-width="3" />
+  <text x="700" y="303" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="25" font-weight="700">Core Abstraction Layer</text>
+
+  <rect x="145" y="335" width="350" height="135" rx="10" fill="#ffffff" stroke="#ca8a04" stroke-width="2" />
+  <text x="320" y="368" text-anchor="middle" fill="#713f12" font-family="Segoe UI, sans-serif" font-size="23" font-weight="700">dp_device</text>
+  <text x="320" y="400" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">Registry + lifecycle</text>
+  <text x="320" y="428" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">Adapters wrap HAL interfaces</text>
+  <text x="320" y="456" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">Fixed array, no heap, no RTTI</text>
+
+  <rect x="525" y="335" width="350" height="135" rx="10" fill="#ffffff" stroke="#2563eb" stroke-width="2" />
+  <text x="700" y="368" text-anchor="middle" fill="#1e3a8a" font-family="Segoe UI, sans-serif" font-size="23" font-weight="700">dp_hal</text>
+  <text x="700" y="396" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="16">UART / GPIO / SPI / I2C</text>
+  <text x="700" y="421" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="16">ADC / PWM / Timer / CAN</text>
+  <text x="700" y="446" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="16">CRTP templates, inline friendly</text>
+  <text x="700" y="468" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="15">Mock fallback for host testing</text>
+
+  <rect x="905" y="335" width="350" height="135" rx="10" fill="#ffffff" stroke="#16a34a" stroke-width="2" />
+  <text x="1080" y="368" text-anchor="middle" fill="#14532d" font-family="Segoe UI, sans-serif" font-size="23" font-weight="700">dp_osal</text>
+  <text x="1080" y="400" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">Thread / Mutex / Queue / Timer</text>
+  <text x="1080" y="428" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">POSIX or CMSIS-OS2 backend</text>
+  <text x="1080" y="456" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">Port selected by dp_osal_port.h</text>
+
+  <line x1="495" y1="402" x2="525" y2="402" stroke="#334155" stroke-width="3" />
+  <polygon points="520,394 536,402 520,410" fill="#334155" />
+  <text x="510" y="386" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="14">public</text>
+  <line x1="495" y1="497" x2="905" y2="497" stroke="#64748b" stroke-width="2" stroke-dasharray="8 6" />
+  <polygon points="900,489 916,497 900,505" fill="#64748b" />
+  <text x="700" y="490" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="14">private sync</text>
+
+  <rect x="145" y="548" width="350" height="122" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2" />
+  <text x="320" y="582" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="22" font-weight="700">Host Validation</text>
+  <text x="320" y="614" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">POSIX backend</text>
+  <text x="320" y="642" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">GTest entrypoints, mock HAL</text>
+
+  <rect x="525" y="548" width="350" height="122" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2" />
+  <text x="700" y="582" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="22" font-weight="700">Product Firmware</text>
+  <text x="700" y="614" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">FreeRTOS / Zephyr via CMSIS-OS2</text>
+  <text x="700" y="642" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">Platform HAL port, board config</text>
+
+  <rect x="905" y="548" width="350" height="122" rx="10" fill="#f8fafc" stroke="#475569" stroke-width="2" />
+  <text x="1080" y="582" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="22" font-weight="700">Resource Discipline</text>
+  <text x="1080" y="614" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">CRTP avoids interface vtables</text>
+  <text x="1080" y="642" text-anchor="middle" fill="#334155" font-family="Segoe UI, sans-serif" font-size="18">Fixed device registry, measured footprint</text>
+
+  <line x1="320" y1="521" x2="320" y2="548" stroke="#475569" stroke-width="3" />
+  <line x1="700" y1="521" x2="700" y2="548" stroke="#475569" stroke-width="3" />
+  <line x1="1080" y1="521" x2="1080" y2="548" stroke="#475569" stroke-width="3" />
+
+  <text x="700" y="733" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="24" font-weight="700">Value: migrate targets by changing ports and config, while keeping product logic stable</text>
+  <text x="700" y="770" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="18">Good fit for teams moving from one-board demos to multi-board, multi-RTOS product lines</text>
+</svg>

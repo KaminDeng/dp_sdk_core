@@ -1,322 +1,336 @@
+[English](./README.md) | [中文](./README_zh.md)
+
 # dp_sdk_core
 
-Unified core abstraction layer for embedded systems. Write portable C++17
-application code once, swap the OS backend and hardware target by editing
-configuration files.
+`dp_sdk_core` is a unified core abstraction layer for embedded systems.  
+Built on **C++17**, it provides a common foundation for Linux / POSIX host environments and multiple RTOS targets, covering system primitives, peripheral abstractions, and device lifecycle management.
 
-Contains three modules:
+Its goal is not simply to wrap APIs, but to establish a foundation suited for long-term embedded evolution:
 
-| Module | What it does | Design |
-|--------|-------------|--------|
-| **osal** | OS primitives (thread, mutex, queue, timer, …) | Zero-cost CRTP + backend selection |
-| **hal** | Hardware peripherals (UART, GPIO, SPI, I2C, …) | Zero-cost CRTP templates |
-| **device** | Device registry and lifecycle | Adapter pattern + singleton manager |
-
-**Dependency chain:** `device → hal (public) + osal (private)` · `hal` and `osal` are independent of each other.
+- keep the programming interface as consistent as possible across Linux and multiple RTOSes
+- confine platform differences to replaceable, portable adaptation layers
+- preserve the expressive value of C++ interfaces while controlling abstraction cost
+- provide a stable base for multiple boards, RTOSes, and product variants
 
 ---
 
-## Quick Start
+## Overall architecture
 
-dp_sdk_core is consumed by the parent project (dpsdk) via `add_subdirectory()`.
-It is not built standalone.
+The project consists of three main modules:
+
+| Module | Role | Design focus |
+|---|---|---|
+| **dp_osal** | Unifies threads, mutexes, queues, timers, semaphores, and related OS primitives | CRTP interfaces + POSIX / CMSIS-OS backends |
+| **dp_hal** | Unifies UART, GPIO, SPI, I2C, ADC, DAC, CAN, PWM, Timer, and related peripheral interfaces | header-only CRTP + optional virtual wrappers |
+| **dp_device** | Unifies device registration, lookup, open/close control, and lifecycle handling | Adapter pattern + fixed-capacity manager |
+
+Dependency layout:
+
+```text
+device  ->  hal   (public)
+device  ->  osal  (private)
+hal     ->  independent
+osal    ->  POSIX / CMSIS-OS backend
+```
+
+<div align="center">
+<img src="https://cdn.jsdelivr.net/gh/KaminDeng/dp_sdk_core@master/docs/blog/images/dp-sdk-core-arch.png" width="860" />
+</div>
+
+This structure matters because it gives change a clear home:
+
+- **OS differences** are confined to `dp_osal`
+- **hardware differences** are confined to `dp_hal`
+- **device lifecycle concerns** are confined to `dp_device`
+
+The application layer does not need to depend directly on RTOS-specific APIs or vendor HAL code, which keeps platform changes more manageable.
+
+---
+
+## Engineering evolution model
+
+<div align="center">
+<img src="https://cdn.jsdelivr.net/gh/KaminDeng/dp_sdk_core@master/docs/blog/images/dp-sdk-core-migration.png" width="860" />
+</div>
+
+`dp_sdk_core` is designed for progressive system organization rather than all-at-once rewrites:
+
+- business logic depends on stable interfaces rather than platform details
+- OS differences are converged through POSIX / CMSIS-OS paths
+- hardware differences are converged through HAL ports
+- device management is unified in the Device layer
+
+That makes it especially suitable for projects evolving across multiple boards, RTOSes, and product configurations.
+
+---
+
+## Key characteristics
+
+### 1. One interface model across Linux and multiple RTOSes
+
+`dp_osal` provides a unified system programming interface:
+
+- on Linux / macOS hosts, it uses the POSIX backend;
+- on RTOS targets, it converges system differences through the **CMSIS-OS interface**.
+
+That means:
+
+- upper-layer code is primarily written against one OSAL interface,
+- RTOS replacement or expansion stays concentrated in the adaptation layer,
+- and any RTOS that can be adapted to CMSIS-OS can, in principle, fit this model.
+
+The project has already been adapted and validated on **FreeRTOS, RT-Thread, and Zephyr**.  
+This is one of the defining characteristics of `dp_sdk_core`: **it uses CMSIS-OS adaptation to support multiple RTOSes and align the programming interface across Linux and different RTOS environments.**
+
+### 2. C++ interface design balances expressiveness and controlled cost
+
+The core interfaces in `dp_osal` and `dp_hal` rely heavily on **CRTP**, rather than defaulting to all-virtual interfaces.
+
+This gives several direct benefits:
+
+- hot paths are easier for the compiler to inline,
+- the abstraction layer does not automatically introduce vtable cost,
+- production and host-test paths can use different abstraction styles,
+- and the design is better suited for long-term reuse in C++17 embedded projects.
+
+For host-side testing, dependency injection, and GMock-based verification, the project also provides:
+
+- `dp_osal_virtual.h`
+- `dp_hal_virtual.h`
+
+These virtual wrappers are meant for testing and injection scenarios, not as the default production abstraction path.
+
+### 3. Resource cost is treated as controllable, not ignored
+
+`dp_sdk_core` does not present abstraction as “free.”  
+Instead, it controls cost through several design choices:
+
+- HAL interfaces are primarily CRTP-based so most abstraction cost can be absorbed at compile time
+- the Device layer uses fixed-capacity registries rather than default heap allocation
+- type handling avoids RTTI where practical
+- thread, thread pool, and `std::function` overhead are treated explicitly with defined usage boundaries
+
+This allows the project to retain modern C++ engineering value while respecting MCU resource limits.
+
+---
+
+## Getting Started
+
+### 1. Integration
+
+`dp_sdk_core` is integrated through a parent project via `add_subdirectory()`.
 
 ```cmake
-# In your top-level CMakeLists.txt:
-set(OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/my_port)   # optional, defaults to builtin_posix
+# Top-level CMakeLists.txt
+set(DP_OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/my_port)   # optional, defaults to builtin_posix
 add_subdirectory(core/dp_sdk_core)
 
-target_link_libraries(my_app PRIVATE osal)       # OS abstraction
+target_link_libraries(my_app PRIVATE dp_osal)    # OS abstraction
 target_link_libraries(my_app PRIVATE dp_hal)     # hardware abstraction
 target_link_libraries(my_app PRIVATE dp_device)  # device management
 ```
 
-Build from the parent dpsdk directory:
+Typical build flow:
 
 ```sh
-cmake -B build -DPRODUCT=posix_demo && cmake --build build
+cmake -B build -DPRODUCT=posix_demo
+cmake --build build
 ```
+
+### 2. Recommended workflow
+
+A practical usage path is:
+
+1. validate core business logic in Linux / POSIX first
+2. keep upper-layer programming stable through unified OSAL / HAL interfaces
+3. bring different RTOSes into the same model through CMSIS-OS adaptation
+4. finally switch to target-specific hardware implementations and complete MCU integration and measurement
+
+This workflow is well suited to validating on the host first and then landing on RTOS and hardware targets.
 
 ---
 
-## Module 1 — osal (OS Abstraction Layer)
+## Module details
 
-### Interfaces
+## Module 1: dp_osal
 
-| Header | Abstraction | Key operations |
-|--------|-------------|----------------|
-| `interface_thread.h` | `ThreadBase<Impl>` | `start`, `stop`, `join`, `detach`, `suspend`, `resume`, `setPriority` |
-| `interface_mutex.h` | `MutexBase<Impl>` | `lock`, `unlock`, `tryLock`, `tryLockFor` |
-| `interface_condition_variable.h` | `ConditionVariableBase<Impl>` | `wait`, `waitFor`, `notifyOne`, `notifyAll` |
-| `interface_lockguard.h` | `LockGuard<MutexType>` | RAII mutex guard |
-| `interface_rwlock.h` | `RWLockBase<Impl>` | read/write lock with try and timed variants |
-| `interface_semaphore.h` | `SemaphoreBase<Impl>` | counting semaphore |
-| `interface_spin_lock.h` | `SpinLockBase<Impl>` | spinlock (atomic_flag) |
-| `interface_queue.h` | `QueueBase<Impl, T>` | `send`, `receive`, `tryReceive`, `receiveFor`, `size`, `clear` |
-| `interface_memory_manager.h` | `MemoryManagerBase<Impl>` | block pool: `allocate`, `deallocate`, `allocateAligned` |
-| `interface_timer.h` | `TimerBase<Impl>` | one-shot and periodic timers |
-| `interface_thread_pool.h` | `ThreadPoolBase<Impl>` | dynamic thread pool with task queue |
-| `interface_chrono.h` | `ChronoBase<Impl>` | monotonic clock: `elapsed`, `to_time_t`, `from_time_t` |
-| `interface_system.h` | `SystemBase<Impl>` | `schedulerStart`, `sleep_ms`, `sleep_s` |
-| `osal_virtual.h` | `IMutex` + `MutexVirtual<T>` (and others) | optional host-only virtual wrappers for injection/GMock |
+`dp_osal` provides unified interfaces for system primitives. Main interfaces include:
 
-CRTP interfaces have no vtable overhead. The concrete implementation is selected
-at compile/link time via the backend chosen in `osal_port.h`.
+| Header | Main capability |
+|---|---|
+| `interface_thread.h` | thread start/stop/join/detach/priority control |
+| `interface_mutex.h` | mutex, tryLock, timed lock |
+| `interface_condition_variable.h` | condition variables |
+| `interface_lockguard.h` | RAII lock guard |
+| `interface_rwlock.h` | reader/writer lock |
+| `interface_semaphore.h` | counting semaphore |
+| `interface_spin_lock.h` | spin lock |
+| `interface_queue.h` | queue send/receive/timed receive |
+| `interface_timer.h` | one-shot / periodic timers |
+| `interface_thread_pool.h` | thread pool |
+| `interface_chrono.h` | monotonic clock and time conversion |
+| `interface_system.h` | scheduler, sleep, critical sections, system info |
+| `dp_osal_virtual.h` | host-side virtual wrappers |
 
-### Backend Selection
+### Backend model
 
-```
-src/impl/posix/     ← OSAL_BACKEND_POSIX
-src/impl/cmsis_os/  ← OSAL_BACKEND_CMSIS_OS
+```text
+src/impl/posix/     ← DP_OSAL_BACKEND_POSIX
+src/impl/cmsis_os/  ← DP_OSAL_BACKEND_CMSIS_OS
 ```
 
-CMake auto-detects the active backend by scanning `osal_port.h` for an
-uncommented `#define OSAL_BACKEND_CMSIS_OS` line and compiles the matching
-source tree. Only one backend is compiled per build.
+CMake selects the backend automatically according to the macro enabled in `dp_osal_port.h`.
 
-| Backend | Use when |
-|---------|----------|
-| `OSAL_BACKEND_POSIX` | Linux, macOS, any POSIX host |
-| `OSAL_BACKEND_CMSIS_OS` | FreeRTOS+CMSIS-OS2, Zephyr, ThreadX, … |
+| Backend | Use case |
+|---|---|
+| `DP_OSAL_BACKEND_POSIX` | Linux, macOS, POSIX host environments |
+| `DP_OSAL_BACKEND_CMSIS_OS` | RTOS environments adapted through CMSIS-OS |
 
-### OSAL Port System
+### Why CMSIS-OS is used as the RTOS convergence layer
 
-Set `OSAL_PORT_DIR` before `add_subdirectory(osal)`. Defaults to
-`port/builtin_posix/` (zero configuration on Linux/macOS).
+On the RTOS side, the project does not expose each system’s native API directly to the application layer.  
+Instead, it uses CMSIS-OS as the convergence layer.
 
-`osal_port.h` has five sections:
+This gives several benefits:
 
-| Section | Content |
-|---------|---------|
-| 1 — Backend Selection | `#define OSAL_BACKEND_POSIX` or `OSAL_BACKEND_CMSIS_OS` (exactly one) |
-| 2 — Platform Includes | CMSIS-OS: `#include "cmsis_os2.h"` (POSIX: leave empty) |
-| 3 — Platform Constants | `OSAL_PORT_THREAD_MIN_STACK_SIZE`, `OSAL_PORT_THREAD_DEFAULT_PRIORITY` |
-| 4 — Debug Output | `inline void osal_port_debug_write(const char* buf, uint32_t len)` |
-| 5 — Test Feature Flags | `OSAL_TEST_ALL` or per-component `OSAL_TEST_*_ENABLED` flags |
+- upper-layer interfaces stay more stable,
+- RTOS replacement does not require rewriting business logic,
+- Linux / POSIX and multi-RTOS environments can share a more consistent system programming model.
 
-### Port Examples
+### `dp_osal_port.h` port template
 
-| Directory | Platform | Backend | Debug output |
-|-----------|----------|---------|--------------|
-| `osal_port_freertos/` | STM32 MCU firmware + FreeRTOS | CMSIS-OS2 | `HAL_UART_Transmit` on UART6 |
-| `osal_port_sim_freertos/` | FreeRTOS-on-POSIX simulator | CMSIS-OS2 | `write(1, …)` (stdout) |
-| `osal_port_zephyr/` | Zephyr RTOS | CMSIS-OS2 (built-in) | `printk` |
+The port template is organized into five parts:
 
-Copy the example closest to your target and adapt it.
+1. backend selection
+2. platform includes
+3. platform constants
+4. debug output
+5. test switches
+
+Typical usage is to copy the template into a project-specific port directory and point `DP_OSAL_PORT_DIR` to it.
 
 ---
 
-## Module 2 — hal (Hardware Abstraction Layer)
+## Module 2: dp_hal
 
-### CRTP Interfaces
+`dp_hal` provides unified peripheral interfaces. Its main characteristics are:
 
-All interfaces are header-only templates with zero runtime overhead:
+- core interfaces use **header-only + CRTP**
+- production paths avoid unnecessary runtime dispatch overhead
+- test and injection scenarios can use virtual wrappers
 
-| Header | Interface | Description |
-|--------|-----------|-------------|
-| `dp_uart.h` | `UartBase<Impl>` | UART: configure, read, write, flush, RX/TX callbacks, DMA |
-| `dp_gpio.h` | `GpioPinBase<Impl>` | GPIO: setMode, read, write, toggle, IRQ with edge triggers |
-| `dp_spi.h` | `SpiBusBase<Impl>` + `SpiDevice<Bus,Cs>` | SPI bus + slave device with auto CS toggle |
-| `dp_i2c.h` | `I2cBusBase<Impl>` + `I2cDevice<Bus>` | I2C bus + register read/write helpers |
-| `dp_adc.h` | `AdcBase<Impl>` | ADC: configure, single-shot read, continuous mode |
-| `dp_dac.h` | `DacBase<Impl>` | DAC: configure, write output |
-| `dp_can.h` | `CanBase<Impl>` | CAN bus: configure, send, receive, filters |
-| `dp_timer.h` | `TimerBase<Impl>` | Timer: start, stop, periodic callbacks, counter |
-| `dp_pwm.h` | `PwmBase<Impl>` | PWM: start, stop, frequency and duty cycle control |
-| `dp_hal_power.h` | `PowerManageable<Impl>` | Optional mixin for power management |
-| `dp_hal_virtual.h` | `IUart`, `IGpioPin`, … | Virtual wrappers for dependency injection / GMock |
+Main interfaces include:
 
-### CRTP Pattern
+| Header | Description |
+|---|---|
+| `dp_uart.h` | UART |
+| `dp_gpio.h` | GPIO |
+| `dp_spi.h` | SPI bus and device |
+| `dp_i2c.h` | I2C bus and register helper |
+| `dp_adc.h` | ADC |
+| `dp_dac.h` | DAC |
+| `dp_can.h` | CAN |
+| `dp_timer.h` | Timer |
+| `dp_pwm.h` | PWM |
+| `dp_hal_power.h` | power-management mixin |
+| `dp_hal_virtual.h` | test / injection virtual interfaces |
 
-```cpp
-template <typename Impl>
-class UartBase {
-public:
-    Status write(const uint8_t* buf, size_t len) { return impl().doWrite(buf, len); }
-private:
-    Impl& impl() { return *static_cast<Impl*>(this); }
-};
-```
+### HAL port resolution order
 
-Implementations provide private `do*` methods and declare
-`friend class UartBase<Self>`.
+`dp_hal` resolves ports in the following order:
 
-### HAL Port System
+1. `platform/<KERNEL_PORT>/hal_port/`
+2. `platform/common/hal_port/`
+3. `hal/port/mock/`
 
-Port resolution (3-tier fallback):
-1. `platform/<KERNEL_PORT>/hal_port/` — product-specific
-2. `platform/common/hal_port/` — shared default
-3. `hal/port/mock/` — built-in mock for host testing
+This supports:
 
-Each port provides:
-- `hal_port.h` — typedef bindings (e.g. `using DpUart = mock::MockUart;`)
-- Implementation headers (e.g. `mock_uart.h`, `posix_uart.h`)
-- `dp_hal_port_impl.cpp` — port functions (`dp_hal_time_us`, `dp_hal_log`, `dp_hal_assert_fail`)
-- `CMakeLists.txt` — builds `dp_hal_port_impl` static target
+- board- or product-specific firmware ports
+- shared common ports
+- mock-based host testing
 
 ---
 
-## Module 3 — device (Device Management)
+## Module 3: dp_device
 
-### Architecture
+`dp_device` is responsible for unified device-level management rather than direct low-level driver implementation.
 
-- **Device** base class: name (max 32 chars) + type + open/close refcount
-- **Adapters** bridge HAL to Device with virtual interfaces:
+Core responsibilities include:
 
-| Adapter | HAL Interface | DeviceType |
-|---------|---------------|------------|
-| `SerialDevice<HalImpl>` | `IUart` | `kSerial` |
-| `PinDevice<HalImpl>` | `IGpioPin` | `kPin` |
-| `SpiBusDevice<HalImpl>` | `ISpi` | `kSpiBus` |
-| `I2cBusDevice<HalImpl>` | `II2c` | `kI2cBus` |
-| `AdcDevice<HalImpl>` | `IAdc` | `kAdc` |
-| `DacDevice<HalImpl>` | `IDac` | `kDac` |
-| `TimerDevice<HalImpl>` | `ITimer` | `kTimer` |
+- `Device`: unified device name, type, and open/close reference counting
+- `DeviceManager`: centralized registration, lookup, iteration, and removal
+- adapter classes: bridging HAL implementations into managed device objects
 
-- **DeviceManager** singleton: thread-safe registry (OSAL Mutex), fixed array
-  (max 32 devices, no heap), name-based and type-based lookup. No RTTI — uses
-  `DeviceType` enum + `static_cast`.
+### Design characteristics
+
+- explicit device name length limits
+- fixed-capacity registry instead of default heap allocation
+- thread-safe management
+- type handling through `DeviceType` rather than RTTI
+
+This keeps device lifecycle rules inside the framework rather than scattering them across application modules.
 
 ---
 
-## Running Tests
+## Testing model
 
-Tests are compiled into static libraries and run inside the host application's
-task context (no standalone test binaries). Entry points:
+Tests are organized as “module static libraries + host entry points” rather than standalone test executables.
+
+Entry points include:
 
 ```c
-extern "C" void osal_test_main(void);      // 12 OSAL suites
-extern "C" void dp_hal_test_main(void);    // 10 HAL suites  (requires -DDP_HAL_BUILD_TESTS=ON)
-extern "C" void dp_device_test_main(void); // 5 Device suites (requires -DDP_DEVICE_BUILD_TESTS=ON)
+extern "C" void dp_osal_test_main(void);
+extern "C" void dp_hal_test_main(void);
+extern "C" void dp_device_test_main(void);
 ```
 
-Build and run from the parent dpsdk directory:
+Testing characteristics:
 
-```sh
-cmake -B build -DPRODUCT=posix_demo -DDP_HAL_BUILD_TESTS=ON -DDP_DEVICE_BUILD_TESTS=ON
-cmake --build build
-./build/dpsdk_firmware
-```
-
-### Test Controls (OSAL)
-
-In `osal_port.h`:
-- `OSAL_TEST_ALL = 1` — run all OSAL suites (recommended for first bring-up)
-- `OSAL_TEST_ALL = 0` — use per-component flags (`OSAL_TEST_THREAD_ENABLED`, …)
-
-### Host Injection Example (OSAL)
-
-`osal/src/interface/osal_virtual.h` provides virtual wrappers on top of CRTP
-objects for host-only dependency injection:
-
-```cpp
-class CounterService {
-public:
-    explicit CounterService(osal::IMutex& m) : mutex_(m) {}
-    bool increment() {
-        if (!mutex_.lock()) return false;
-        ++value_;
-        (void)mutex_.unlock();
-        return true;
-    }
-private:
-    osal::IMutex& mutex_;
-    int value_ = 0;
-};
-
-FakeMutex fake;
-osal::MutexVirtual<FakeMutex> injected(fake);
-CounterService svc(injected);  // service depends on IMutex abstraction
-```
-
-### Single Translation Unit Pattern
-
-All test `.cpp` files are `#include`d into a single `*_test_main.cpp` per module
-to prevent linker dead-stripping of GTest static registrations. Never add test
-files to CMake sources directly.
-
-On **macOS**, stdout is fully buffered when not attached to a TTY. Use
-`script(1)` to allocate a pseudo-TTY:
-
-```sh
-script -q /tmp/out.txt ./build/dpsdk_firmware 2>/dev/null &
-sleep 10 && kill %1 && cat /tmp/out.txt
-```
+- OSAL supports full or per-component test enablement
+- host scenarios can use `dp_osal_virtual.h` / `dp_hal_virtual.h` for dependency injection
+- test entry uses a single-translation-unit pattern to prevent GTest static registrations from being stripped by the linker
 
 ---
 
-## Resource Consumption on Microcontrollers
+## Resource cost and MCU feasibility
 
-All figures assume a 32-bit Cortex-M target with the CMSIS-OS2 backend.
-They are split into:
-- per-object structural overhead (OSAL itself), and
-- whole-firmware measurements from the current dpsdk product profile.
+The project treats resource cost as something to be **bounded, trimmed, and validated**.
 
-### RAM — extra bytes per OSAL object instance
+### Known cost characteristics
 
-| Component | Direct OS handle | OSAL object | Extra RAM |
-|-----------|-----------------|-------------|-----------|
-| `OSALMutex` | 4 B (`osMutexId_t`) | 4 B | **+0 B** |
-| `OSALSemaphore` | 4 B | 4 B | **+0 B** |
-| `OSALThread` | 4 B (`osThreadId_t`) | ≥ 44 B | **+40 B** |
-| `OSALConditionVariable` | ~12 B | 12 B | ~0 B |
-| `OSALRWLock` | ~20 B | 20 B | ~0 B |
-| `OSALMessageQueue<T>` | 4 B | 4 B | **+0 B** |
-| `OSALLockGuard` | 0 B (stack) | 8 B (stack) | **+8 B** (stack) |
-| `OSALSpinLock` | 4 B | 4 B | **+0 B** |
+- HAL interfaces are primarily CRTP-based so most abstraction cost can be absorbed at compile time
+- some OSAL objects, especially `Thread`, add RAM / Flash overhead because of `std::function` and state handling
+- virtual wrappers are mainly intended for host-side testing, not as the default production abstraction path
 
-**`OSALThread` dominates the overhead (+40 B)** due to `std::function` (16–32 B
-in-object buffer; captures > ~16 B spill to heap), `exitSemaphore` for `join()`,
-and two `std::atomic<bool>` fields.
+### MCU feasibility reference
 
-HAL interfaces add **zero overhead** — CRTP methods inline away entirely.
+| Target MCU | Feasibility | Notes |
+|---|---|---|
+| Cortex-M4 / M7, RAM ≥ 192 KB (CCM recommended) | ✅ current full-test profile is feasible | already has a practical build-and-validate basis |
+| Cortex-M3 / small-memory M4, RAM 64–128 KB | ⚠️ feasible only with aggressive trimming | requires disabling `test_all`, reducing features, and re-measuring |
+| Cortex-M0 / M0+, RAM ≤ 64 KB | ❌ not something the current profile should claim directly | requires a dedicated tiny profile and measured validation |
 
-### Flash — code-size additions
+### Usage guidance
 
-| Source | Estimated size |
-|--------|---------------|
-| vtable per OSAL component | **0 B** (CRTP removes virtual dispatch) |
-| `std::function` per lambda signature | 200–500 B each |
-| C++ runtime (ctors, dtors) | **2–4 KB** |
-| **Total OSAL overhead (typical, `-Os`)** | **~4–8 KB Flash** |
+- release builds should enable `-Os -fno-exceptions -fno-rtti` and LTO
+- for smaller-memory targets, thread usage and `std::function` capture cost should be evaluated carefully
+- prefer `Mutex` over `RWLock` unless concurrent-reader behavior is clearly needed
+- keep test profiles and shipping profiles separate; do not use the full-test profile as the production resource baseline
 
-### Measured footprint (`dp_stm32f427_dev`, 2026-04-05)
+---
 
-Build profile:
-- `PRODUCT=dp_stm32f427_dev`
-- `PRODUCT_APP=all_tests`
-- overlays include `test_all` (debug-oriented, not production trimming)
-- tool output: `arm-none-eabi-size build_stm32_full/dpsdk_firmware.elf`
+## Best fit
 
-Result:
-- `text=952480`, `data=49996`, `bss=186440`
-- Flash estimate (`text+data`): `1,002,476 B` / `2,097,152 B` = **47.8%**
-- Main SRAM estimate (`.data + .bss + heap/stack`): `187,184 B` / `196,608 B` = **95.2%**
-- CCMRAM (`.ccmram`): `49,152 B` / `65,536 B` = **75.0%**
+`dp_sdk_core` is especially suitable when:
 
-Production-oriented baseline (`dp_stm32f427_dev_interactive`, Release):
-- `text=93,232`, `data=204`, `bss=27,488`
-- Flash estimate (`text+data`): `93,436 B` / `2,097,152 B` = **4.5%**
-- Main SRAM estimate (`.data + .bss + heap/stack`): `27,656 B` / `196,608 B` = **14.1%**
-- CCMRAM (`.ccmram`): `0 B` / `65,536 B` = **0.0%**
+- business logic must be validated on both Linux hosts and MCU targets
+- the product spans multiple RTOSes or multiple hardware platforms
+- the team is already paying significant maintenance cost for platform glue code
+- a reusable C++17 foundation layer is desired
+- a more consistent Linux / RTOS programming experience is valuable
 
-### MCU Feasibility (re-evaluated)
+---
 
-| Target | Feasibility | Notes |
-|--------|-------------|-------|
-| Cortex-M4 / M7, RAM ≥ 192 KB (+ CCM preferred) | ✅ **Feasible in current full test profile** | `dp_stm32f427_dev + all_tests` has been built and validated |
-| Cortex-M3 / small M4, RAM 64–128 KB | ⚠️ **Feasible only with aggressive trimming** | Must disable `test_all`, reduce features via overlays, and re-measure |
-| Cortex-M0 / M0+, RAM ≤ 64 KB | ❌ **Not feasible with current profile** | Requires dedicated tiny profile and measurement evidence before claiming support |
+## License
 
-**Optimization priorities:**
-- Ship builds should not use `all_tests + test_all`; use product app + minimal overlays.
-- Enable `-Os -fno-exceptions -fno-rtti` and LTO for release firmware.
-- Keep `OSALThread` lambda captures < 16 B to avoid heap fallback.
-- Prefer `OSALMutex` over `OSALRWLock` unless concurrent readers are required.
-- If targeting M3/M0 class, prioritize replacing `std::function` in thread entry with a fixed-capacity callable wrapper.
-
-**Guidelines:**
-- Enable `-Os -fno-exceptions -fno-rtti` (saves 1–3 KB Flash).
-- Keep lambda captures < 16 B to avoid heap allocation in `OSALThread`.
-- Prefer `OSALMutex` over `OSALRWLock` unless concurrent readers are needed.
-- `OSALRWLock`: one `readLock()` issues up to 5 CMSIS-OS2 calls vs 1–2 direct.
+[MIT](./LICENSE)

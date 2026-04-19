@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="760" viewBox="0 0 1400 760">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#e0f2fe" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1400" height="760" fill="url(#bg)" />
+
+  <text x="700" y="62" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="36" font-weight="700">From Platform Glue to Stable Core Contracts</text>
+  <text x="700" y="100" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="21">The real migration benefit is controlling where target-specific code is allowed to live</text>
+
+  <rect x="70" y="145" width="590" height="470" rx="12" fill="#fff1f2" stroke="#e11d48" stroke-width="3" />
+  <text x="365" y="188" text-anchor="middle" fill="#9f1239" font-family="Segoe UI, sans-serif" font-size="28" font-weight="700">Before: Project-Specific Glue</text>
+
+  <rect x="120" y="225" width="490" height="76" rx="8" fill="#ffffff" stroke="#fb7185" stroke-width="2" />
+  <text x="365" y="255" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="22" font-weight="700">Product Logic</text>
+  <text x="365" y="282" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="17">Feature code directly sees OS and driver details</text>
+
+  <line x1="365" y1="301" x2="365" y2="337" stroke="#be123c" stroke-width="3" stroke-dasharray="7 6" />
+  <polygon points="355,334 365,352 375,334" fill="#be123c" />
+
+  <rect x="120" y="352" width="490" height="152" rx="8" fill="#ffffff" stroke="#fb7185" stroke-width="2" />
+  <text x="365" y="386" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="22" font-weight="700">Mixed Platform Layer</text>
+  <text x="365" y="418" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="17">RTOS calls + vendor HAL + device init</text>
+  <text x="365" y="447" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="17">Local wrappers differ across products</text>
+  <text x="365" y="476" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="17">Tests often wait for real hardware</text>
+
+  <line x1="365" y1="504" x2="365" y2="540" stroke="#be123c" stroke-width="3" stroke-dasharray="7 6" />
+  <polygon points="355,537 365,555 375,537" fill="#be123c" />
+
+  <rect x="120" y="555" width="490" height="42" rx="8" fill="#ffe4e6" stroke="#fb7185" stroke-width="2" />
+  <text x="365" y="583" text-anchor="middle" fill="#9f1239" font-family="Segoe UI, sans-serif" font-size="18" font-weight="700">Board change often expands into app-level rework</text>
+
+  <rect x="740" y="145" width="590" height="470" rx="12" fill="#ecfdf5" stroke="#16a34a" stroke-width="3" />
+  <text x="1035" y="188" text-anchor="middle" fill="#14532d" font-family="Segoe UI, sans-serif" font-size="28" font-weight="700">After: dp_sdk_core Boundary</text>
+
+  <rect x="790" y="225" width="490" height="76" rx="8" fill="#ffffff" stroke="#4ade80" stroke-width="2" />
+  <text x="1035" y="255" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="22" font-weight="700">Product Logic</text>
+  <text x="1035" y="282" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="17">Depends on stable OSAL, HAL, and Device contracts</text>
+
+  <line x1="1035" y1="301" x2="1035" y2="337" stroke="#15803d" stroke-width="3" />
+  <polygon points="1025,334 1035,352 1045,334" fill="#15803d" />
+
+  <rect x="790" y="352" width="490" height="118" rx="8" fill="#ffffff" stroke="#4ade80" stroke-width="2" />
+  <text x="1035" y="385" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="22" font-weight="700">dp_sdk_core</text>
+  <text x="1035" y="416" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="17">dp_osal + dp_hal + dp_device</text>
+  <text x="1035" y="445" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="17">CRTP interfaces, fixed lifecycle, testable seams</text>
+
+  <line x1="1035" y1="470" x2="1035" y2="506" stroke="#15803d" stroke-width="3" />
+  <polygon points="1025,503 1035,521 1045,503" fill="#15803d" />
+
+  <rect x="790" y="521" width="145" height="76" rx="8" fill="#dcfce7" stroke="#4ade80" stroke-width="2" />
+  <text x="862" y="552" text-anchor="middle" fill="#14532d" font-family="Segoe UI, sans-serif" font-size="17" font-weight="700">POSIX</text>
+  <text x="862" y="578" text-anchor="middle" fill="#14532d" font-family="Segoe UI, sans-serif" font-size="15">host tests</text>
+
+  <rect x="963" y="521" width="145" height="76" rx="8" fill="#dcfce7" stroke="#4ade80" stroke-width="2" />
+  <text x="1035" y="552" text-anchor="middle" fill="#14532d" font-family="Segoe UI, sans-serif" font-size="17" font-weight="700">CMSIS-OS2</text>
+  <text x="1035" y="578" text-anchor="middle" fill="#14532d" font-family="Segoe UI, sans-serif" font-size="15">RTOS target</text>
+
+  <rect x="1135" y="521" width="145" height="76" rx="8" fill="#dcfce7" stroke="#4ade80" stroke-width="2" />
+  <text x="1208" y="552" text-anchor="middle" fill="#14532d" font-family="Segoe UI, sans-serif" font-size="17" font-weight="700">HAL Port</text>
+  <text x="1208" y="578" text-anchor="middle" fill="#14532d" font-family="Segoe UI, sans-serif" font-size="15">board binding</text>
+
+  <text x="700" y="682" text-anchor="middle" fill="#0f172a" font-family="Segoe UI, sans-serif" font-size="24" font-weight="700">Migration becomes a porting task instead of a product rewrite</text>
+  <text x="700" y="716" text-anchor="middle" fill="#475569" font-family="Segoe UI, sans-serif" font-size="18">That is the architectural advantage: stable contracts above, replaceable implementations below</text>
+</svg>

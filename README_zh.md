@@ -1,308 +1,335 @@
+[English](./README.md) | [中文](./README_zh.md)
+
 # dp_sdk_core
 
-嵌入式系统统一核心抽象层。使用 C++17 编写一次可移植的应用代码，通过修改配置文件即可切换 OS 后端和硬件目标。
+`dp_sdk_core` 是一套面向嵌入式系统的统一核心抽象层。  
+它基于 **C++17** 设计，面向 Linux / POSIX 主机环境与多种 RTOS 环境，提供统一的系统原语抽象、硬件外设抽象以及设备生命周期管理能力。
 
-包含三个模块：
+它的目标不是单纯包一层接口，而是建立一套适合长期演进的工程基础：
 
-| 模块 | 职责 | 设计模式 |
-|------|------|----------|
-| **osal** | OS 原语（线程、互斥锁、队列、定时器等） | 零开销 CRTP + 后端选择 |
-| **hal** | 硬件外设（UART、GPIO、SPI、I2C 等） | 零开销 CRTP 模板 |
-| **device** | 设备注册与生命周期 | 适配器模式 + 单例管理器 |
-
-**依赖链：** `device → hal（public）+ osal（private）` · `hal` 与 `osal` 互不依赖。
+- 在 Linux 与多种 RTOS 下尽量保持一致的编程接口风格
+- 将平台差异收敛到可替换、可移植的适配层
+- 在保留 C++ 接口表达力的同时控制抽象带来的资源成本
+- 为多板卡、多 RTOS、多产品形态的演进提供稳定基础
 
 ---
 
-## 快速开始
+## 整体架构
 
-dp_sdk_core 由父项目（dpsdk）通过 `add_subdirectory()` 引入，不独立构建。
+项目由三个核心模块组成：
+
+| 模块 | 作用 | 设计重点 |
+|---|---|---|
+| **dp_osal** | 统一线程、互斥锁、队列、定时器、信号量等 OS 原语 | CRTP 接口 + POSIX / CMSIS-OS 后端 |
+| **dp_hal** | 统一 UART、GPIO、SPI、I2C、ADC、DAC、CAN、PWM、Timer 等外设接口 | header-only CRTP + 可选虚接口包装 |
+| **dp_device** | 统一设备注册、查找、打开/关闭与生命周期管理 | Adapter + 固定容量管理器 |
+
+依赖关系如下：
+
+```text
+device  ->  hal   (public)
+device  ->  osal  (private)
+hal     ->  independent
+osal    ->  POSIX / CMSIS-OS backend
+```
+
+<div align="center">
+<img src="https://cdn.jsdelivr.net/gh/KaminDeng/dp_sdk_core@master/docs/blog/images/dp-sdk-core-arch.png" width="860" />
+</div>
+
+这种结构的意义在于：
+
+- **OS 差异**收敛到 `dp_osal`
+- **硬件差异**收敛到 `dp_hal`
+- **设备生命周期管理**收敛到 `dp_device`
+
+上层业务逻辑不必直接依赖具体 RTOS API 或厂商 HAL，从而让平台替换和产品扩展的改动面保持可控。
+
+---
+
+## 工程演进方式
+
+<div align="center">
+<img src="https://cdn.jsdelivr.net/gh/KaminDeng/dp_sdk_core@master/docs/blog/images/dp-sdk-core-migration.png" width="860" />
+</div>
+
+`dp_sdk_core` 适合的不是“所有代码都从零重写”的开发方式，而是把系统逐步整理到统一核心层中的方式：
+
+- 业务逻辑依赖稳定接口，而不是平台细节
+- OS 差异通过 POSIX / CMSIS-OS 路径收敛
+- 硬件差异通过 HAL port 收敛
+- 设备管理通过 Device 层统一收口
+
+这使它非常适合多板卡、多 RTOS、多产品配置并行演进的项目。
+
+---
+
+## 项目特点
+
+### 1. 用一套接口拉齐 Linux 与多种 RTOS 的编程方式
+
+`dp_osal` 为上层提供统一的系统编程接口：
+
+- 在 Linux / macOS 等主机环境下，使用 POSIX 后端；
+- 在 RTOS 环境下，通过 **CMSIS-OS 接口**收敛不同系统的差异。
+
+这意味着：
+
+- 业务层主要面向统一 OSAL 接口编写；
+- RTOS 替换或扩展时，主要改动集中在适配层；
+- 只要能够适配到 CMSIS-OS 接口的 RTOS，理论上都可以纳入这一模型。
+
+项目已在 **FreeRTOS、RT-Thread、Zephyr** 等环境中完成适配与验证。  
+这也是 `dp_sdk_core` 的一个核心特征：**通过 CMSIS-OS 适配多种 RTOS，拉齐 Linux 与不同 RTOS 下的编程接口。**
+
+### 2. C++ 接口设计强调表达力与可控成本并重
+
+`dp_osal` 与 `dp_hal` 的核心接口大量采用 **CRTP** 组织，而不是默认使用全虚接口。
+
+这种设计带来几个直接收益：
+
+- 高频调用路径更容易被编译器内联；
+- 抽象层不会天然引入 vtable 成本；
+- 生产路径与 host 测试路径可以使用不同抽象形式；
+- 更适合在 C++17 嵌入式工程中长期维护与复用。
+
+对于依赖注入、GMock 或 host 测试场景，项目也提供：
+
+- `dp_osal_virtual.h`
+- `dp_hal_virtual.h`
+
+这类虚接口包装，用于测试和注入，而不是默认生产抽象路径。
+
+### 3. 资源成本是可控的，而不是回避不谈
+
+`dp_sdk_core` 并不把抽象层描述为“没有成本”。  
+它通过以下方式控制成本：
+
+- HAL 接口以 CRTP 为主，尽量在编译期消解抽象成本；
+- Device 层采用固定容量设备表，避免默认堆分配；
+- 类型管理尽量不依赖 RTTI；
+- 对线程、线程池、`std::function` 等额外成本给出明确边界与建议。
+
+这使项目既保留了现代 C++ 的工程表达力，又保持了对 MCU 资源边界的尊重。
+
+---
+
+## Getting Started
+
+### 1. 接入方式
+
+`dp_sdk_core` 通过父项目以 `add_subdirectory()` 的方式接入。
 
 ```cmake
-# 在顶层 CMakeLists.txt 中：
-set(OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/my_port)   # 可选，默认使用 builtin_posix
+# 顶层 CMakeLists.txt
+set(DP_OSAL_PORT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/my_port)   # 可选，默认 builtin_posix
 add_subdirectory(core/dp_sdk_core)
 
-target_link_libraries(my_app PRIVATE osal)       # OS 抽象
+target_link_libraries(my_app PRIVATE dp_osal)    # OS 抽象
 target_link_libraries(my_app PRIVATE dp_hal)     # 硬件抽象
 target_link_libraries(my_app PRIVATE dp_device)  # 设备管理
 ```
 
-从父目录 dpsdk 构建：
+典型构建方式：
 
 ```sh
-cmake -B build -DPRODUCT=posix_demo && cmake --build build
+cmake -B build -DPRODUCT=posix_demo
+cmake --build build
 ```
+
+### 2. 推荐工作流
+
+推荐的使用路径如下：
+
+1. 在 Linux / POSIX 环境先把核心业务逻辑跑通
+2. 使用统一的 OSAL / HAL 接口保持上层编程方式稳定
+3. 通过 CMSIS-OS 适配把不同 RTOS 纳入统一模型
+4. 最后切换到具体硬件实现，在 MCU 上完成联调与资源测量
+
+这种工作流非常适合先在 host 侧做验证，再逐步落到 RTOS 与目标硬件平台。
 
 ---
 
-## 模块一 — osal（OS 抽象层）
+## 模块细节
 
-### 接口一览
+## 模块一：dp_osal
 
-| 接口头文件 | 抽象类 | 主要操作 |
-|-----------|--------|----------|
-| `interface_thread.h` | `ThreadBase<Impl>` | `start`、`stop`、`join`、`detach`、`suspend`、`resume`、`setPriority` |
-| `interface_mutex.h` | `MutexBase<Impl>` | `lock`、`unlock`、`tryLock`、`tryLockFor` |
-| `interface_condition_variable.h` | `ConditionVariableBase<Impl>` | `wait`、`waitFor`、`notifyOne`、`notifyAll` |
-| `interface_lockguard.h` | `LockGuard<MutexType>` | RAII 互斥锁守卫 |
-| `interface_rwlock.h` | `RWLockBase<Impl>` | 读写锁，含 try 和超时变体 |
-| `interface_semaphore.h` | `SemaphoreBase<Impl>` | 计数信号量 |
-| `interface_spin_lock.h` | `SpinLockBase<Impl>` | 自旋锁（atomic_flag）|
-| `interface_queue.h` | `QueueBase<Impl, T>` | `send`、`receive`、`tryReceive`、`receiveFor`、`size`、`clear` |
-| `interface_memory_manager.h` | `MemoryManagerBase<Impl>` | 块内存池：`allocate`、`deallocate`、`allocateAligned` |
-| `interface_timer.h` | `TimerBase<Impl>` | 单次和周期定时器 |
-| `interface_thread_pool.h` | `ThreadPoolBase<Impl>` | 动态线程池，含任务队列 |
-| `interface_chrono.h` | `ChronoBase<Impl>` | 单调时钟：`elapsed`、`to_time_t`、`from_time_t` |
-| `interface_system.h` | `SystemBase<Impl>` | `schedulerStart`、`sleep_ms`、`sleep_s` |
-| `osal_virtual.h` | `IMutex` + `MutexVirtual<T>`（及其他） | 仅 host 测试的可选虚包装（注入 / GMock） |
+`dp_osal` 负责统一系统原语接口。主要接口包括：
 
-CRTP 接口不引入 vtable。具体实现在编译/链接阶段由
-`osal_port.h` 中选择的后端决定。
+| 接口头文件 | 主要能力 |
+|---|---|
+| `interface_thread.h` | 线程启动、停止、join、detach、优先级控制 |
+| `interface_mutex.h` | 互斥锁、tryLock、超时获取 |
+| `interface_condition_variable.h` | 条件变量 |
+| `interface_lockguard.h` | RAII 锁守卫 |
+| `interface_rwlock.h` | 读写锁 |
+| `interface_semaphore.h` | 计数信号量 |
+| `interface_spin_lock.h` | 自旋锁 |
+| `interface_queue.h` | 队列发送 / 接收 / 超时接收 |
+| `interface_timer.h` | 单次 / 周期定时器 |
+| `interface_thread_pool.h` | 线程池 |
+| `interface_chrono.h` | 单调时钟与时间转换 |
+| `interface_system.h` | 调度器、sleep、critical section、系统信息 |
+| `dp_osal_virtual.h` | host 测试用虚接口包装 |
 
-### 后端选择
+### 后端模型
 
-```
-src/impl/posix/     ← OSAL_BACKEND_POSIX
-src/impl/cmsis_os/  ← OSAL_BACKEND_CMSIS_OS
+```text
+src/impl/posix/     ← DP_OSAL_BACKEND_POSIX
+src/impl/cmsis_os/  ← DP_OSAL_BACKEND_CMSIS_OS
 ```
 
-CMake 通过扫描 `osal_port.h` 中未注释的 `#define OSAL_BACKEND_CMSIS_OS`
-行自动检测当前后端，并编译对应的源码树。每次构建只编译一个后端。
+CMake 会根据 `dp_osal_port.h` 中启用的宏自动选择后端。
 
 | 后端 | 适用场景 |
-|------|----------|
-| `OSAL_BACKEND_POSIX` | Linux、macOS、任何 POSIX 主机 |
-| `OSAL_BACKEND_CMSIS_OS` | FreeRTOS+CMSIS-OS2、Zephyr、ThreadX 等 |
+|---|---|
+| `DP_OSAL_BACKEND_POSIX` | Linux、macOS、POSIX 主机环境 |
+| `DP_OSAL_BACKEND_CMSIS_OS` | 通过 CMSIS-OS 对接的 RTOS 环境 |
 
-### OSAL 移植系统
+### 为什么选择 CMSIS-OS 作为 RTOS 收敛层
 
-在 `add_subdirectory(osal)` 之前设置 `OSAL_PORT_DIR`。默认使用
-`port/builtin_posix/`（Linux/macOS 零配置）。
+在 RTOS 侧，项目并不要求上层业务直接面对每一种系统的原生 API，而是通过 CMSIS-OS 做统一抽象收敛。
 
-`osal_port.h` 共五节：
+这样做的价值在于：
 
-| 节 | 内容 |
-|----|------|
-| 1 — 后端选择 | `#define OSAL_BACKEND_POSIX` 或 `OSAL_BACKEND_CMSIS_OS`（二选一） |
-| 2 — 平台头文件 | CMSIS-OS：`#include "cmsis_os2.h"`（POSIX：留空） |
-| 3 — 平台常量 | `OSAL_PORT_THREAD_MIN_STACK_SIZE`、`OSAL_PORT_THREAD_DEFAULT_PRIORITY` |
-| 4 — 调试输出 | `inline void osal_port_debug_write(const char* buf, uint32_t len)` |
-| 5 — 测试开关 | `OSAL_TEST_ALL` 或逐组件 `OSAL_TEST_*_ENABLED` 标志 |
+- 上层业务接口更稳定；
+- RTOS 切换时不需要重写业务逻辑；
+- Linux / POSIX 与多 RTOS 环境之间可以共享更一致的系统编程模型。
 
-### 移植示例
+### `dp_osal_port.h` 端口模板
 
-| 目录 | 平台 | 后端 | 调试输出 |
-|------|------|------|----------|
-| `osal_port_freertos/` | STM32 单片机固件 + FreeRTOS | CMSIS-OS2 | `HAL_UART_Transmit`（UART6）|
-| `osal_port_sim_freertos/` | FreeRTOS-on-POSIX 模拟器 | CMSIS-OS2 | `write(1, …)`（stdout）|
-| `osal_port_zephyr/` | Zephyr RTOS | CMSIS-OS2（内置）| `printk` |
+端口模板主要包含五部分：
 
-选取最接近目标平台的示例，复制后按需修改即可。
+1. 后端选择
+2. 平台头文件
+3. 平台常量
+4. 调试输出
+5. 测试开关
+
+典型用法是复制模板到项目自己的 port 目录中，并通过 `DP_OSAL_PORT_DIR` 指向该目录。
 
 ---
 
-## 模块二 — hal（硬件抽象层）
+## 模块二：dp_hal
 
-### CRTP 接口
+`dp_hal` 负责统一硬件外设接口，其特点包括：
 
-所有接口均为 header-only 模板，零运行时开销：
+- 核心接口采用 **header-only + CRTP**
+- 生产路径尽量避免额外运行时分发成本
+- 测试 / 注入场景可通过虚接口包装实现
 
-| 头文件 | 接口 | 描述 |
-|--------|------|------|
-| `dp_uart.h` | `UartBase<Impl>` | UART：配置、读写、flush、RX/TX 回调、DMA |
-| `dp_gpio.h` | `GpioPinBase<Impl>` | GPIO：模式设置、读写、翻转、IRQ 边沿触发 |
-| `dp_spi.h` | `SpiBusBase<Impl>` + `SpiDevice<Bus,Cs>` | SPI 总线 + 从设备（自动 CS 切换） |
-| `dp_i2c.h` | `I2cBusBase<Impl>` + `I2cDevice<Bus>` | I2C 总线 + 寄存器读写辅助 |
-| `dp_adc.h` | `AdcBase<Impl>` | ADC：配置、单次读取、连续模式 |
-| `dp_dac.h` | `DacBase<Impl>` | DAC：配置、写入输出值 |
-| `dp_can.h` | `CanBase<Impl>` | CAN 总线：配置、发送、接收、过滤器 |
-| `dp_timer.h` | `TimerBase<Impl>` | 定时器：启停、周期回调、计数器 |
-| `dp_pwm.h` | `PwmBase<Impl>` | PWM：启停、频率和占空比控制 |
-| `dp_hal_power.h` | `PowerManageable<Impl>` | 可选电源管理 mixin |
-| `dp_hal_virtual.h` | `IUart`、`IGpioPin` 等 | 虚接口封装，用于依赖注入 / GMock |
+当前主要接口包括：
 
-### CRTP 模式
+| 头文件 | 说明 |
+|---|---|
+| `dp_uart.h` | UART |
+| `dp_gpio.h` | GPIO |
+| `dp_spi.h` | SPI 总线与设备 |
+| `dp_i2c.h` | I2C 总线与寄存器访问辅助 |
+| `dp_adc.h` | ADC |
+| `dp_dac.h` | DAC |
+| `dp_can.h` | CAN |
+| `dp_timer.h` | Timer |
+| `dp_pwm.h` | PWM |
+| `dp_hal_power.h` | 电源管理 mixin |
+| `dp_hal_virtual.h` | 测试 / 注入用虚接口 |
 
-```cpp
-template <typename Impl>
-class UartBase {
-public:
-    Status write(const uint8_t* buf, size_t len) { return impl().doWrite(buf, len); }
-private:
-    Impl& impl() { return *static_cast<Impl*>(this); }
-};
-```
+### HAL 端口解析顺序
 
-实现类提供私有 `do*` 方法并声明 `friend class UartBase<Self>`。
+`dp_hal` 的移植目录按以下顺序解析：
 
-### HAL 移植系统
+1. `platform/<KERNEL_PORT>/hal_port/`
+2. `platform/common/hal_port/`
+3. `hal/port/mock/`
 
-端口解析（三层回退）：
-1. `platform/<KERNEL_PORT>/hal_port/` — 产品定制
-2. `platform/common/hal_port/` — 共享默认
-3. `hal/port/mock/` — 内置 Mock（宿主机测试）
+这使其能够同时支持：
 
-每个移植目录包含：
-- `hal_port.h` — typedef 绑定（如 `using DpUart = mock::MockUart;`）
-- 设备实现头文件（如 `mock_uart.h`、`posix_uart.h`）
-- `dp_hal_port_impl.cpp` — 移植函数（`dp_hal_time_us`、`dp_hal_log`、`dp_hal_assert_fail`）
-- `CMakeLists.txt` — 构建 `dp_hal_port_impl` 静态库
+- 板级 / 产品级固件移植
+- 通用共享移植
+- host 测试用 mock 实现
 
 ---
 
-## 模块三 — device（设备管理）
+## 模块三：dp_device
 
-### 架构
+`dp_device` 负责统一设备层管理，而不是直接承担底层驱动实现。
 
-- **Device** 基类：名称（最长 32 字符）+ 类型 + open/close 引用计数
-- **适配器** 将 HAL 实现桥接到 Device 并提供虚接口：
+核心能力包括：
 
-| 适配器类 | HAL 接口 | DeviceType |
-|---------|----------|------------|
-| `SerialDevice<HalImpl>` | `IUart` | `kSerial` |
-| `PinDevice<HalImpl>` | `IGpioPin` | `kPin` |
-| `SpiBusDevice<HalImpl>` | `ISpi` | `kSpiBus` |
-| `I2cBusDevice<HalImpl>` | `II2c` | `kI2cBus` |
-| `AdcDevice<HalImpl>` | `IAdc` | `kAdc` |
-| `DacDevice<HalImpl>` | `IDac` | `kDac` |
-| `TimerDevice<HalImpl>` | `ITimer` | `kTimer` |
+- `Device`：统一设备名称、类型与 open/close 引用计数
+- `DeviceManager`：统一设备注册、查找、遍历、注销
+- 适配器类：将 HAL 实现桥接为统一管理的设备对象
 
-- **DeviceManager** 单例：线程安全注册表（OSAL Mutex 保护），固定数组（最多 32 个设备，无堆分配），支持名称和类型查找。无 RTTI——使用 `DeviceType` 枚举 + `static_cast`。
+### 设计特点
+
+- 设备名称长度上限明确
+- 使用固定容量注册表，避免默认堆分配
+- 管理器具备线程安全能力
+- 通过 `DeviceType` 管理类型，不依赖 RTTI
+
+这种设计使设备生命周期不再分散在各个业务模块中，而是进入统一框架。
 
 ---
 
-## 运行测试
+## 测试方式
 
-测试编译进静态库，在宿主应用的任务上下文中运行（无独立测试二进制文件）。入口函数：
+项目测试采用“模块静态库 + 宿主入口函数”的组织方式，不依赖独立测试二进制。
+
+入口包括：
 
 ```c
-extern "C" void osal_test_main(void);      // OSAL 测试套件入口
-extern "C" void dp_hal_test_main(void);    // 10 个 HAL 套件（需 -DDP_HAL_BUILD_TESTS=ON）
-extern "C" void dp_device_test_main(void); // 5 个 Device 套件（需 -DDP_DEVICE_BUILD_TESTS=ON）
+extern "C" void dp_osal_test_main(void);
+extern "C" void dp_hal_test_main(void);
+extern "C" void dp_device_test_main(void);
 ```
 
-从父目录 dpsdk 构建并运行：
+测试相关特点：
 
-```sh
-cmake -B build -DPRODUCT=posix_demo -DDP_HAL_BUILD_TESTS=ON -DDP_DEVICE_BUILD_TESTS=ON
-cmake --build build
-./build/dpsdk_firmware
-```
-
-### 测试控制（OSAL）
-
-在 `osal_port.h` 中：
-- `OSAL_TEST_ALL = 1` — 运行全部 OSAL 套件（首次移植推荐）
-- `OSAL_TEST_ALL = 0` — 使用逐组件开关（`OSAL_TEST_THREAD_ENABLED` 等）
-
-### Host 注入示例（OSAL）
-
-`osal/src/interface/osal_virtual.h` 提供了 CRTP 对象上的虚接口包装，便于 host
-测试做依赖注入：
-
-```cpp
-class CounterService {
-public:
-    explicit CounterService(osal::IMutex& m) : mutex_(m) {}
-    bool increment() {
-        if (!mutex_.lock()) return false;
-        ++value_;
-        (void)mutex_.unlock();
-        return true;
-    }
-private:
-    osal::IMutex& mutex_;
-    int value_ = 0;
-};
-
-FakeMutex fake;
-osal::MutexVirtual<FakeMutex> injected(fake);
-CounterService svc(injected);  // 业务只依赖 IMutex 抽象
-```
-
-### 单翻译单元模式
-
-所有测试 `.cpp` 文件通过 `#include` 引入对应模块的 `*_test_main.cpp`，防止链接器死代码剥离 GTest 静态注册。**不要**将测试文件直接加入 CMake 源文件列表。
-
-在 **macOS** 上，stdout 在非 TTY 时会被全量缓冲，使用 `script(1)` 分配伪终端：
-
-```sh
-script -q /tmp/out.txt ./build/dpsdk_firmware 2>/dev/null &
-sleep 10 && kill %1 && cat /tmp/out.txt
-```
+- OSAL 支持全量或按组件启用测试
+- host 场景可通过 `dp_osal_virtual.h` / `dp_hal_virtual.h` 做依赖注入
+- 测试入口采用单翻译单元模式，避免 GTest 静态注册被链接器裁掉
 
 ---
 
-## 单片机资源消耗
+## 资源成本与 MCU 可行性
 
-以下数据基于 32-bit Cortex-M + CMSIS-OS2 后端，并区分为：
-- OSAL 结构性开销（对象级）
-- 当前 dpsdk 产品配置的整机实测占用
+项目对资源成本的处理方式是：**明确边界、支持裁剪、基于实测判断可行性**。
 
-### RAM — 每个 OSAL 对象实例的额外字节
+### 已知成本特征
 
-| 组件 | 直接 OS 句柄 | OSAL 对象 | 额外 RAM |
-|------|------------|-----------|---------|
-| `OSALMutex` | 4 B（`osMutexId_t`）| 4 B | **+0 B** |
-| `OSALSemaphore` | 4 B | 4 B | **+0 B** |
-| `OSALThread` | 4 B（`osThreadId_t`）| ≥ 44 B | **+40 B** |
-| `OSALConditionVariable` | ~12 B | 12 B | ~0 B |
-| `OSALRWLock` | ~20 B | 20 B | ~0 B |
-| `OSALMessageQueue<T>` | 4 B | 4 B | **+0 B** |
-| `OSALLockGuard` | 0 B（栈）| 8 B（栈）| **+8 B**（栈）|
-| `OSALSpinLock` | 4 B | 4 B | **+0 B** |
+- HAL 接口以 CRTP 为主，目标是在编译期消解大部分抽象成本
+- OSAL 中的部分对象，尤其是 `Thread`，会因 `std::function` 和状态管理带来额外 RAM / Flash 开销
+- 虚接口包装主要用于 host 测试，不建议作为量产默认抽象路径
 
-**`OSALThread` 额外开销最大（+40 B）**：`std::function` 16–32 B 内缓冲区（捕获 > ~16 B 触发堆分配）、`exitSemaphore` 用于 `join()`、两个 `std::atomic<bool>` 字段。
-
-HAL 接口 **零额外开销** — CRTP 方法完全内联消除。
-
-### Flash — 代码体积增量
-
-| 来源 | 估算大小 |
-|------|---------|
-| OSAL 组件 vtable | **0 B**（CRTP 消除虚分发） |
-| `std::function` 每种 lambda 签名实例化 | 200–500 B/种 |
-| C++ 运行时（构造/析构函数）| **2–4 KB** |
-| **OSAL 总额外开销（典型值，`-Os`）** | **约 4–8 KB Flash** |
-
-### 实测占用（`dp_stm32f427_dev`，2026-04-05）
-
-构建配置：
-- `PRODUCT=dp_stm32f427_dev`
-- `PRODUCT_APP=all_tests`
-- overlays 包含 `test_all`（调试/验证配置，不是量产裁剪配置）
-- 统计命令：`arm-none-eabi-size build_stm32_full/dpsdk_firmware.elf`
-
-结果：
-- `text=952480`，`data=49996`，`bss=186440`
-- Flash 估算（`text+data`）：`1,002,476 B` / `2,097,152 B` = **47.8%**
-- 主 SRAM 估算（`.data + .bss + heap/stack`）：`187,184 B` / `196,608 B` = **95.2%**
-- CCMRAM（`.ccmram`）：`49,152 B` / `65,536 B` = **75.0%**
-
-量产向基线（`dp_stm32f427_dev_interactive`，Release）：
-- `text=93,232`，`data=204`，`bss=27,488`
-- Flash 估算（`text+data`）：`93,436 B` / `2,097,152 B` = **4.5%**
-- 主 SRAM 估算（`.data + .bss + heap/stack`）：`27,656 B` / `196,608 B` = **14.1%**
-- CCMRAM（`.ccmram`）：`0 B` / `65,536 B` = **0.0%**
-
-### 单片机可行性（重评）
+### 单片机可行性参考
 
 | 目标芯片 | 可行性 | 说明 |
-|---------|--------|------|
-| Cortex-M4 / M7，RAM ≥ 192 KB（建议带 CCM） | ✅ **当前全量测试配置可行** | `dp_stm32f427_dev + all_tests` 已完成构建与验证 |
-| Cortex-M3 / 小内存 M4，RAM 64–128 KB | ⚠️ **仅在强裁剪下可行** | 必须关闭 `test_all`，叠加最小化 overlays，并重新量化 |
-| Cortex-M0 / M0+，RAM ≤ 64 KB | ❌ **当前配置不可行** | 在没有 tiny 专用配置与实测前，不应宣称可支持 |
+|---|---|---|
+| Cortex-M4 / M7，RAM ≥ 192 KB（建议带 CCM） | ✅ 当前全量测试配置可行 | 已有构建与验证基础 |
+| Cortex-M3 / 小内存 M4，RAM 64–128 KB | ⚠️ 仅在强裁剪下可行 | 需要关闭 `test_all`、减少功能并重新量化 |
+| Cortex-M0 / M0+，RAM ≤ 64 KB | ❌ 当前配置不可直接宣称可用 | 需要 tiny 配置与实测数据支撑 |
 
-**优化优先级：**
-- 量产构建不要使用 `all_tests + test_all`，应切到产品 app + minimal overlays。
-- Release 启用 `-Os -fno-exceptions -fno-rtti` + LTO。
-- `OSALThread` 的 lambda 捕获控制在 16 B 内，避免堆回退。
-- 无并发读需求时优先 `OSALMutex`，不要默认使用 `OSALRWLock`。
-- 面向 M3/M0 目标时，优先评估将线程入口从 `std::function` 改为定长可调用包装。
+### 使用建议
 
-**使用建议：**
-- 启用 `-Os -fno-exceptions -fno-rtti`（节省 1–3 KB Flash）。
-- lambda 捕获列表保持 < 16 B，避免 `OSALThread` 触发堆分配。
-- 不需要并发读时用 `OSALMutex` 代替 `OSALRWLock`。
-- `OSALRWLock` 单次 `readLock()` 产生最多 5 次 CMSIS-OS2 调用（直接实现通常 1–2 次）。
+- Release 构建建议启用 `-Os -fno-exceptions -fno-rtti` 与 LTO
+- 小内存目标应控制 `Thread` 使用方式，谨慎评估 `std::function` 捕获成本
+- 无明确并发读需求时，优先使用 `Mutex` 而不是 `RWLock`
+- 将测试配置与量产配置分离，不要直接将全量测试配置视为量产资源基线
+
+---
+
+## 适用场景
+
+`dp_sdk_core` 适合以下类型的项目：
+
+- 业务逻辑需要同时在 Linux 主机和 MCU 上验证
+- 产品需要支持多个 RTOS 或多个硬件平台
+- 团队已经为平台胶水代码付出较高维护成本
+- 希望在 C++17 工程中建立长期可复用的基础层
+- 需要更一致的 Linux / RTOS 编程接口体验
+
+---
+
+## License
+
+[MIT](./LICENSE)

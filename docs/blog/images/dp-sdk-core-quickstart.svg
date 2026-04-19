@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="640" viewBox="0 0 1200 640">
+  <defs>
+    <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#fff7ed" />
+      <stop offset="100%" stop-color="#ffedd5" />
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="640" fill="url(#bg2)" />
+  <text x="600" y="70" text-anchor="middle" fill="#7c2d12" font-family="Segoe UI, sans-serif" font-size="40" font-weight="700">Own-Project Porting Flow</text>
+
+  <rect x="90" y="190" rx="18" ry="18" width="230" height="220" fill="#ffffff" stroke="#ea580c" stroke-width="3" />
+  <text x="205" y="250" text-anchor="middle" fill="#9a3412" font-family="Segoe UI, sans-serif" font-size="23" font-weight="700">1. Vendor Core</text>
+  <text x="205" y="290" text-anchor="middle" fill="#7c2d12" font-family="Segoe UI, sans-serif" font-size="19" font-weight="500">place under</text>
+  <text x="205" y="322" text-anchor="middle" fill="#7c2d12" font-family="Segoe UI, sans-serif" font-size="19" font-weight="500">vendor/dp_sdk_core</text>
+
+  <rect x="365" y="190" rx="18" ry="18" width="230" height="220" fill="#ffffff" stroke="#ea580c" stroke-width="3" />
+  <text x="480" y="250" text-anchor="middle" fill="#9a3412" font-family="Segoe UI, sans-serif" font-size="23" font-weight="700">2. Create OSAL Port</text>
+  <text x="480" y="290" text-anchor="middle" fill="#7c2d12" font-family="Segoe UI, sans-serif" font-size="19" font-weight="500">copy template</text>
+  <text x="480" y="322" text-anchor="middle" fill="#7c2d12" font-family="Segoe UI, sans-serif" font-size="19" font-weight="500">dp_osal_port.h</text>
+
+  <rect x="640" y="190" rx="18" ry="18" width="230" height="220" fill="#ffffff" stroke="#ea580c" stroke-width="3" />
+  <text x="755" y="250" text-anchor="middle" fill="#9a3412" font-family="Segoe UI, sans-serif" font-size="23" font-weight="700">3. Adapt HAL Port</text>
+  <text x="755" y="290" text-anchor="middle" fill="#7c2d12" font-family="Segoe UI, sans-serif" font-size="19" font-weight="500">bind board drivers</text>
+  <text x="755" y="322" text-anchor="middle" fill="#7c2d12" font-family="Segoe UI, sans-serif" font-size="19" font-weight="500">or mock types</text>
+
+  <rect x="915" y="190" rx="18" ry="18" width="230" height="220" fill="#ffffff" stroke="#ea580c" stroke-width="3" />
+  <text x="1030" y="250" text-anchor="middle" fill="#9a3412" font-family="Segoe UI, sans-serif" font-size="23" font-weight="700">4. Link Targets</text>
+  <text x="1030" y="290" text-anchor="middle" fill="#7c2d12" font-family="Segoe UI, sans-serif" font-size="19" font-weight="500">dp_osal / dp_hal</text>
+  <text x="1030" y="322" text-anchor="middle" fill="#7c2d12" font-family="Segoe UI, sans-serif" font-size="19" font-weight="500">dp_device</text>
+
+  <line x1="320" y1="300" x2="365" y2="300" stroke="#c2410c" stroke-width="4" />
+  <polygon points="360,292 375,300 360,308" fill="#c2410c"/>
+  <line x1="595" y1="300" x2="640" y2="300" stroke="#c2410c" stroke-width="4" />
+  <polygon points="635,292 650,300 635,308" fill="#c2410c"/>
+  <line x1="870" y1="300" x2="915" y2="300" stroke="#c2410c" stroke-width="4" />
+  <polygon points="910,292 925,300 910,308" fill="#c2410c"/>
+</svg>

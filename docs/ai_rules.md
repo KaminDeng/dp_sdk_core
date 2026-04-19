@@ -86,7 +86,7 @@ Both OSAL and HAL use a port mechanism to isolate platform-specific code.
 
 ### OSAL Port
 
-Set `DP_OSAL_PORT_DIR` before `add_subdirectory(osal)`. Defaults to `port/builtin_posix/`.
+Set `DP_OSAL_PORT_DIR` before `add_subdirectory(dp_osal)`. Defaults to `port/builtin_posix/`.
 
 Port directory must contain `dp_osal_port.h` with:
 1. Backend selection macro (`DP_OSAL_BACKEND_POSIX` or `DP_OSAL_BACKEND_CMSIS_OS`)

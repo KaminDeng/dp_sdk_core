@@ -6,3 +6,4 @@ cmake-build-debug/
 docs/*
 !docs/ai_docs
 !docs/ai_rules.md
+!docs/blog
