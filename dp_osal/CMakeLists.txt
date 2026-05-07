@@ -50,6 +50,10 @@ foreach(_line IN LISTS _osal_port_lines)
         set(_osal_backend "cmsis_os")
         break()
     endif()
+    if (_line MATCHES "^[ \t]*#[ \t]*define[ \t]+DP_OSAL_BACKEND_ESP_IDF")
+        set(_osal_backend "esp_idf")
+        break()
+    endif()
 endforeach()
 message(STATUS "[dp_osal] Port directory: ${DP_OSAL_PORT_DIR}")
 message(STATUS "[dp_osal] Backend:        ${_osal_backend}")
@@ -58,7 +62,11 @@ message(STATUS "[dp_osal] Backend:        ${_osal_backend}")
 set(OSAL_IMPL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src/impl")
 set(GOOGLETEST_SUITE_PATH "test/gtest")
 
-file(GLOB_RECURSE SYSTEM_IMPL_SOURCES "${OSAL_IMPL_PATH}/${_osal_backend}/*.cpp")
+if (_osal_backend STREQUAL "esp_idf")
+    file(GLOB_RECURSE SYSTEM_IMPL_SOURCES "${DP_OSAL_PORT_DIR}/src/*.cpp")
+else()
+    file(GLOB_RECURSE SYSTEM_IMPL_SOURCES "${OSAL_IMPL_PATH}/${_osal_backend}/*.cpp")
+endif()
 file(GLOB_RECURSE GTEST_SUITE_SOURCES "${GOOGLETEST_SUITE_PATH}/*.cpp")
 
 message(STATUS "[dp_osal] Impl sources:   ${SYSTEM_IMPL_SOURCES}")
@@ -80,6 +88,7 @@ target_include_directories(dp_osal
         "${CMAKE_CURRENT_SOURCE_DIR}/src"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/interface"
         "${CMAKE_CURRENT_SOURCE_DIR}/src/debug"
+        $<$<STREQUAL:${_osal_backend},esp_idf>:${DP_OSAL_PORT_DIR}>
         $<$<STREQUAL:${_osal_backend},cmsis_os>:${CMAKE_CURRENT_SOURCE_DIR}/src/impl/cmsis_os/include>
         $<$<STREQUAL:${_osal_backend},posix>:${CMAKE_CURRENT_SOURCE_DIR}/src/impl/posix/include>
         "${CMAKE_CURRENT_SOURCE_DIR}/test"
