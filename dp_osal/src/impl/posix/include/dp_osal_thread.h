@@ -92,19 +92,22 @@ private:
             stopCtx_.stop.store(false);
 
             pthread_attr_t attr;
-            pthread_attr_init(&attr);
-
-            // 设置线程堆栈大小
-            if (stack_size > 0) {
-                size_t sz = static_cast<size_t>(stack_size);
-                size_t min_sz = static_cast<size_t>(DP_OSAL_PORT_THREAD_MIN_STACK_SIZE);
-                size_t actual = (sz > min_sz) ? sz : min_sz;
-                pthread_attr_setstacksize(&attr, actual);
+            result = pthread_attr_init(&attr);
+            if (result != 0) {
+                return result;
             }
 
-            // 设置线程堆栈内存
+            const size_t requested = stack_size > 0 ? static_cast<size_t>(stack_size) : 0U;
+            const size_t minimum = static_cast<size_t>(DP_OSAL_PORT_THREAD_MIN_STACK_SIZE);
+            const size_t actual = requested > minimum ? requested : minimum;
             if (pstack != nullptr) {
-                pthread_attr_setstack(&attr, pstack, static_cast<size_t>(stack_size));
+                result = pthread_attr_setstack(&attr, pstack, actual);
+            } else if (stack_size > 0) {
+                result = pthread_attr_setstacksize(&attr, actual);
+            }
+            if (result != 0) {
+                pthread_attr_destroy(&attr);
+                return result;
             }
 
             // 设置线程优先级
@@ -239,8 +242,6 @@ private:
             }
         }
         thread->running = false;
-        // Clear threadHandle to prevent double-join in stop() / destructor
-        thread->threadHandle_.store(0, std::memory_order_release);
 
         // Clear the thread-local stop context before the thread exits.
         tl_stop_ctx = nullptr;

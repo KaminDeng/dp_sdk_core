@@ -20,6 +20,8 @@ option(DP_OSAL_ENABLE_CHRONO         "高精度时钟"      ON)
 option(DP_OSAL_ENABLE_MEMORY_MANAGER "OSAL 内存管理"   ON)
 option(DP_OSAL_ENABLE_THREAD_SNAPSHOT  "线程快照（top）"  ON)
 option(DP_OSAL_STATIC_ALLOC          "静态分配模式"    OFF)
+option(DP_OSAL_ENABLE_LEGACY_COMPAT "旧接口兼容装配" OFF)
+option(DP_OSAL_ENABLE_MEASUREMENT    "同步测量" OFF)
 option(DP_OSAL_BUILD_HOST_TESTS      "Build standalone host OSAL tests" OFF)
 
 if (NOT DEFINED DP_OSAL_PORT_DIR)
@@ -75,6 +77,18 @@ add_library(dp_osal STATIC
     ${GTEST_SUITE_SOURCES}
 )
 
+add_library(dp_osal_build_config INTERFACE)
+target_compile_definitions(dp_osal_build_config INTERFACE
+    DP_OSAL_ENABLE_MEASUREMENT=$<BOOL:${DP_OSAL_ENABLE_MEASUREMENT}>
+    DP_OSAL_ENABLE_LEGACY_COMPAT=$<BOOL:${DP_OSAL_ENABLE_LEGACY_COMPAT}>)
+foreach(_cap IN ITEMS LEGACY_COMPAT MEASUREMENT)
+    set_property(TARGET dp_osal_build_config PROPERTY
+        INTERFACE_DP_OSAL_CONFIG_${_cap} "${DP_OSAL_ENABLE_${_cap}}")
+    set_property(TARGET dp_osal_build_config APPEND PROPERTY
+        COMPATIBLE_INTERFACE_BOOL DP_OSAL_CONFIG_${_cap})
+endforeach()
+target_link_libraries(dp_osal PUBLIC dp_osal_build_config)
+
 target_include_directories(dp_osal
     PUBLIC
         "${DP_OSAL_PORT_DIR}"
@@ -88,6 +102,19 @@ target_include_directories(dp_osal
         "${CMAKE_CURRENT_SOURCE_DIR}/${GOOGLETEST_SUITE_PATH}"
 )
 
+if(DP_OSAL_ENABLE_LEGACY_COMPAT)
+    set(_osal_compat_includes "${CMAKE_CURRENT_SOURCE_DIR}/compat/include"
+        "${CMAKE_CURRENT_SOURCE_DIR}/compat/interface")
+    if(_osal_backend STREQUAL "posix" OR _osal_backend STREQUAL "cmsis_os")
+        list(APPEND _osal_compat_includes "${CMAKE_CURRENT_SOURCE_DIR}/compat/${_osal_backend}")
+    else()
+        list(APPEND _osal_compat_includes "${CMAKE_CURRENT_SOURCE_DIR}/compat/template")
+    endif()
+    target_include_directories(dp_osal PRIVATE ${_osal_compat_includes})
+    add_library(dp_osal_legacy_compat INTERFACE)
+    target_link_libraries(dp_osal_legacy_compat INTERFACE dp_osal)
+    target_include_directories(dp_osal_legacy_compat INTERFACE ${_osal_compat_includes})
+endif()
 
 target_link_libraries(dp_osal PUBLIC gtest)
 if(_osal_backend STREQUAL "posix")
@@ -107,6 +134,14 @@ if(DP_OSAL_BUILD_HOST_TESTS AND _osal_backend STREQUAL "posix")
     target_compile_features(dp_osal_chrono_host_tests PRIVATE cxx_std_17)
     if(BUILD_TESTING)
         add_test(NAME dp_osal_chrono_host_tests COMMAND dp_osal_chrono_host_tests)
+    endif()
+    if(DP_OSAL_ENABLE_LEGACY_COMPAT)
+        add_executable(dp_osal_legacy_host_tests
+            test/dp_osal_legacy_host_test_main.cpp test/dp_osal_host_console_stub.cpp)
+        target_link_libraries(dp_osal_legacy_host_tests PRIVATE dp_osal_legacy_compat gtest)
+        if(BUILD_TESTING)
+            add_test(NAME dp_osal_legacy_host_tests COMMAND dp_osal_legacy_host_tests)
+        endif()
     endif()
     add_executable(dp_osal_contract_host_tests
         test/dp_osal_contract_host_test_main.cpp test/dp_osal_host_console_stub.cpp)
