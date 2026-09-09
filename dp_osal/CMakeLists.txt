@@ -21,6 +21,7 @@ option(DP_OSAL_ENABLE_CHRONO         "高精度时钟"      ON)
 option(DP_OSAL_ENABLE_MEMORY_MANAGER "OSAL 内存管理"   ON)
 option(DP_OSAL_ENABLE_THREAD_SNAPSHOT  "线程快照（top）"  ON)
 option(DP_OSAL_STATIC_ALLOC          "静态分配模式"    OFF)
+option(DP_OSAL_BUILD_HOST_TESTS      "Build standalone host OSAL tests" OFF)
 
 # ── Port directory resolution ──────────────────────────────────────────────────
 # Users set DP_OSAL_PORT_DIR before add_subdirectory(dp_osal) to supply their port:
@@ -105,6 +106,16 @@ target_link_libraries(dp_osal PUBLIC gtest)
 # osal_debug.h uses ##__VA_ARGS__ (GNU extension) to support zero-arg variadic
 # macro calls. Suppress the pedantic warning about this GNU extension.
 target_compile_options(dp_osal PUBLIC -Wno-gnu-zero-variadic-macro-arguments)
+
+if(DP_OSAL_BUILD_HOST_TESTS AND _osal_backend STREQUAL "posix")
+    include(CTest)
+    add_executable(dp_osal_chrono_host_tests test/dp_osal_chrono_host_test_main.cpp)
+    target_link_libraries(dp_osal_chrono_host_tests PRIVATE dp_osal gtest)
+    target_compile_features(dp_osal_chrono_host_tests PRIVATE cxx_std_17)
+    if(BUILD_TESTING)
+        add_test(NAME dp_osal_chrono_host_tests COMMAND dp_osal_chrono_host_tests)
+    endif()
+endif()
 
 # ── 原语裁剪：传播编译定义 ────────────────────────────────────────────────────
 foreach(_feat THREAD_POOL RW_LOCK SPIN_LOCK CONDITION_VAR TIMER CHRONO MEMORY_MANAGER THREAD_SNAPSHOT)

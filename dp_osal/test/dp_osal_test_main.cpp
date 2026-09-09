@@ -20,6 +20,7 @@ using namespace dp::osal;
 // disabled (its header becomes empty and its types are undeclared).
 #if DP_OSAL_ENABLE_CHRONO
 #include "gtest_chrono.cpp"
+#include "gtest_chrono_deadline.cpp"
 #endif
 #if DP_OSAL_ENABLE_CONDITION_VAR
 #include "gtest_condition_variable.cpp"

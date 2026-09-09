@@ -7,6 +7,8 @@
 #include <ctime>
 #include <string>
 
+#include "dp_osal_compat.h"
+
 #if DP_OSAL_ENABLE_CHRONO
 
 namespace dp::osal {
@@ -18,6 +20,11 @@ public:
     using Duration = double;
 
     [[nodiscard]] TimePoint now() const { return impl().doNow(); }
+    [[nodiscard]] static constexpr bool tickAfter(const TimePoint lhs, const TimePoint rhs) {
+        return static_cast<int32_t>(lhs - rhs) > 0;
+    }
+    [[nodiscard]] uint32_t ticksPerSecond() const { return impl().doTicksPerSecond(); }
+    void sleepUntil(const TimePoint absoluteDeadline) const { impl().doSleepUntil(absoluteDeadline); }
     [[nodiscard]] Duration elapsed(const TimePoint &start, const TimePoint &end) const {
         return impl().doElapsed(start, end);
     }

@@ -12,6 +12,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
+#include <thread>
 
 #include "interface_chrono.h"
 
@@ -31,6 +32,18 @@ private:
         auto now = std::chrono::steady_clock::now();
         auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch());
         return static_cast<TimePoint>(duration.count());
+    }
+
+    uint32_t doTicksPerSecond() const { return 1000U; }
+
+    void doSleepUntil(const TimePoint absoluteDeadline) const {
+        const TimePoint current = doNow();
+        if (!tickAfter(absoluteDeadline, current)) {
+            return;
+        }
+
+        const auto remaining = static_cast<uint32_t>(absoluteDeadline - current);
+        std::this_thread::sleep_until(std::chrono::steady_clock::now() + std::chrono::milliseconds(remaining));
     }
 
     Duration doElapsed(const TimePoint &start, const TimePoint &end) const {

@@ -53,6 +53,18 @@ private:
         return std::string(buffer);
     }
 
+    uint32_t doTicksPerSecond() const {
+        const Duration seconds_per_tick = doElapsed(0U, 1U);
+        return static_cast<uint32_t>(1.0 / seconds_per_tick);
+    }
+
+    void doSleepUntil(const TimePoint absoluteDeadline) const {
+        if (!tickAfter(absoluteDeadline, doNow())) {
+            return;
+        }
+        (void)osDelayUntil(absoluteDeadline);
+    }
+
     ~Chrono() = default;
 
     Chrono() = default;
