@@ -109,7 +109,10 @@ target_compile_options(dp_osal PUBLIC -Wno-gnu-zero-variadic-macro-arguments)
 
 if(DP_OSAL_BUILD_HOST_TESTS AND _osal_backend STREQUAL "posix")
     include(CTest)
-    add_executable(dp_osal_chrono_host_tests test/dp_osal_chrono_host_test_main.cpp)
+    add_executable(dp_osal_chrono_host_tests
+        test/dp_osal_chrono_host_test_main.cpp
+        test/dp_osal_host_console_stub.cpp
+    )
     target_link_libraries(dp_osal_chrono_host_tests PRIVATE dp_osal gtest)
     target_compile_features(dp_osal_chrono_host_tests PRIVATE cxx_std_17)
     if(BUILD_TESTING)
