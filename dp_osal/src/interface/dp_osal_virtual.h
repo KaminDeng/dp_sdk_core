@@ -6,6 +6,7 @@
 #ifndef DP_OSAL_VIRTUAL_H_
 #define DP_OSAL_VIRTUAL_H_
 
+#include <cstdlib>
 #include "interface_chrono.h"
 #include "interface_condition_variable.h"
 #include "interface_memory_manager.h"
@@ -317,6 +318,8 @@ public:
 
     virtual ~IChrono() = default;
     virtual TimePoint now() const = 0;
+    virtual uint32_t ticksPerSecond() const { return 0U; }
+    virtual void sleepUntil(TimePoint absolute_deadline) const { (void)absolute_deadline; std::abort(); }
     virtual Duration elapsed(const TimePoint &start, const TimePoint &end) const = 0;
     virtual std::time_t to_time_t(const TimePoint &time_point) const = 0;
     virtual TimePoint from_time_t(std::time_t time) const = 0;
@@ -329,6 +332,8 @@ public:
     explicit ChronoVirtual(Impl &impl) : impl_(impl) {}
 
     TimePoint now() const override { return impl_.now(); }
+    uint32_t ticksPerSecond() const override { return impl_.ticksPerSecond(); }
+    void sleepUntil(TimePoint absolute_deadline) const override { impl_.sleepUntil(absolute_deadline); }
     Duration elapsed(const TimePoint &start, const TimePoint &end) const override { return impl_.elapsed(start, end); }
     std::time_t to_time_t(const TimePoint &time_point) const override { return impl_.to_time_t(time_point); }
     TimePoint from_time_t(std::time_t time) const override { return impl_.from_time_t(time); }

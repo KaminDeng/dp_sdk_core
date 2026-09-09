@@ -1,3 +1,4 @@
+
 //
 // dp_osal_test_main.cpp — entry point for the OSAL gtest suite.
 //
@@ -20,6 +21,7 @@ using namespace dp::osal;
 // disabled (its header becomes empty and its types are undeclared).
 #if DP_OSAL_ENABLE_CHRONO
 #include "gtest_chrono.cpp"
+#include "gtest_chrono_deadline.cpp"
 #endif
 #if DP_OSAL_ENABLE_CONDITION_VAR
 #include "gtest_condition_variable.cpp"
@@ -46,6 +48,8 @@ using namespace dp::osal;
 #endif
 #include "gtest_virtual_injection.cpp"
 
+
+
 extern "C" void dp_osal_test_main(void) {
     DP_OSAL_LOGI("System Type: %s\n", System::getInstance().get_system_info());
 
@@ -54,7 +58,8 @@ extern "C" void dp_osal_test_main(void) {
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::GTEST_FLAG(filter) =
         "OSALChrono*:OSALConditionVariable*:OSALLockGuard*:OSALMemoryManager*:OSALMutex*:OSALMessageQueue*:OSALRWLock*:"
-        "OSALSemaphore*:TestOSALSpinLock*:OSALThread*:OSALTimer*:OSALVirtualInjection*";
+        "OSALSemaphore*:TestOSALSpinLock*:OSALThread*:OSALTimer*:"
+        "OSALVirtualInjection*:OSALRuntimeMeasurement*";
     int gtest_result = RUN_ALL_TESTS();
     (void)gtest_result;
 }

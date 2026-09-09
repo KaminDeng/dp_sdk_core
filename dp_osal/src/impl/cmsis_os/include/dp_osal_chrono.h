@@ -53,6 +53,17 @@ private:
         return std::string(buffer);
     }
 
+    uint32_t doTicksPerSecond() const {
+        return osKernelGetTickFreq();
+    }
+
+    void doSleepUntil(const TimePoint absoluteDeadline) const {
+        if (!tickAfter(absoluteDeadline, doNow())) {
+            return;
+        }
+        (void)osDelayUntil(absoluteDeadline);
+    }
+
     ~Chrono() = default;
 
     Chrono() = default;
