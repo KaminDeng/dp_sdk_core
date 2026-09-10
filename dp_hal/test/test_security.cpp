@@ -34,7 +34,7 @@ dp_security_status_t next_counter(void* context, uint32_t* output) {
     return DP_SECURITY_OK;
 }
 
-dp_security_status_t mac_stub(void*, uint8_t, const uint8_t*, size_t,
+dp_security_status_t mac_stub(void*, uint8_t, uint8_t, const uint8_t*, size_t,
                               uint8_t output[DP_SECURITY_SHA256_SIZE]) {
     if (output != nullptr) {
         std::memset(output, 0xA5, DP_SECURITY_SHA256_SIZE);
@@ -42,8 +42,8 @@ dp_security_status_t mac_stub(void*, uint8_t, const uint8_t*, size_t,
     return DP_SECURITY_OK;
 }
 
-dp_security_status_t verify_stub(void*, uint8_t, const uint8_t*, size_t,
-                                 const uint8_t[DP_SECURITY_SHA256_SIZE]) {
+dp_security_status_t verify_stub(void*, uint8_t, uint8_t, const uint8_t*, size_t,
+                                 const uint8_t*, size_t) {
     return DP_SECURITY_OK;
 }
 
@@ -82,8 +82,12 @@ TEST(DpHalSecurity, PersistentCounterProviderCanMixOptionalEntropy) {
     provider.next_boot_counter = next_counter;
     uint32_t first = 0U;
     uint32_t second = 0U;
-    ASSERT_EQ(dp_security_create_boot_session(&provider, &first), DP_SECURITY_OK);
-    ASSERT_EQ(dp_security_create_boot_session(&provider, &second), DP_SECURITY_OK);
+    uint32_t first_counter = 0U;
+    uint32_t second_counter = 0U;
+    ASSERT_EQ(dp_security_create_boot_identity(&provider, &first_counter, &first), DP_SECURITY_OK);
+    ASSERT_EQ(dp_security_create_boot_identity(&provider, &second_counter, &second), DP_SECURITY_OK);
+    EXPECT_EQ(first_counter, 7U);
+    EXPECT_EQ(second_counter, 8U);
     EXPECT_NE(first, second);
 }
 
@@ -102,6 +106,11 @@ TEST(DpHalSecurity, PskProfileRequiresMacAndAtomicKeyLifecycle) {
     provider.stage_key_slot_atomic = stage_key_stub;
     provider.activate_key_slot_atomic = activate_key_stub;
     EXPECT_EQ(dp_security_validate_provider(&provider, DP_SECURITY_LINK_PSK_MAC), DP_SECURITY_OK);
+
+    provider.boot_provider = DP_SECURITY_BOOT_HARDWARE_RNG;
+    provider.random_fill = fill_random;
+    EXPECT_EQ(dp_security_validate_provider(&provider, DP_SECURITY_LINK_PSK_MAC),
+              DP_SECURITY_ERR_NOT_SUPPORTED);
 }
 
 TEST(DpHalSecurity, RejectsZeroOrIncompleteBootProviders) {

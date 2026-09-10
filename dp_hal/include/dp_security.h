@@ -31,6 +31,9 @@ typedef enum {
 typedef enum {
     DP_SECURITY_LINK_PHYSICAL_TRUSTED = 1,
     DP_SECURITY_LINK_PSK_MAC = 2,
+    /* TLS credentials are owned by the network transport security port, not
+     * by this lite-link provider. Validation returns NOT_SUPPORTED here. */
+    DP_SECURITY_LINK_MUTUAL_TLS = 3,
 } dp_security_link_profile_t;
 
 typedef dp_security_status_t (*dp_security_random_fill_fn)(void *context,
@@ -41,11 +44,13 @@ typedef dp_security_status_t (*dp_security_random_fill_fn)(void *context,
 typedef dp_security_status_t (*dp_security_next_boot_counter_fn)(void *context,
                                                                  uint32_t *counter);
 typedef dp_security_status_t (*dp_security_mac_sha256_fn)(
-    void *context, uint8_t key_id, const uint8_t *data, size_t size,
+    void *context, uint8_t key_id, uint8_t direction,
+    const uint8_t *data, size_t size,
     uint8_t output[DP_SECURITY_SHA256_SIZE]);
 typedef dp_security_status_t (*dp_security_verify_sha256_fn)(
-    void *context, uint8_t key_id, const uint8_t *data, size_t size,
-    const uint8_t expected[DP_SECURITY_SHA256_SIZE]);
+    void *context, uint8_t key_id, uint8_t direction,
+    const uint8_t *data, size_t size,
+    const uint8_t *expected, size_t expected_size);
 typedef dp_security_status_t (*dp_security_load_key_epoch_fn)(void *context,
                                                               uint32_t *epoch);
 /* stage and activate must be power-loss atomic. key_slot_id refers to
@@ -70,9 +75,11 @@ typedef struct {
 static inline dp_security_status_t dp_security_validate_provider(
     const dp_security_provider_t *provider, dp_security_link_profile_t profile) {
     if (provider == NULL ||
-        (profile != DP_SECURITY_LINK_PHYSICAL_TRUSTED && profile != DP_SECURITY_LINK_PSK_MAC)) {
+        (profile != DP_SECURITY_LINK_PHYSICAL_TRUSTED &&
+         profile != DP_SECURITY_LINK_PSK_MAC && profile != DP_SECURITY_LINK_MUTUAL_TLS)) {
         return DP_SECURITY_ERR_INVALID_ARG;
     }
+    if (profile == DP_SECURITY_LINK_MUTUAL_TLS) return DP_SECURITY_ERR_NOT_SUPPORTED;
     if (provider->boot_provider == DP_SECURITY_BOOT_HARDWARE_RNG) {
         if (provider->random_fill == NULL) return DP_SECURITY_ERR_NOT_SUPPORTED;
     } else if (provider->boot_provider == DP_SECURITY_BOOT_SECURE_MONOTONIC_COUNTER ||
@@ -82,7 +89,8 @@ static inline dp_security_status_t dp_security_validate_provider(
         return DP_SECURITY_ERR_INVALID_ARG;
     }
     if (profile == DP_SECURITY_LINK_PSK_MAC &&
-        (provider->mac_sha256 == NULL || provider->verify_sha256 == NULL ||
+        (provider->boot_provider == DP_SECURITY_BOOT_HARDWARE_RNG ||
+         provider->mac_sha256 == NULL || provider->verify_sha256 == NULL ||
          provider->load_key_epoch == NULL || provider->stage_key_slot_atomic == NULL ||
          provider->activate_key_slot_atomic == NULL)) {
         return DP_SECURITY_ERR_NOT_SUPPORTED;
@@ -99,12 +107,14 @@ static inline uint32_t dp_security_mix_session(uint32_t value) {
     return value;
 }
 
-static inline dp_security_status_t dp_security_create_boot_session(
-    const dp_security_provider_t *provider, uint32_t *session_id) {
+static inline dp_security_status_t dp_security_create_boot_identity(
+    const dp_security_provider_t *provider, uint32_t *boot_counter,
+    uint32_t *session_id) {
     uint32_t entropy = 0u;
     uint32_t counter = 0u;
     dp_security_status_t status;
-    if (session_id == NULL) return DP_SECURITY_ERR_INVALID_ARG;
+    if (boot_counter == NULL || session_id == NULL) return DP_SECURITY_ERR_INVALID_ARG;
+    *boot_counter = 0u;
     *session_id = 0u;
     status = dp_security_validate_provider(provider, DP_SECURITY_LINK_PHYSICAL_TRUSTED);
     if (status != DP_SECURITY_OK) return status;
@@ -121,7 +131,14 @@ static inline dp_security_status_t dp_security_create_boot_session(
     }
     *session_id = dp_security_mix_session(entropy ^ counter ^ 0x9e3779b9u);
     if (*session_id == 0u) *session_id = 1u;
+    *boot_counter = counter;
     return DP_SECURITY_OK;
+}
+
+static inline dp_security_status_t dp_security_create_boot_session(
+    const dp_security_provider_t *provider, uint32_t *session_id) {
+    uint32_t unused_counter = 0u;
+    return dp_security_create_boot_identity(provider, &unused_counter, session_id);
 }
 
 #ifdef __cplusplus
