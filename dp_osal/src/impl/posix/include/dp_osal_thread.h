@@ -1,3 +1,4 @@
+
 //
 // Created by kamin.deng on 2024/8/23.
 //
@@ -12,6 +13,7 @@
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <thread>
 
@@ -25,12 +27,15 @@ namespace dp::osal {
 // is stopped. Caught by taskRunner to cleanly abort the user function without
 // using pthread_cancel (which triggers a GCC 11 ASan CHECK failure via
 // AsanThread::Destroy → UnsetAlternateSignalStack → sigaltstack interceptor).
+
 struct OSALThreadStopException : public std::exception {
+
     const char *what() const noexcept override { return "Thread: stop requested"; }
 };
 
 // Per-thread stop context: owned by Thread, pointed to by the thread-local
 // tl_stop_ctx while taskRunner is executing.
+
 struct OSALThreadStopCtx {
     std::mutex mtx;
     std::condition_variable cv;
@@ -40,32 +45,42 @@ struct OSALThreadStopCtx {
 // Thread-local pointer to the current thread's stop context.
 // Set by taskRunner before calling the user function; cleared on exit.
 // Used by osal_sleep_ms_interruptible() so System::sleep_ms() is interruptible.
+
 inline thread_local OSALThreadStopCtx *tl_stop_ctx = nullptr;
 
 // Interruptible sleep used by System::sleep_ms in the POSIX backend.
 // - If called from inside an Thread and stop() is requested before the
 //   timeout expires, throws OSALThreadStopException to abort the user function.
 // - Falls back to plain sleep_for when not inside an Thread (e.g. main thread).
+
 inline void osal_sleep_ms_interruptible(uint32_t ms) {
     OSALThreadStopCtx *ctx = tl_stop_ctx;
     if (ctx) {
         std::unique_lock<std::mutex> lk(ctx->mtx);
         bool stopped = ctx->cv.wait_for(lk, std::chrono::milliseconds(ms), [ctx] { return ctx->stop.load(); });
         if (stopped) {
+#if defined(__cpp_exceptions)
             throw OSALThreadStopException{};
+#else
+            // 禁异常raw入口协作返回，调用方循环检查自身停止状态。
+            return;
+#endif
         }
     } else {
         std::this_thread::sleep_for(std::chrono::milliseconds(ms));
     }
 }
 
+
 class Thread : public ThreadBase<Thread> {
     friend class ThreadBase<Thread>;
 
 public:
+
     Thread() : threadHandle_(0), running(false), suspended(false), priority_(0) {
         DP_OSAL_LOGD("Thread default constructor called\n");
     }
+
 
     Thread(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
                int stack_size = 0, void *pstack = nullptr)
@@ -74,71 +89,108 @@ public:
         start(name, fn, arg, priority, stack_size, pstack);
     }
 
+
     ~Thread() { doStop(); }
 
 private:
+
     int doStart(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
                 int stack_size = 0, void *pstack = nullptr) {
-        (void)name;
-        int result = 0;
-        if (!isRunning()) {
-            this->taskFunction = fn;
-            this->taskArgument = arg;
+        if (isRunning()) {
+            return 0;
+        }
+        taskFunction.emplace(std::move(fn));
+        taskArgument = arg;
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
 
-            // Reset ready_ so the new thread waits until the constructor/start() finishes.
-            ready_.store(false, std::memory_order_relaxed);
-
-            // Reset the stop context for a fresh start
-            stopCtx_.stop.store(false);
-
-            pthread_attr_t attr;
-            result = pthread_attr_init(&attr);
-            if (result != 0) {
-                return result;
-            }
-
-            const size_t requested = stack_size > 0 ? static_cast<size_t>(stack_size) : 0U;
-            const size_t minimum = static_cast<size_t>(DP_OSAL_PORT_THREAD_MIN_STACK_SIZE);
-            const size_t actual = requested > minimum ? requested : minimum;
-            if (pstack != nullptr) {
-                result = pthread_attr_setstack(&attr, pstack, actual);
-            } else if (stack_size > 0) {
-                result = pthread_attr_setstacksize(&attr, actual);
-            }
-            if (result != 0) {
-                pthread_attr_destroy(&attr);
-                return result;
-            }
-
-            // 设置线程优先级
-            if (priority > 0) {
-                sched_param schedParam;
-                pthread_attr_getschedparam(&attr, &schedParam);
-                schedParam.sched_priority = priority;
-                pthread_attr_setschedparam(&attr, &schedParam);
-            }
-
-            // 设置线程分离状态
-            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-            pthread_t new_handle = 0;
-            result = pthread_create(&new_handle, &attr, taskRunner, this);
-            if (result == 0) {
-                threadHandle_.store(new_handle, std::memory_order_relaxed);
-                running = true;
-                DP_OSAL_LOGD("Thread started successfully\n");
-            } else {
-                DP_OSAL_LOGE("Failed to create thread: %s\n", strerror(result));
-            }
-
-            pthread_attr_destroy(&attr);
-
-            // Signal the new thread that all members are fully initialized.
-            // Must be the last write in start() so the thread sees a consistent object.
-            ready_.store(true, std::memory_order_release);
+#endif
+        const int result = doStartNative(name, priority, stack_size, pstack);
+        if (result != 0) {
+            clearEntry();
         }
         return result;
     }
+
+
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+    int doStartRaw(const char *name, ThreadEntry fn, void *arg = nullptr, int priority = 0, int stack_size = 0,
+                   void *pstack = nullptr) {
+        // 保留raw拒绝重复/空入口的契约，再共用普通启动的准备与失败回滚。
+        if (isRunning()) return -1;
+        if (fn == nullptr) { clearEntry(); return -1; }
+        return doStart(name, std::function<void(void*)>(fn), arg, priority, stack_size, pstack);
+    }
+#endif
+
+
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+#endif
+
+
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+#endif
+
+
+    int doStartNative(const char *name, int priority, int stack_size, void *pstack) {
+        (void)name;
+        int result = 0;
+
+        // Reset ready_ so the new thread waits until the constructor/start() finishes.
+        ready_.store(false, std::memory_order_relaxed);
+
+        // Reset the stop context for a fresh start
+        stopCtx_.stop.store(false);
+
+        pthread_attr_t attr;
+        result = pthread_attr_init(&attr);
+        if (result != 0) {
+            return result;
+        }
+
+        const size_t requested = stack_size > 0 ? static_cast<size_t>(stack_size) : 0U;
+        const size_t minimum = static_cast<size_t>(DP_OSAL_PORT_THREAD_MIN_STACK_SIZE);
+        const size_t actual = requested > minimum ? requested : minimum;
+        if (pstack != nullptr) {
+            result = pthread_attr_setstack(&attr, pstack, actual);
+        } else if (stack_size > 0) {
+            result = pthread_attr_setstacksize(&attr, actual);
+        }
+        if (result != 0) {
+            pthread_attr_destroy(&attr);
+            return result;
+        }
+
+        // 设置线程优先级
+        if (priority > 0) {
+            sched_param schedParam;
+            pthread_attr_getschedparam(&attr, &schedParam);
+            schedParam.sched_priority = priority;
+            pthread_attr_setschedparam(&attr, &schedParam);
+        }
+
+        // 设置线程分离状态
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+
+        pthread_t new_handle = 0;
+        result = pthread_create(&new_handle, &attr, taskRunner, this);
+        if (result == 0) {
+            threadHandle_.store(new_handle, std::memory_order_relaxed);
+            running = true;
+            DP_OSAL_LOGD("Thread started successfully\n");
+        } else {
+            DP_OSAL_LOGE("Failed to create thread: %s\n", strerror(result));
+        }
+
+        pthread_attr_destroy(&attr);
+
+        // Signal the new thread that all members are fully initialized.
+        // Must be the last write in start() so the thread sees a consistent object.
+        ready_.store(true, std::memory_order_release);
+        return result;
+    }
+
 
     void doStop() {
         pthread_t h = threadHandle_.exchange(0);
@@ -149,9 +201,8 @@ private:
                 cv_.notify_all();
             }
 
-            // 2. Signal the stop context: wakes any interruptible sleep inside the user
-            //    function and causes osal_sleep_ms_interruptible() to throw, aborting
-            //    the user function without pthread_cancel (avoids GCC 11 ASan crash).
+            // 2. 发布停止请求并唤醒可中断sleep；启用异常时抛内部停止异常，禁异常时只提前返回。
+            // 用户仍须退出其任务循环，不使用pthread_cancel强制终止。
             {
                 std::unique_lock<std::mutex> lk(stopCtx_.mtx);
                 stopCtx_.stop.store(true);
@@ -164,12 +215,14 @@ private:
         }
     }
 
+
     int doSuspend() {
         std::unique_lock<std::mutex> lock(mutex_);
         suspended = true;
         DP_OSAL_LOGD("Thread suspended\n");
         return 0;  // 成功
     }
+
 
     int doResume() {
         std::unique_lock<std::mutex> lock(mutex_);
@@ -179,6 +232,7 @@ private:
         return 0;  // 成功
     }
 
+
     void doJoin() {
         pthread_t h = threadHandle_.exchange(0);
         if (h) {
@@ -186,6 +240,7 @@ private:
             DP_OSAL_LOGD("Thread joined\n");
         }
     }
+
 
     void doDetach() {
         pthread_t h = threadHandle_.exchange(0);
@@ -195,7 +250,9 @@ private:
         }
     }
 
+
     bool doIsRunning() const { return running; }
+
 
     void doSetPriority(int priority) {
         priority_ = priority;  // always store, so getPriority() works after thread ends
@@ -209,6 +266,7 @@ private:
         }
     }
 
+
     int doGetPriority() const {
         // Return the stored priority so callers get a consistent value
         // even when the thread has already finished (threadHandle == 0)
@@ -216,6 +274,7 @@ private:
         DP_OSAL_LOGD("Thread priority retrieved: %d\n", priority_);
         return priority_;
     }
+
 
     static void *taskRunner(void *parameters) {
         Thread *thread = static_cast<Thread *>(parameters);
@@ -228,29 +287,43 @@ private:
             std::this_thread::yield();
         }
 
+        // owned context可以在cleanup中销毁this；所需参数先保存在runner自身局部。
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+
+#endif
         // Install this thread's stop context so osal_sleep_ms_interruptible() works.
         tl_stop_ctx = &thread->stopCtx_;
 
-        if (thread->taskFunction) {
+        if (thread->taskFunction.has_value()) {
             thread->waitIfSuspended();
+#if defined(__cpp_exceptions)
             try {
-                thread->taskFunction(thread->taskArgument);
+#endif
+                if (thread->taskFunction.has_value() && static_cast<bool>(*thread->taskFunction)) {
+                    (*thread->taskFunction)(thread->taskArgument);
+                }
+#if defined(__cpp_exceptions)
             } catch (const OSALThreadStopException &) {
                 // stop() was called while the user function was sleeping.
                 // Exit cleanly without running any more user code.
                 DP_OSAL_LOGD("Thread: user function aborted by stop()\n");
             }
+#endif
         }
-        thread->running = false;
-
-        // Clear the thread-local stop context before the thread exits.
+        thread->clearEntry();
         tl_stop_ctx = nullptr;
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+#endif
+        thread->running = false;
 
         // Return normally — do NOT call pthread_exit() here.
         // pthread_exit() is noreturn and triggers __asan_handle_no_return →
         // PlatformUnpoisonStacks() → sigaltstack interceptor → GCC 11 ASan CHECK failure.
         return nullptr;
     }
+
 
     void waitIfSuspended() {
         std::unique_lock<std::mutex> lock(mutex_);
@@ -259,19 +332,48 @@ private:
         }
     }
 
+
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+;
+#endif
+
+
+    void clearEntry() {
+        taskFunction.reset();
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+#endif
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+#endif
+        taskArgument = nullptr;
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+#endif
+    }
+
     std::atomic<pthread_t> threadHandle_{0};
-    std::function<void(void *)> taskFunction;
-    void *taskArgument;
+    std::optional<std::function<void(void *)>> taskFunction;
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+#endif
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+#endif
+    void *taskArgument = nullptr;
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+
+#endif
     std::atomic<bool> running;
     std::atomic<bool> suspended;
     // Signals the thread that start() has finished writing all members.
     // Prevents TSAN data races when pthread_create() schedules the thread
     // before the constructor/start() returns.
     std::atomic<bool> ready_{false};
-    int priority_;  // stored priority, returned by getPriority() regardless of OS call result
+    int priority_;
     std::mutex mutex_;
     std::condition_variable cv_;
-    OSALThreadStopCtx stopCtx_;  // per-instance stop context for cooperative cancellation
+    OSALThreadStopCtx stopCtx_;
 };
 } // namespace dp::osal
 

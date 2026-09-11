@@ -7,7 +7,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <functional>
 #include <limits>
 
 #include "dp_osal_port.h"
@@ -15,7 +14,7 @@
 
 namespace dp::osal {
 
-using RealtimeEntry = void (*)(void*);
+using RealtimeEntry = ThreadEntry;
 
 enum class RealtimeStatus : uint8_t {
     kOk = 0,
@@ -25,11 +24,12 @@ enum class RealtimeStatus : uint8_t {
     kStartFailed,
 };
 
-class RealtimeThread {
+template <typename ThreadType = Thread>
+class RealtimeThreadWithBackend {
 public:
-    RealtimeThread() = default;
-    RealtimeThread(const RealtimeThread&) = delete;
-    RealtimeThread& operator=(const RealtimeThread&) = delete;
+    RealtimeThreadWithBackend() = default;
+    RealtimeThreadWithBackend(const RealtimeThreadWithBackend&) = delete;
+    RealtimeThreadWithBackend& operator=(const RealtimeThreadWithBackend&) = delete;
 
     RealtimeStatus start(RealtimeEntry entry, void* context, int priority,
                          void* caller_stack, size_t stack_size) {
@@ -44,8 +44,8 @@ public:
         if (consumed_) {
             return RealtimeStatus::kInvalidState;
         }
-        const int result = thread_.start("dp_realtime", std::function<void(void*)>(entry), context,
-                                         priority, static_cast<int>(stack_size), caller_stack);
+        const int result = thread_.startRaw("dp_realtime", entry, context, priority,
+                                            static_cast<int>(stack_size), caller_stack);
         if (result != 0) {
             return RealtimeStatus::kStartFailed;
         }
@@ -64,9 +64,11 @@ public:
     }
 
 private:
-    Thread thread_;
+    ThreadType thread_;
     bool started_ = false;
     bool consumed_ = false;
 };
+
+using RealtimeThread = RealtimeThreadWithBackend<>;
 
 }  // namespace dp::osal

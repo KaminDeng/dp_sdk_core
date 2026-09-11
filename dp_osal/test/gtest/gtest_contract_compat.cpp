@@ -50,3 +50,69 @@ TEST(OSALContractCompat, RealChronoVirtualForwardsDeadlines) {
 }
 }  // namespace
 #endif
+
+// 任务4：普通旧入口与显式兼容接口的编译契约，独立命名空间避免单TU辅助类型冲突。
+#include "dp_osal_thread.h"
+#include <functional>
+#include <utility>
+#include <atomic>
+#include <thread>
+namespace osal_thread_contract {
+template<class T, class = void> struct HasRaw : std::false_type {};
+template<class T> struct HasRaw<T, std::void_t<decltype(std::declval<T&>().startRaw(
+    "probe", static_cast<dp::osal::ThreadEntry>(nullptr), nullptr))>> : std::true_type {};
+static_assert(HasRaw<dp::osal::Thread>::value == bool(DP_OSAL_ENABLE_LEGACY_COMPAT),
+              "raw入口仅在统一兼容配置启用时可见");
+class OldStartBackend : public dp::osal::ThreadBase<OldStartBackend> {
+    friend class dp::osal::ThreadBase<OldStartBackend>;
+private:
+    int doStart(const char*, std::function<void(void*)> fn, void* context, int, int, void*) {
+        fn(context); return 17;
+    }
+};
+void increment(void* context) { ++*static_cast<unsigned*>(context); }
+TEST(OSALThreadContract, OldBackendNeedsOnlyOriginalDoStart) {
+    OldStartBackend backend; unsigned count = 0U;
+    EXPECT_EQ(backend.start("pointer", increment, &count), 17);
+    EXPECT_EQ(backend.start("lambda", [](void* context) { increment(context); }, &count), 17);
+    EXPECT_EQ(backend.start("capture", [&count](void*) { ++count; }, nullptr), 17);
+    std::function<void(void*)> callable = increment;
+    EXPECT_EQ(backend.start("function", callable, &count), 17);
+    EXPECT_EQ(count, 4U);
+}
+TEST(OSALThreadContract, RealOrdinaryStartAcceptsAllOriginalCallableForms) {
+    dp::osal::Thread thread; unsigned count = 0U;
+    ASSERT_EQ(thread.start("pointer", increment, &count), 0); thread.join();
+    ASSERT_EQ(thread.start("lambda", [](void* context) { increment(context); }, &count), 0); thread.join();
+    ASSERT_EQ(thread.start("capture", [&count](void*) { ++count; }, nullptr), 0); thread.join();
+    std::function<void(void*)> callable = increment;
+    ASSERT_EQ(thread.start("function", callable, &count), 0); thread.join();
+    EXPECT_EQ(count, 4U);
+}
+} // namespace osal_thread_contract
+
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+namespace osal_raw_start_contract {
+TEST(OSALThreadContract, RawKeepsDuplicateAndNullEntryResultsSeparateFromOrdinaryStart) {
+    dp::osal::Thread thread;
+    std::atomic<bool> entered{false}, release{false};
+    auto wait = +[](void* context) {
+        auto** flags = static_cast<std::atomic<bool>**>(context);
+        flags[0]->store(true, std::memory_order_release);
+        while (!flags[1]->load(std::memory_order_acquire)) std::this_thread::yield();
+    };
+    std::atomic<bool>* flags[]{&entered, &release};
+    ASSERT_EQ(thread.startRaw("raw-running", wait, flags), 0);
+    while (!entered.load(std::memory_order_acquire)) std::this_thread::yield();
+    EXPECT_EQ(thread.startRaw("duplicate-raw", wait, flags), -1);
+#if defined(DP_OSAL_BACKEND_POSIX)
+    EXPECT_EQ(thread.start("duplicate-ordinary", std::function<void(void*)>{}, nullptr), 0);
+#else
+    EXPECT_EQ(thread.start("duplicate-ordinary", std::function<void(void*)>{}, nullptr), -1);
+#endif
+    release.store(true, std::memory_order_release); thread.join();
+    EXPECT_EQ(thread.startRaw("null-raw", nullptr, nullptr), -1);
+    EXPECT_EQ(thread.start("empty-ordinary", std::function<void(void*)>{}, nullptr), 0); thread.join();
+}
+} // namespace osal_raw_start_contract
+#endif

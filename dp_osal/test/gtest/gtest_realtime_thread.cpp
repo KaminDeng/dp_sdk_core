@@ -1,13 +1,18 @@
 #include "dp_osal.h"
 #if DP_OSAL_ENABLE_LEGACY_COMPAT && defined(DP_OSAL_BACKEND_POSIX)
-#include <pthread.h>
+
 #include <gtest/gtest.h>
 
 #include <cstdint>
+#include <functional>
+#if defined(__linux__)
+#include <pthread.h>
+#endif
 
 #include "dp_osal_realtime.h"
 
 namespace {
+
 
 struct StackObservation {
     uintptr_t begin;
@@ -18,6 +23,7 @@ struct StackObservation {
     size_t actual_size = 0U;
     int attributes_status = -1;
 };
+
 
 void write_context(void* context) {
     auto* observation = static_cast<StackObservation*>(context);
@@ -37,6 +43,74 @@ void write_context(void* context) {
     observation->used_caller_stack =
         frame_address >= observation->begin && frame_address < observation->end;
 }
+
+
+struct RawEntryStartObservation {
+    dp::osal::RealtimeEntry entry = nullptr;
+    void* context = nullptr;
+    void* stack = nullptr;
+    int priority = 0;
+    int stack_size = 0;
+    bool joined = false;
+};
+
+
+class RawEntryRecordingThread {
+public:
+
+    int startRaw(const char*, dp::osal::RealtimeEntry entry, void* context, int priority, int stack_size, void* stack) {
+        observation->entry = entry;
+        observation->context = context;
+        observation->priority = priority;
+        observation->stack_size = stack_size;
+        observation->stack = stack;
+        entry(context);
+        return 0;
+    }
+
+
+    void join() { observation->joined = true; }
+
+    inline static RawEntryStartObservation* observation = nullptr;
+};
+
+
+void increment_context(void* context) {
+    auto* value = static_cast<uint32_t*>(context);
+    ++*value;
+}
+
+
+TEST(OSALRealtimeThread, UsesRawThreadEntryOverload) {
+    alignas(4096) uint8_t stack[64U * 1024U]{};
+    RawEntryStartObservation observation;
+    uint32_t invocation_count = 0U;
+    RawEntryRecordingThread::observation = &observation;
+    dp::osal::RealtimeThreadWithBackend<RawEntryRecordingThread> thread;
+
+    ASSERT_EQ(thread.start(increment_context, &invocation_count, 3, stack, sizeof(stack)),
+              dp::osal::RealtimeStatus::kOk);
+    EXPECT_EQ(observation.entry, increment_context);
+    EXPECT_EQ(observation.context, &invocation_count);
+    EXPECT_EQ(observation.priority, 3);
+    EXPECT_EQ(observation.stack, stack);
+    EXPECT_EQ(observation.stack_size, static_cast<int>(sizeof(stack)));
+    EXPECT_EQ(invocation_count, 1U);
+
+    EXPECT_EQ(thread.join(), dp::osal::RealtimeStatus::kOk);
+    EXPECT_TRUE(observation.joined);
+}
+
+
+TEST(OSALRealtimeThread, LegacyThreadSkipsEmptyCallable) {
+    alignas(4096) uint8_t stack[64U * 1024U]{};
+    dp::osal::Thread thread;
+    std::function<void(void*)> empty;
+
+    ASSERT_EQ(thread.start("empty", empty, nullptr, 0, sizeof(stack), stack), 0);
+    thread.join();
+}
+
 
 TEST(OSALRealtimeThread, ForwardsCallerContextAndJoins) {
     alignas(4096) uint8_t stack[64U * 1024U]{};
@@ -60,6 +134,7 @@ TEST(OSALRealtimeThread, ForwardsCallerContextAndJoins) {
               dp::osal::RealtimeStatus::kInvalidState);
 }
 
+
 TEST(OSALRealtimeThread, RejectsMissingEntryOrStack) {
     alignas(4096) uint8_t stack[64U * 1024U]{};
     dp::osal::RealtimeThread thread;
@@ -73,4 +148,4 @@ TEST(OSALRealtimeThread, RejectsMissingEntryOrStack) {
 
 }  // namespace
 
-#endif
+#endif // 显式兼容的POSIX Host套件
