@@ -15,6 +15,19 @@
 extern "C" {
 #endif
 
+typedef struct {
+    uint8_t bytes[16];
+} dp_hal_device_id_t;
+
+typedef enum {
+    DP_HAL_DEVICE_ID_OK = 0,
+    DP_HAL_DEVICE_ID_INVALID_ARGUMENT = -1,
+    DP_HAL_DEVICE_ID_UNAVAILABLE = -2,
+} dp_hal_device_id_status_t;
+
+/** @brief Read the stable, nonzero 128-bit deployment device identity. */
+dp_hal_device_id_status_t dp_hal_port_get_device_id(dp_hal_device_id_t *out);
+
 /** @brief  Return hardware monotonic tick in microseconds.
  *  @note   Must be safe to call from ISR context (no OSAL dependency). */
 uint64_t dp_hal_port_time_us(void);
