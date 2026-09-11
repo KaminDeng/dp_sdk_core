@@ -4,6 +4,7 @@
 #include "gtest_chrono_deadline.cpp"
 #endif
 #include "gtest_realtime_thread.cpp"
+#include "gtest_static_timer.cpp"
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
