@@ -7,11 +7,22 @@
 #include "dp_hal_port.h"
 
 #include <chrono>  // NOLINT(build/c++11)
+#include <cstring>
 #include <cstdio>
 #include <cstdlib>
 
 #include "dp_console.h"
 #include "dp_log.h"
+
+dp_hal_device_id_status_t dp_hal_port_get_device_id(dp_hal_device_id_t *out) {
+    if (out == nullptr) return DP_HAL_DEVICE_ID_INVALID_ARGUMENT;
+    static constexpr uint8_t kMockId[16] = {
+        0x4DU, 0x4FU, 0x43U, 0x4BU, 0x00U, 0x00U, 0x00U, 0x00U,
+        0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U,
+    };
+    std::memcpy(out->bytes, kMockId, sizeof(kMockId));
+    return DP_HAL_DEVICE_ID_OK;
+}
 
 /* ---- dp_hal_port_time_us ------------------------------------------------ */
 uint64_t dp_hal_port_time_us(void) {
