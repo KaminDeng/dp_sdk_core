@@ -12,6 +12,7 @@
 #include <functional>
 #include <iostream>
 #include <mutex>
+#include <optional>
 #include <stdexcept>
 #include <thread>
 
@@ -79,64 +80,94 @@ public:
 private:
     int doStart(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
                 int stack_size = 0, void *pstack = nullptr) {
+        if (isRunning()) {
+            return 0;
+        }
+        taskFunction.emplace(std::move(fn));
+        taskArgument = arg;
+        entryKind_ = EntryKind::kLegacy;
+        const int result = doStartNative(name, priority, stack_size, pstack);
+        if (result != 0) {
+            clearEntry();
+        }
+        return result;
+    }
+
+    int doStartRaw(const char *name, ThreadEntry fn, void *arg = nullptr, int priority = 0, int stack_size = 0,
+                   void *pstack = nullptr) {
+        if (isRunning()) {
+            return -1;
+        }
+        if (fn == nullptr) {
+            clearEntry();
+            return -1;
+        }
+        taskFunction.reset();
+        rawTaskFunction_ = fn;
+        taskArgument = arg;
+        entryKind_ = EntryKind::kRaw;
+        const int result = doStartNative(name, priority, stack_size, pstack);
+        if (result != 0) {
+            clearEntry();
+        }
+        return result;
+    }
+
+    int doStartNative(const char *name, int priority, int stack_size, void *pstack) {
         (void)name;
         int result = 0;
-        if (!isRunning()) {
-            this->taskFunction = fn;
-            this->taskArgument = arg;
 
-            // Reset ready_ so the new thread waits until the constructor/start() finishes.
-            ready_.store(false, std::memory_order_relaxed);
+        // Reset ready_ so the new thread waits until the constructor/start() finishes.
+        ready_.store(false, std::memory_order_relaxed);
 
-            // Reset the stop context for a fresh start
-            stopCtx_.stop.store(false);
+        // Reset the stop context for a fresh start
+        stopCtx_.stop.store(false);
 
-            pthread_attr_t attr;
-            result = pthread_attr_init(&attr);
-            if (result != 0) {
-                return result;
-            }
-
-            const size_t requested = stack_size > 0 ? static_cast<size_t>(stack_size) : 0U;
-            const size_t minimum = static_cast<size_t>(DP_OSAL_PORT_THREAD_MIN_STACK_SIZE);
-            const size_t actual = requested > minimum ? requested : minimum;
-            if (pstack != nullptr) {
-                result = pthread_attr_setstack(&attr, pstack, actual);
-            } else if (stack_size > 0) {
-                result = pthread_attr_setstacksize(&attr, actual);
-            }
-            if (result != 0) {
-                pthread_attr_destroy(&attr);
-                return result;
-            }
-
-            // 设置线程优先级
-            if (priority > 0) {
-                sched_param schedParam;
-                pthread_attr_getschedparam(&attr, &schedParam);
-                schedParam.sched_priority = priority;
-                pthread_attr_setschedparam(&attr, &schedParam);
-            }
-
-            // 设置线程分离状态
-            pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-            pthread_t new_handle = 0;
-            result = pthread_create(&new_handle, &attr, taskRunner, this);
-            if (result == 0) {
-                threadHandle_.store(new_handle, std::memory_order_relaxed);
-                running = true;
-                DP_OSAL_LOGD("Thread started successfully\n");
-            } else {
-                DP_OSAL_LOGE("Failed to create thread: %s\n", strerror(result));
-            }
-
-            pthread_attr_destroy(&attr);
-
-            // Signal the new thread that all members are fully initialized.
-            // Must be the last write in start() so the thread sees a consistent object.
-            ready_.store(true, std::memory_order_release);
+        pthread_attr_t attr;
+        result = pthread_attr_init(&attr);
+        if (result != 0) {
+            return result;
         }
+
+        const size_t requested = stack_size > 0 ? static_cast<size_t>(stack_size) : 0U;
+        const size_t minimum = static_cast<size_t>(DP_OSAL_PORT_THREAD_MIN_STACK_SIZE);
+        const size_t actual = requested > minimum ? requested : minimum;
+        if (pstack != nullptr) {
+            result = pthread_attr_setstack(&attr, pstack, actual);
+        } else if (stack_size > 0) {
+            result = pthread_attr_setstacksize(&attr, actual);
+        }
+        if (result != 0) {
+            pthread_attr_destroy(&attr);
+            return result;
+        }
+
+        // 设置线程优先级
+        if (priority > 0) {
+            sched_param schedParam;
+            pthread_attr_getschedparam(&attr, &schedParam);
+            schedParam.sched_priority = priority;
+            pthread_attr_setschedparam(&attr, &schedParam);
+        }
+
+        // 设置线程分离状态
+        pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+
+        pthread_t new_handle = 0;
+        result = pthread_create(&new_handle, &attr, taskRunner, this);
+        if (result == 0) {
+            threadHandle_.store(new_handle, std::memory_order_relaxed);
+            running = true;
+            DP_OSAL_LOGD("Thread started successfully\n");
+        } else {
+            DP_OSAL_LOGE("Failed to create thread: %s\n", strerror(result));
+        }
+
+        pthread_attr_destroy(&attr);
+
+        // Signal the new thread that all members are fully initialized.
+        // Must be the last write in start() so the thread sees a consistent object.
+        ready_.store(true, std::memory_order_release);
         return result;
     }
 
@@ -231,16 +262,24 @@ private:
         // Install this thread's stop context so osal_sleep_ms_interruptible() works.
         tl_stop_ctx = &thread->stopCtx_;
 
-        if (thread->taskFunction) {
+        if (thread->entryKind_ != EntryKind::kNone) {
             thread->waitIfSuspended();
             try {
-                thread->taskFunction(thread->taskArgument);
+                if (thread->entryKind_ == EntryKind::kRaw) {
+                    ThreadEntry entry = thread->rawTaskFunction_;
+                    if (entry != nullptr) {
+                        entry(thread->taskArgument);
+                    }
+                } else if (thread->taskFunction.has_value() && static_cast<bool>(*thread->taskFunction)) {
+                    (*thread->taskFunction)(thread->taskArgument);
+                }
             } catch (const OSALThreadStopException &) {
                 // stop() was called while the user function was sleeping.
                 // Exit cleanly without running any more user code.
                 DP_OSAL_LOGD("Thread: user function aborted by stop()\n");
             }
         }
+        thread->clearEntry();
         thread->running = false;
 
         // Clear the thread-local stop context before the thread exits.
@@ -259,9 +298,24 @@ private:
         }
     }
 
+    enum class EntryKind : uint8_t {
+        kNone,
+        kLegacy,
+        kRaw,
+    };
+
+    void clearEntry() {
+        taskFunction.reset();
+        rawTaskFunction_ = nullptr;
+        taskArgument = nullptr;
+        entryKind_ = EntryKind::kNone;
+    }
+
     std::atomic<pthread_t> threadHandle_{0};
-    std::function<void(void *)> taskFunction;
-    void *taskArgument;
+    std::optional<std::function<void(void *)>> taskFunction;
+    ThreadEntry rawTaskFunction_ = nullptr;
+    void *taskArgument = nullptr;
+    EntryKind entryKind_ = EntryKind::kNone;
     std::atomic<bool> running;
     std::atomic<bool> suspended;
     // Signals the thread that start() has finished writing all members.

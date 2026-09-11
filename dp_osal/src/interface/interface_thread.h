@@ -7,10 +7,17 @@
 
 namespace dp::osal {
 
+using ThreadEntry = void (*)(void *);
+
 /** @brief CRTP base for OS thread implementations. */
 template <typename Impl>
 class ThreadBase {
 public:
+    int startRaw(const char *name, ThreadEntry taskFunction, void *taskArgument, int priority = 0,
+                 int stack_size = 0, void *pstack = nullptr) {
+        return impl().doStartRaw(name, taskFunction, taskArgument, priority, stack_size, pstack);
+    }
+
     int start(const char *name, std::function<void(void *)> taskFunction, void *taskArgument, int priority = 0,
               int stack_size = 0, void *pstack = nullptr) {
         return impl().doStart(name, taskFunction, taskArgument, priority, stack_size, pstack);
