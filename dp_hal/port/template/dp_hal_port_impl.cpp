@@ -10,6 +10,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/* ---- dp_hal_port_get_device_id ----------------------------------------- */
+#error "Implement dp_hal_port_get_device_id() for your platform"
+dp_hal_device_id_status_t dp_hal_port_get_device_id(dp_hal_device_id_t *out) {
+    (void)out;
+    return DP_HAL_DEVICE_ID_UNAVAILABLE;
+}
+
 /* ---- dp_hal_port_time_us ------------------------------------------------ */
 #error "Implement dp_hal_port_time_us() for your platform"
 uint64_t dp_hal_port_time_us(void) { return 0; }
