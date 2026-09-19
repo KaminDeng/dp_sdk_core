@@ -36,6 +36,12 @@ private:
         DP_OSAL_LOGD("Semaphore signal succeeded\n");
     }
 
+    void doSignalFromIsr() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        ++count_;
+        cond_.notify_one();
+    }
+
     bool doTryWait() {
         std::lock_guard<std::mutex> lock(mutex_);
         if (count_ > 0) {

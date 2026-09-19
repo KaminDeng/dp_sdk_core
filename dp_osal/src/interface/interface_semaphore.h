@@ -13,6 +13,7 @@ class SemaphoreBase {
 public:
     void wait() { impl().doWait(); }
     void signal() { impl().doSignal(); }
+    void signalFromIsr() { impl().doSignalFromIsr(); }
     bool tryWait() { return impl().doTryWait(); }
     bool tryWaitFor(uint32_t timestamp) { return impl().doTryWaitFor(timestamp); }
     [[nodiscard]] int getValue() const { return impl().doGetValue(); }
