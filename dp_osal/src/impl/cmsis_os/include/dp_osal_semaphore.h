@@ -49,6 +49,8 @@ private:
         }
     }
 
+    void doSignalFromIsr() { (void)osSemaphoreRelease(semaphore_); }
+
     bool doTryWait() { return doTryWaitFor(0); }
 
     bool doTryWaitFor(const uint32_t timestamp) {
