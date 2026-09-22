@@ -154,7 +154,11 @@ private:
             buf[out].sample_sequence = sample_sequence;
             buf[out].counter_hz = counter_hz;
             buf[out].instrumentation_overhead_us = static_cast<uint16_t>(sample_overhead);
-            buf[out].time_domain = static_cast<uint8_t>(MeasurementTimeDomain::kDwtCycles);
+#ifdef DP_OSAL_PORT_RUNTIME_TIME_DOMAIN
+            buf[out].time_domain = static_cast<uint8_t>(DP_OSAL_PORT_RUNTIME_TIME_DOMAIN);
+#else
+            buf[out].time_domain = static_cast<uint8_t>(MeasurementTimeDomain::kFreeRtosRuntimeCounter);
+#endif
             buf[out].validity = static_cast<uint8_t>(MeasurementValidity::kInsufficientWindow);
             switch (runtime[i].state) {
                 case 0U:
