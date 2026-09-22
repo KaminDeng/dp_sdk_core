@@ -141,6 +141,8 @@ private:
 
         size_t out = 0U;
         for (size_t i = 0U; i < got && out < max; ++i, ++out) {
+            // 输出可由调用者长期复用；无效窗口不能继承上一轮有效标记或计量值。
+            buf[out] = ThreadSnapshot{};
             const char *name = runtime[i].name == nullptr ? "unknown" : runtime[i].name;
             std::strncpy(buf[out].name, name, sizeof(buf[out].name) - 1U);
             buf[out].name[sizeof(buf[out].name) - 1U] = '\0';
