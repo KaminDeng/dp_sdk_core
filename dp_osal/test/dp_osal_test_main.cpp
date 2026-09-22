@@ -48,6 +48,7 @@ using namespace dp::osal;
 #include "gtest_timer.cpp"
 #endif
 #include "gtest_virtual_injection.cpp"
+#include "gtest_runtime_measurement.cpp"
 
 extern "C" void dp_osal_test_main(void) {
     DP_OSAL_LOGI("System Type: %s\n", System::getInstance().get_system_info());
@@ -58,7 +59,7 @@ extern "C" void dp_osal_test_main(void) {
     ::testing::GTEST_FLAG(filter) =
         "OSALChrono*:OSALConditionVariable*:OSALLockGuard*:OSALMemoryManager*:OSALMutex*:OSALMessageQueue*:OSALRWLock*:"
         "OSALSemaphore*:TestOSALSpinLock*:OSALThread*:OSALRealtimeThread*:OSALStaticTimer*:OSALTimer*:"
-        "OSALVirtualInjection*";
+        "OSALVirtualInjection*:OSALRuntimeMeasurement*";
     int gtest_result = RUN_ALL_TESTS();
     (void)gtest_result;
 }

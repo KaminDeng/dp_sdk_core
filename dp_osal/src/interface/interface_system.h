@@ -7,6 +7,7 @@
 #include <cstdint>
 
 #include "dp_osal_thread_snapshot.h"
+#include "dp_osal_measurement.h"
 
 #ifndef DP_OSAL_ENABLE_THREAD_SNAPSHOT
 #define DP_OSAL_ENABLE_THREAD_SNAPSHOT 0
@@ -24,6 +25,9 @@ public:
     void enter_critical() const { impl().doEnterCritical(); }
     void exit_critical() const { impl().doExitCritical(); }
     [[nodiscard]] const char *get_system_info() const { return impl().doGetSystemInfo(); }
+    [[nodiscard]] SynchronizationMeasurement get_synchronization_measurement() const {
+        return SynchronizationMeasurementCollector::snapshot();
+    }
 #if DP_OSAL_ENABLE_THREAD_SNAPSHOT
     size_t get_thread_snapshot(ThreadSnapshot *buf, size_t max) const { return impl().doGetThreadSnapshot(buf, max); }
 #endif

@@ -5,17 +5,39 @@
 
 #include <cstdint>
 
+#include "dp_osal_measurement.h"
+
 namespace dp::osal {
 
 /** @brief CRTP base for semaphore implementations. */
 template <typename Impl>
 class SemaphoreBase {
 public:
-    void wait() { impl().doWait(); }
-    void signal() { impl().doSignal(); }
-    void signalFromIsr() { impl().doSignalFromIsr(); }
-    bool tryWait() { return impl().doTryWait(); }
-    bool tryWaitFor(uint32_t timestamp) { return impl().doTryWaitFor(timestamp); }
+    void wait() {
+        const uint32_t started = Measurement::now_us();
+        impl().doWait();
+        Measurement::record_wait(SynchronizationKind::kWake, started, Measurement::now_us(), true);
+    }
+    void signal() {
+        impl().doSignal();
+        Measurement::record_signal(false);
+    }
+    void signalFromIsr() {
+        impl().doSignalFromIsr();
+        Measurement::record_signal(true);
+    }
+    bool tryWait() {
+        const uint32_t started = Measurement::now_us();
+        const bool result = impl().doTryWait();
+        Measurement::record_wait(SynchronizationKind::kWake, started, Measurement::now_us(), result);
+        return result;
+    }
+    bool tryWaitFor(uint32_t timestamp) {
+        const uint32_t started = Measurement::now_us();
+        const bool result = impl().doTryWaitFor(timestamp);
+        Measurement::record_wait(SynchronizationKind::kWake, started, Measurement::now_us(), result);
+        return result;
+    }
     [[nodiscard]] int getValue() const { return impl().doGetValue(); }
     void init(int initialValue) { impl().doInit(initialValue); }
 

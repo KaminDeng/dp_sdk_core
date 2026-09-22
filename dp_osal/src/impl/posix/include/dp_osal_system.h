@@ -103,13 +103,25 @@ private:
         static std::mutex s_snap_mu;
         static unsigned long long s_prev_total_ticks = 0ULL;
         static std::unordered_map<int, unsigned long long> s_prev_thread_ticks;
+        static bool s_have_total_sample = false;
+        static uint32_t s_sample_sequence = 0U;
 
         const unsigned long long total_ticks_now = read_total_cpu_ticks();
-        const unsigned long long total_delta = (total_ticks_now >= s_prev_total_ticks)
+        std::lock_guard<std::mutex> lock(s_snap_mu);
+        const unsigned long long total_delta = s_have_total_sample && total_ticks_now >= s_prev_total_ticks
                                                    ? (total_ticks_now - s_prev_total_ticks)
                                                    : 0ULL;
         const long cpu_count = sysconf(_SC_NPROCESSORS_ONLN);
         const unsigned long cpu_scale = (cpu_count > 0) ? static_cast<unsigned long>(cpu_count) : 1UL;
+        const long clock_ticks = sysconf(_SC_CLK_TCK);
+        const uint32_t counter_hz = clock_ticks > 0 ? static_cast<uint32_t>(clock_ticks) : 0U;
+        const bool bounded_window = total_delta > 0ULL && total_delta <= 0x7FFFFFFFULL;
+        const uint32_t sample_window_us = bounded_window && counter_hz > 0U
+                                              ? static_cast<uint32_t>((total_delta * 1000000ULL) /
+                                                                      (static_cast<unsigned long long>(counter_hz) *
+                                                                       static_cast<unsigned long long>(cpu_scale)))
+                                              : 0U;
+        const uint32_t sample_sequence = ++s_sample_sequence;
 
         std::unordered_map<int, unsigned long long> thread_ticks_now;
         std::vector<int> thread_ids_order;
@@ -175,6 +187,19 @@ private:
             buf[out].cpu_pct_x10 = 0U;
             buf[out].stack_hwm = 0U;     // POSIX backend has no portable stack high-water metric.
             buf[out].stack_pointer = 0U;  // POSIX: 线程 SP 无可移植获取方式
+            buf[out].runtime_us = 0U;
+            buf[out].isr_runtime_us = 0U;
+            buf[out].sample_window_us = sample_window_us;
+            buf[out].sample_sequence = sample_sequence;
+            buf[out].counter_hz = counter_hz;
+            buf[out].instrumentation_overhead_us = 0U;
+            buf[out].cpu_valid = 0U;
+            buf[out].runtime_valid = 0U;
+            buf[out].stack_valid = 0U;
+            buf[out].isr_valid = 0U;
+            buf[out].isr_wrapped = 0U;
+            buf[out].time_domain = static_cast<uint8_t>(MeasurementTimeDomain::kPosixProcStatTicks);
+            buf[out].validity = static_cast<uint8_t>(MeasurementValidity::kInsufficientWindow);
             switch (state_ch) {
                 case 'R':
                     buf[out].state = 1U;  // running
@@ -203,8 +228,7 @@ private:
         closedir(dir);
 
         {
-            std::lock_guard<std::mutex> lock(s_snap_mu);
-            if (total_delta > 0ULL) {
+            if (bounded_window) {
                 for (size_t i = 0; i < out && i < thread_ids_order.size(); ++i) {
                     const int tid = thread_ids_order[i];
                     auto now_it = thread_ticks_now.find(tid);
@@ -216,12 +240,22 @@ private:
                     if (prev_it != s_prev_thread_ticks.end() && now_ticks >= prev_it->second) {
                         const unsigned long long thread_delta = now_ticks - prev_it->second;
                         const unsigned long long x10 = (thread_delta * 1000ULL * cpu_scale) / total_delta;
-                        buf[i].cpu_pct_x10 = static_cast<uint32_t>(x10 > 100000ULL ? 100000ULL : x10);
+                        buf[i].cpu_pct_x10 = static_cast<uint32_t>(x10 > 1000ULL ? 1000ULL : x10);
+                        buf[i].runtime_us = counter_hz > 0U
+                                                ? static_cast<uint32_t>((thread_delta * 1000000ULL) /
+                                                                        static_cast<unsigned long long>(counter_hz))
+                                                : 0U;
+                        buf[i].cpu_valid = 1U;
+                        buf[i].runtime_valid = counter_hz > 0U;
+                        buf[i].validity = buf[i].runtime_valid
+                                              ? static_cast<uint8_t>(MeasurementValidity::kValid)
+                                              : static_cast<uint8_t>(MeasurementValidity::kUnsupported);
                     }
                 }
             }
             s_prev_thread_ticks = std::move(thread_ticks_now);
             s_prev_total_ticks = total_ticks_now;
+            s_have_total_sample = true;
         }
         return out;
 #else
