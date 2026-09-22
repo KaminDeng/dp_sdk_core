@@ -47,7 +47,9 @@ using namespace dp::osal;
 #include "gtest_timer.cpp"
 #endif
 #include "gtest_virtual_injection.cpp"
-
+#if DP_OSAL_ENABLE_MEASUREMENT
+#include "gtest_runtime_measurement.cpp"
+#endif
 
 
 extern "C" void dp_osal_test_main(void) {

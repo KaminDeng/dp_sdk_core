@@ -1,5 +1,8 @@
 #include <gtest/gtest.h>
 #include <cstring>
+#include "gtest_runtime_measurement.cpp"
+#include "gtest_measurement_detail.cpp"
+#include "gtest_snapshot_detail.cpp"
 #include "gtest_contract_compat.cpp"
 int main(int argc, char** argv) {
 #if DP_OSAL_ENABLE_CHRONO

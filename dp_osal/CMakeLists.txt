@@ -135,6 +135,20 @@ if(DP_OSAL_BUILD_HOST_TESTS AND _osal_backend STREQUAL "posix")
     if(BUILD_TESTING)
         add_test(NAME dp_osal_chrono_host_tests COMMAND dp_osal_chrono_host_tests)
     endif()
+    set(DP_OSAL_HOST_HAS_GNU_WRAP FALSE)
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        include(CheckCXXSourceCompiles)
+        set(_osal_saved_required_link_options "${CMAKE_REQUIRED_LINK_OPTIONS}")
+        set(CMAKE_REQUIRED_LINK_OPTIONS "-Wl,--wrap=puts")
+        check_cxx_source_compiles("#include <cstdio>
+extern \"C\" int __real_puts(const char*);
+extern \"C\" int __wrap_puts(const char* s) { return __real_puts(s); }
+int main() { return puts(\"probe\") < 0; }" _osal_gnu_wrap_links)
+        set(CMAKE_REQUIRED_LINK_OPTIONS "${_osal_saved_required_link_options}")
+        if(_osal_gnu_wrap_links)
+            set(DP_OSAL_HOST_HAS_GNU_WRAP TRUE)
+        endif()
+    endif()
     if(DP_OSAL_ENABLE_LEGACY_COMPAT)
         add_executable(dp_osal_legacy_host_tests
             test/dp_osal_legacy_host_test_main.cpp test/dp_osal_host_console_stub.cpp)
@@ -146,6 +160,13 @@ if(DP_OSAL_BUILD_HOST_TESTS AND _osal_backend STREQUAL "posix")
     add_executable(dp_osal_contract_host_tests
         test/dp_osal_contract_host_test_main.cpp test/dp_osal_host_console_stub.cpp)
     target_link_libraries(dp_osal_contract_host_tests PRIVATE dp_osal gtest)
+    if(DP_OSAL_HOST_HAS_GNU_WRAP)
+        target_compile_definitions(dp_osal_contract_host_tests PRIVATE DP_OSAL_TEST_PROC_WRAP=1)
+        target_link_options(dp_osal_contract_host_tests PRIVATE
+            -Wl,--wrap=fopen -Wl,--wrap=readdir)
+    else()
+        target_compile_definitions(dp_osal_contract_host_tests PRIVATE DP_OSAL_TEST_PROC_WRAP=0)
+    endif()
     if(BUILD_TESTING)
         add_test(NAME dp_osal_contract_host_tests COMMAND dp_osal_contract_host_tests)
         if(DP_OSAL_ENABLE_CHRONO AND UNIX)
@@ -154,6 +175,29 @@ if(DP_OSAL_BUILD_HOST_TESTS AND _osal_backend STREQUAL "posix")
                 COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/check_chrono_unsupported.py
                     $<TARGET_FILE:dp_osal_contract_host_tests>)
         endif()
+    endif()
+    if(DP_OSAL_ENABLE_MEASUREMENT)
+        foreach(_clock_case host no_clock hook)
+            add_executable(dp_osal_measurement_${_clock_case}_tests
+                test/dp_osal_measurement_clock_host_tests.cpp)
+            if(_clock_case STREQUAL "no_clock")
+                target_include_directories(dp_osal_measurement_${_clock_case}_tests BEFORE PRIVATE
+                    test/fixtures/measurement/unavailable)
+            elseif(_clock_case STREQUAL "hook")
+                target_include_directories(dp_osal_measurement_${_clock_case}_tests BEFORE PRIVATE
+                    test/fixtures/measurement/available)
+            endif()
+            target_include_directories(dp_osal_measurement_${_clock_case}_tests PRIVATE
+                "${DP_OSAL_PORT_DIR}" src src/interface src/debug "src/impl/${_osal_backend}/include"
+                $<TARGET_PROPERTY:dp_osal,INTERFACE_INCLUDE_DIRECTORIES>)
+            target_link_libraries(dp_osal_measurement_${_clock_case}_tests PRIVATE
+                dp_osal_build_config gtest Threads::Threads)
+            target_compile_features(dp_osal_measurement_${_clock_case}_tests PRIVATE cxx_std_17)
+            if(BUILD_TESTING)
+                add_test(NAME dp_osal_measurement_${_clock_case}_tests
+                    COMMAND dp_osal_measurement_${_clock_case}_tests)
+            endif()
+        endforeach()
     endif()
 
 endif()
