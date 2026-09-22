@@ -165,7 +165,11 @@ private:
         output.sample_window_us = window.window_us;
         output.sample_sequence = window.sample_sequence;
         output.counter_hz = window.counter_hz;
-        output.time_domain = static_cast<uint8_t>(MeasurementTimeDomain::kDwtCycles);
+#ifdef DP_OSAL_PORT_RUNTIME_TIME_DOMAIN
+        output.time_domain = static_cast<uint8_t>(DP_OSAL_PORT_RUNTIME_TIME_DOMAIN);
+#else
+        output.time_domain = static_cast<uint8_t>(MeasurementTimeDomain::kFreeRtosRuntimeCounter);
+#endif
         output.validity = static_cast<uint8_t>(MeasurementValidity::kInsufficientWindow);
         bool found = false;
         uint32_t previous_runtime = 0U;
