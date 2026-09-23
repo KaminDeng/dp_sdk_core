@@ -55,7 +55,7 @@ private:
 
     bool doTryWaitFor(uint32_t timestamp) {
         std::unique_lock<std::mutex> lock(mutex_);
-        auto now = std::chrono::system_clock::now();
+        const auto now = std::chrono::steady_clock::now();
         if (cond_.wait_until(lock, now + std::chrono::milliseconds(timestamp), [this] { return count_ > 0; })) {
             --count_;
             DP_OSAL_LOGD("Semaphore tryWaitFor succeeded\n");
