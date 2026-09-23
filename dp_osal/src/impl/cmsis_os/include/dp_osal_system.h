@@ -74,7 +74,7 @@ private:
     void doSleep(const uint32_t seconds) const { doSleepMs(seconds * 1000); }
 
     [[nodiscard]] uint32_t doGetTickMs() const {
-        return static_cast<uint32_t>(osKernelGetTickCount() * 1000U / osKernelGetTickFreq());
+        return static_cast<uint32_t>(static_cast<uint64_t>(osKernelGetTickCount()) * 1000ULL / osKernelGetTickFreq());
     }
 
     void doEnterCritical() const {
