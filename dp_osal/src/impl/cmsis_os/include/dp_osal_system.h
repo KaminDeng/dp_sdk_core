@@ -101,6 +101,7 @@ private:
          * never needs FreeRTOS task handles or counters. */
         struct RuntimeBaseline {
             void *handle;
+            uint32_t task_generation;
             uint32_t runtime_counter;
         };
         static RuntimeBaseline previous[DP_OSAL_PORT_RUNTIME_MAX_THREADS]{};
@@ -181,7 +182,8 @@ private:
             bool found = false;
             uint32_t previous_runtime = 0U;
             for (size_t j = 0U; j < previous_count; ++j) {
-                if (previous[j].handle == runtime[i].handle) {
+                if (previous[j].handle == runtime[i].handle &&
+                    previous[j].task_generation == runtime[i].task_generation) {
                     found = true;
                     previous_runtime = previous[j].runtime_counter;
                     break;
@@ -225,6 +227,7 @@ private:
                                       : DP_OSAL_PORT_RUNTIME_MAX_THREADS;
         for (size_t i = 0U; i < next_count; ++i) {
             previous[i].handle = runtime[i].handle;
+            previous[i].task_generation = runtime[i].task_generation;
             previous[i].runtime_counter = runtime[i].runtime_counter;
         }
         previous_count = next_count;
