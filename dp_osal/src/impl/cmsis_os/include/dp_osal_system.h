@@ -87,7 +87,7 @@ private:
 
     struct RuntimeBaseline {
         void* handle;
-
+        uint32_t task_generation;
         uint32_t runtime_counter;
     };
 
@@ -174,7 +174,7 @@ private:
         bool found = false;
         uint32_t previous_runtime = 0U;
         for (size_t index = 0U; index < previous_count; ++index) {
-            if (previous[index].handle == row.handle) {
+            if (previous[index].handle == row.handle && previous[index].task_generation == row.task_generation) {
                 found = true;
                 previous_runtime = previous[index].runtime_counter;
                 break;
@@ -256,7 +256,7 @@ private:
         }
         if (!window.truncated && got > 0U) {
             for (size_t i = 0U; i < got; ++i)
-                previous[i] = {runtime[i].handle, runtime[i].runtime_counter};
+                previous[i] = {runtime[i].handle, runtime[i].task_generation, runtime[i].runtime_counter};
             previous_count = got;
             previous_total = total_counter;
             previous_isr = isr_counter;

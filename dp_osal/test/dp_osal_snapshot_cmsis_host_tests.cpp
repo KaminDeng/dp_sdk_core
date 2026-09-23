@@ -86,6 +86,10 @@ int main() {
     assert(sample() == 1U);
     assert(rows[0].runtime_valid == 0U);
     assert(sample() == 1U);
+    fixture::generation++;
+    assert(sample() == 1U);
+    assert(rows[0].runtime_valid == 0U);
+    assert(sample() == 1U);
     assert(sample((uint64_t{1U} << 32U) + 128U) == 1U);
     assert(rows[0].runtime_valid == 0U && rows[0].isr_valid == 0U);
     fixture::epoch++;
@@ -97,5 +101,5 @@ int main() {
     assert(sample(5000U) == 1U);
     assert(rows[0].runtime_valid == 0U);
     assert(fixture::ends > 0U);
-    std::puts("CMSIS快照Host模型：非1000Hz/ChronoVirtual、门控/早退、截断/多圈/epoch/溢出通过");
+    std::puts("CMSIS快照Host模型：非1000Hz/ChronoVirtual、门控/早退、代际/截断/多圈/epoch/溢出通过");
 }

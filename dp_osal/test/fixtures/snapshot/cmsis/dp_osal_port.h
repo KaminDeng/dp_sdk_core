@@ -12,11 +12,11 @@ struct Row {
     uint32_t stack_hwm_bytes;
     uint8_t state;
     uintptr_t stack_pointer;
-
+    uint32_t task_generation;
 };
 
 inline uint64_t wide = 0U;
-inline uint32_t frequency = 128U, epoch = 1U, total = 0U, runtime = 0U;
+inline uint32_t frequency = 128U, epoch = 1U, total = 0U, runtime = 0U, generation = 1U;
 inline bool truncated = false, read_failed = false, zero = false, isr_ready = true;
 inline std::atomic<bool> hold{false}, entered{false};
 inline unsigned ends = 0U, reads = 0U, fail_at_read = 0U;
@@ -40,7 +40,7 @@ inline size_t batch(Row* row, size_t, uint32_t* all, uint32_t* isr, uint8_t* val
     *all = total; *isr = 0U; *valid = isr_ready ? 1U : 0U;
     ++ends;
     if (zero) return 0U;
-    *row = {reinterpret_cast<void*>(1U), "fixture", runtime, 128U, 0U, 0U};
+    *row = {reinterpret_cast<void*>(1U), "fixture", runtime, 128U, 0U, 0U, generation};
     return 1U;
 }
 }  // namespace snapshot_cmsis_fixture
