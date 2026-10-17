@@ -7,6 +7,36 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <cstdlib>
+#include <cstring>
+#include <memory>
+
+TEST(OSALHostIo, CanonicalDirectoryUsesCallerStorageAndRejectsSmallBuffer) {
+    using Io = dp::osal::OSALHostIo;
+    const size_t capacity = Io::max_path_bytes();
+    std::unique_ptr<char[]> path(new (std::nothrow) char[capacity]);
+    ASSERT_NE(path, nullptr);
+    EXPECT_TRUE(Io::canonical_directory("/tmp/..", path.get(), capacity));
+    EXPECT_STREQ(path.get(), "/");
+    EXPECT_FALSE(Io::canonical_directory("/tmp", path.get(), capacity - 1U));
+    EXPECT_FALSE(Io::canonical_directory("/no/such/dpsdk-directory", path.get(), capacity));
+    EXPECT_FALSE(Io::canonical_directory(nullptr, path.get(), capacity));
+    EXPECT_FALSE(Io::canonical_directory("/tmp", nullptr, capacity));
+}
+
+TEST(OSALHostIo, ReadRegularPrefixIsBoundedAndRejectsDirectories) {
+    char path[]="/tmp/dpsdk-host-prefix-XXXXXX";
+    const int descriptor=::mkstemp(path);
+    ASSERT_GE(descriptor,0);
+    ASSERT_EQ(::write(descriptor,"abcdef",6U),6);
+    ASSERT_EQ(::close(descriptor),0);
+    std::array<uint8_t,3U> bytes{};size_t used=9U;
+    EXPECT_TRUE(dp::osal::OSALHostIo::read_regular_prefix(path,bytes.data(),bytes.size(),&used));
+    EXPECT_EQ(used,3U);EXPECT_EQ(std::memcmp(bytes.data(),"abc",3U),0);
+    EXPECT_FALSE(dp::osal::OSALHostIo::read_regular_prefix("/tmp",bytes.data(),bytes.size(),&used));
+    EXPECT_EQ(used,0U);
+    EXPECT_FALSE(dp::osal::OSALHostIo::read_regular_prefix(path,nullptr,bytes.size(),&used));
+    EXPECT_EQ(::unlink(path),0);
+}
 
 TEST(OSALHostIo, FullPipeDoesNotChangeBorrowedFlagsAndClosedReaderIsReported) {
     int descriptors[2]{};
