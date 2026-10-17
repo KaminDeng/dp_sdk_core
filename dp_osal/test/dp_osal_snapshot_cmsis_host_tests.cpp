@@ -73,6 +73,18 @@ int main() {
     assert(dp::osal::System::getInstance().get_thread_snapshot(rows, 4U) == 0U);
     fixture::hold = false;
     worker.join();
+#if defined(SNAPSHOT_FIXTURE_STREAM)
+    for (unsigned phase : {1U, 2U, 3U}) {
+        fixture::fail_at_read = phase;
+        const unsigned ends_before = fixture::ends;
+        assert(sample() == 0U);
+        assert(fixture::ends == ends_before + 1U);
+        fixture::fail_at_read = 0U;
+        assert(sample() == 1U);
+        assert(rows[0].runtime_valid == 0U);
+        assert(sample() == 1U);
+    }
+#endif
     fixture::zero = true;
     assert(sample() == 0U);
     fixture::zero = false;

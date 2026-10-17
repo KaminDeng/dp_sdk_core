@@ -103,7 +103,37 @@ private:
         uint8_t isr_counter_valid{};
     };
 
+#if defined(DP_OSAL_PORT_HAS_RUNTIME_STREAM) && DP_OSAL_PORT_HAS_RUNTIME_STREAM
+    using RuntimeCursor = DP_OSAL_PORT_RUNTIME_CURSOR_TYPE;
+
+#endif
     using RuntimeRow = DP_OSAL_PORT_RUNTIME_ROW_TYPE;
+#if defined(DP_OSAL_PORT_HAS_RUNTIME_STREAM) && DP_OSAL_PORT_HAS_RUNTIME_STREAM
+
+
+    class RuntimeScope {
+    public:
+
+        explicit RuntimeScope(RuntimeCursor& cursor) noexcept : cursor_(&cursor) {}
+
+        RuntimeScope(const RuntimeScope&) = delete;
+
+        RuntimeScope& operator=(const RuntimeScope&) = delete;
+
+        ~RuntimeScope() { finish(); }
+
+        void finish() noexcept {
+            if (cursor_ != nullptr) {
+                DP_OSAL_PORT_RUNTIME_END(cursor_);
+                cursor_ = nullptr;
+            }
+        }
+
+    private:
+        RuntimeCursor* cursor_;
+    };
+
+#endif
 
     static detail::SnapshotCounterStamp runtime_stamp() noexcept {
 #if defined(DP_OSAL_PORT_RUNTIME_COUNTER_WIDE_NOW) && defined(DP_OSAL_PORT_RUNTIME_COUNTER_EPOCH)
@@ -210,6 +240,84 @@ private:
 
     // 只持有句柄 cursor 与单行 metadata；全部 baseline 查找后才开始覆盖旧表。
 
+#if defined(DP_OSAL_PORT_HAS_RUNTIME_STREAM) && DP_OSAL_PORT_HAS_RUNTIME_STREAM
+    [[gnu::noinline]] size_t doGetThreadSnapshotStream(ThreadSnapshot* output, size_t max) const {
+        static RuntimeBaseline previous[DP_OSAL_PORT_RUNTIME_MAX_THREADS]{};
+        static size_t previous_count = 0U;
+        static uint32_t previous_total = 0U;
+        static uint8_t previous_isr_valid = 0U;
+        static uint32_t previous_isr = 0U;
+        static uint32_t sequence = 0U;
+        static bool have_window = false;
+        static detail::SnapshotCounterStamp previous_before{};
+        const auto stamp_before = runtime_stamp();
+        RuntimeCursor cursor{};
+        RuntimeRow row{};
+        const size_t capacity = max < DP_OSAL_PORT_RUNTIME_MAX_THREADS ? max : DP_OSAL_PORT_RUNTIME_MAX_THREADS;
+        const uint32_t counter_before = DP_OSAL_PORT_RUNTIME_COUNTER_NOW();
+        size_t total_count = 0U;
+        const size_t enumerated = DP_OSAL_PORT_RUNTIME_BEGIN(&cursor, &total_count);
+        RuntimeScope scope(cursor);
+        const uint32_t sample_sequence = ++sequence;
+        const size_t got = enumerated < capacity ? enumerated : capacity;
+        // 第一轮遍历全部enumerated行，请求READ模式1；即使输出容量较小也保留全体扫描后的计数采样点。
+        for (size_t index = 0U; index < enumerated; ++index) {
+            if (!DP_OSAL_PORT_RUNTIME_READ(&cursor, index, 1U, &row)) {
+                previous_count = 0U;
+                have_window = false;
+                return 0U;
+            }
+            if (index < got) initialize_runtime_row(output[index], row);
+        }
+        uint32_t total_counter = 0U;
+        uint32_t isr_counter = 0U;
+        uint8_t isr_counter_valid = 0U;
+        // 保留原全体 HWM 扫描结束后的 counter 采样点。
+        DP_OSAL_PORT_RUNTIME_COUNTERS(&cursor, &total_counter, &isr_counter, &isr_counter_valid);
+        RuntimeWindow window{};
+        complete_runtime_window(window, total_counter, isr_counter, previous_total, previous_isr, previous_before,
+                                runtime_stamp());
+        window.sample_sequence = sample_sequence;
+        window.truncated = total_count > capacity || got != total_count || enumerated != total_count;
+        window.isr_counter_valid = isr_counter_valid;
+        window.isr_bounded = window.isr_bounded && previous_isr_valid != 0U;
+        // 后续逐行遍历分别完成统计与基线发布，计算全部旧表匹配之前不覆盖previous。
+        for (size_t index = 0U; index < got; ++index) {
+            if (!DP_OSAL_PORT_RUNTIME_READ(&cursor, index, 0U, &row)) {
+                previous_count = 0U;
+                have_window = false;
+                return 0U;
+            }
+            complete_runtime_row(output[index], row, window, previous, previous_count, have_window, index == 0U);
+        }
+        if (!window.truncated && got > 0U) {
+            for (size_t index = 0U; index < got; ++index) {
+                if (!DP_OSAL_PORT_RUNTIME_READ(&cursor, index, 0U, &row)) {
+                    previous_count = 0U;
+                    have_window = false;
+                    return 0U;
+                }
+                previous[index] = {row.handle, row.task_generation, row.runtime_counter};
+            }
+            previous_count = got;
+            previous_total = total_counter;
+            previous_isr = isr_counter;
+            previous_isr_valid = isr_counter_valid;
+            previous_before = stamp_before;
+            have_window = stamp_before.valid;
+        } else {
+            previous_count = 0U;
+            have_window = false;
+        }
+        scope.finish();
+        const uint32_t counter_after = DP_OSAL_PORT_RUNTIME_COUNTER_NOW();
+        uint32_t overhead_us = 0U;
+        (void)detail::ticksToUs(counter_after - counter_before, window.counter_hz, overhead_us);
+        const uint16_t overhead = static_cast<uint16_t>(overhead_us > 0xFFFFU ? 0xFFFFU : overhead_us);
+        for (size_t index = 0U; index < got; ++index) output[index].instrumentation_overhead_us = overhead;
+        return got;
+    }
+#endif
 #endif
 
 
@@ -222,6 +330,9 @@ private:
         static std::atomic_flag gate = ATOMIC_FLAG_INIT;
         detail::SnapshotTryScope sampling(gate);
         if (!sampling) return 0U;
+#if defined(DP_OSAL_PORT_HAS_RUNTIME_STREAM) && DP_OSAL_PORT_HAS_RUNTIME_STREAM
+        return doGetThreadSnapshotStream(buf, max);
+#else
         static RuntimeBaseline previous[DP_OSAL_PORT_RUNTIME_MAX_THREADS]{};
         static size_t previous_count = 0U;
         static uint32_t previous_total = 0U, previous_isr = 0U, sequence = 0U;
@@ -268,6 +379,7 @@ private:
             have_window = false;
         }
         return got;
+#endif
 #else
 
         // 无runtime能力时只枚举基础信息，CPU/运行时/ISR标无效；不伪造性能计数。
