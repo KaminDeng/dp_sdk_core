@@ -85,7 +85,7 @@ private:
             return -1;  // 失败
         }
 
-        threadHandle = osThreadNew(reinterpret_cast<osThreadFunc_t>(taskRunner), this, &attr);
+        threadHandle = osThreadNew(taskRunner, this, &attr);
         if (threadHandle != nullptr) {
             running = true;
             DP_OSAL_LOGD("Thread started successfully\n");
