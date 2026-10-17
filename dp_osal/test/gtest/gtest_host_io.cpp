@@ -1,5 +1,6 @@
+
 #include "dp_osal.h"
-#if defined(DP_OSAL_BACKEND_POSIX) && defined(__linux__)
+#if DP_OSAL_ENABLE_LEGACY_COMPAT && defined(DP_OSAL_BACKEND_POSIX) && defined(__linux__)
 #include "dp_osal_host_io.h"
 #include "dp_osal_host_wake.h"
 #include <gtest/gtest.h>
@@ -7,6 +8,40 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <cstdlib>
+#include <cstring>
+#include <memory>
+#include <vector>
+
+
+TEST(OSALHostIo, CanonicalDirectoryUsesCallerStorageAndRejectsSmallBuffer) {
+    using Io = dp::osal::OSALHostIo;
+    const size_t capacity = Io::max_path_bytes();
+    std::unique_ptr<char[]> path(new (std::nothrow) char[capacity]);
+    ASSERT_NE(path, nullptr);
+    EXPECT_TRUE(Io::canonical_directory("/tmp/..", path.get(), capacity));
+    EXPECT_STREQ(path.get(), "/");
+    EXPECT_FALSE(Io::canonical_directory("/tmp", path.get(), capacity - 1U));
+    EXPECT_FALSE(Io::canonical_directory("/no/such/dpsdk-directory", path.get(), capacity));
+    EXPECT_FALSE(Io::canonical_directory(nullptr, path.get(), capacity));
+    EXPECT_FALSE(Io::canonical_directory("/tmp", nullptr, capacity));
+}
+
+
+TEST(OSALHostIo, ReadRegularPrefixIsBoundedAndRejectsDirectories) {
+    char path[]="/tmp/dpsdk-host-prefix-XXXXXX";
+    const int descriptor=::mkstemp(path);
+    ASSERT_GE(descriptor,0);
+    ASSERT_EQ(::write(descriptor,"abcdef",6U),6);
+    ASSERT_EQ(::close(descriptor),0);
+    std::array<uint8_t,3U> bytes{};size_t used=9U;
+    EXPECT_TRUE(dp::osal::OSALHostIo::read_regular_prefix(path,bytes.data(),bytes.size(),&used));
+    EXPECT_EQ(used,3U);EXPECT_EQ(std::memcmp(bytes.data(),"abc",3U),0);
+    EXPECT_FALSE(dp::osal::OSALHostIo::read_regular_prefix("/tmp",bytes.data(),bytes.size(),&used));
+    EXPECT_EQ(used,0U);
+    EXPECT_FALSE(dp::osal::OSALHostIo::read_regular_prefix(path,nullptr,bytes.size(),&used));
+    EXPECT_EQ(::unlink(path),0);
+}
+
 
 TEST(OSALHostIo, FullPipeDoesNotChangeBorrowedFlagsAndClosedReaderIsReported) {
     int descriptors[2]{};
@@ -35,6 +70,7 @@ TEST(OSALHostIo, FullPipeDoesNotChangeBorrowedFlagsAndClosedReaderIsReported) {
     EXPECT_EQ(output.try_write(page.data(), 1U, &written), dp::osal::HostIoResult::kClosed);
     EXPECT_EQ(::close(descriptors[1]), 0);
 }
+
 
 TEST(OSALHostIo, RegularOutputSharesOffsetAndExclusiveFilesPreserveExistingContent) {
     char path[] = "/tmp/dp-osal-host-io-XXXXXX";
@@ -65,6 +101,7 @@ TEST(OSALHostIo, RegularOutputSharesOffsetAndExclusiveFilesPreserveExistingConte
     EXPECT_EQ(::unlink(path), 0);
 }
 
+
 TEST(OSALHostIo, WakePreservesCreditBeforeWaitAndReportsClosedState) {
     dp::osal::OSALHostWake wake;
     EXPECT_FALSE(wake.signal());
@@ -78,37 +115,145 @@ TEST(OSALHostIo, WakePreservesCreditBeforeWaitAndReportsClosedState) {
     EXPECT_TRUE(wake.close()); EXPECT_TRUE(wake.close());
 }
 
+
 TEST(OSALHostIo, InputPollingPreservesFlagsAndReportsByteThenEof) {
     int descriptors[2]{};
     ASSERT_EQ(::pipe(descriptors), 0);
-    const int previous = ::dup(STDIN_FILENO);
-    ASSERT_GE(previous, 0);
+
     struct RestoreInput {
         int saved;
         int read;
         int write;
+
         ~RestoreInput() {
-            (void)::dup2(saved, STDIN_FILENO);
-            (void)::close(saved); (void)::close(read);
+            if (saved >= 0) {
+                (void)::dup2(saved, STDIN_FILENO);
+                (void)::close(saved);
+            }
+            (void)::close(read);
             if (write >= 0) (void)::close(write);
         }
-    } restore{previous, descriptors[0], descriptors[1]};
+    } restore{-1, descriptors[0], descriptors[1]};
+    restore.saved = ::dup(STDIN_FILENO);
+    ASSERT_GE(restore.saved, 0);
     ASSERT_GE(::dup2(descriptors[0], STDIN_FILENO), 0);
     const int flags = ::fcntl(descriptors[0], F_GETFL);
     dp::osal::HostInputInfo info{};
     uint8_t value = 9U;
     EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kWouldBlock);
-    EXPECT_EQ(value, 9U); EXPECT_FALSE(info.read_attempted);
+    EXPECT_EQ(value, 9U);
+    EXPECT_FALSE(info.read_attempted);
     const uint8_t sent = 0U;
     ASSERT_EQ(::write(descriptors[1], &sent, 1U), 1);
     EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kOk);
-    EXPECT_EQ(value, 0U); EXPECT_TRUE(info.read_attempted); EXPECT_EQ(info.error, 0);
+    EXPECT_EQ(value, 0U);
+    EXPECT_TRUE(info.read_attempted);
+    EXPECT_EQ(info.error, 0);
     EXPECT_EQ(::fcntl(descriptors[0], F_GETFL), flags);
-    ASSERT_EQ(::close(descriptors[1]), 0); restore.write = -1;
+    ASSERT_EQ(::close(descriptors[1]), 0);
+    restore.write = -1;
     EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kClosed);
     EXPECT_TRUE(info.read_attempted);
     EXPECT_EQ(dp::osal::OSALHostIo::poll_input(nullptr, &info), dp::osal::HostIoResult::kError);
 }
+
+TEST(OSALHostIo, InvalidInputIsNotWouldBlock) {
+    const int saved = ::dup(STDIN_FILENO);
+    ASSERT_GE(saved, 0);
+    struct Restore {
+        int descriptor;
+        ~Restore() {
+            (void)::dup2(descriptor, STDIN_FILENO);
+            (void)::close(descriptor);
+        }
+    } restore{saved};
+    ASSERT_EQ(::close(STDIN_FILENO), 0);
+    uint8_t value = 7U;
+    dp::osal::HostInputInfo info{};
+    EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kError);
+    EXPECT_NE(info.error, 0);
+    EXPECT_FALSE(info.read_attempted);
+    EXPECT_EQ(value, 7U);
+}
+
+TEST(OSALHostIo, BufferedInputIsDeliveredBeforeHangup) {
+    int descriptors[2]{};
+    ASSERT_EQ(::pipe(descriptors), 0);
+    struct Restore {
+        int saved, read, write;
+        ~Restore() {
+            if (saved >= 0) {
+                (void)::dup2(saved, STDIN_FILENO);
+                (void)::close(saved);
+            }
+            (void)::close(read);
+            if (write >= 0) (void)::close(write);
+        }
+    } restore{-1, descriptors[0], descriptors[1]};
+    restore.saved = ::dup(STDIN_FILENO);
+    ASSERT_GE(restore.saved, 0);
+    ASSERT_EQ(::dup2(descriptors[0], STDIN_FILENO), STDIN_FILENO);
+    const uint8_t bytes[] = {'A', 'B'};
+    ASSERT_EQ(::write(descriptors[1], bytes, sizeof(bytes)), static_cast<ssize_t>(sizeof(bytes)));
+    ASSERT_EQ(::close(descriptors[1]), 0);
+    restore.write = -1;
+    dp::osal::HostInputInfo info{};
+    uint8_t value{};
+    EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kOk);
+    EXPECT_EQ(value, bytes[0]);
+    EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kOk);
+    EXPECT_EQ(value, bytes[1]);
+    EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kClosed);
+}
+
+TEST(OSALHostIo, ShortPipeWriteReportsActualBytesAndPreservesBorrowedFlags) {
+    int descriptors[2]{};
+    ASSERT_EQ(::pipe(descriptors), 0);
+    struct Close {
+        int read, write;
+        ~Close() {
+            (void)::close(read);
+            (void)::close(write);
+        }
+    } close{descriptors[0], descriptors[1]};
+    const int capacity = ::fcntl(descriptors[1], F_GETPIPE_SZ);
+    ASSERT_GT(capacity, 0);
+    const int flags = ::fcntl(descriptors[1], F_GETFL);
+    dp::osal::OSALHostIo output;
+    ASSERT_TRUE(output.open_output(descriptors[1]));
+    std::vector<uint8_t> bytes(static_cast<size_t>(capacity) * 2U);
+    size_t written{};
+    EXPECT_EQ(output.try_write(bytes.data(), bytes.size(), &written), dp::osal::HostIoResult::kOk);
+    EXPECT_EQ(written, static_cast<size_t>(capacity));
+    EXPECT_EQ(::fcntl(descriptors[1], F_GETFL), flags);
+}
+
+TEST(OSALHostIo, ExistingOutputRejectsDirectoryAndSymlink) {
+    dp::osal::OSALHostIo file;
+    EXPECT_FALSE(file.open_existing("/tmp"));
+    char path[] = "/tmp/dp-osal-link-XXXXXX";
+    const int descriptor = ::mkstemp(path);
+    ASSERT_GE(descriptor, 0);
+    const std::string link = std::string(path) + ".link";
+    struct Remove {
+        const char* path;
+        const std::string& link;
+        int descriptor;
+        ~Remove() {
+            if (descriptor >= 0) (void)::close(descriptor);
+            (void)::unlink(link.c_str());
+            (void)::unlink(path);
+        }
+    } remove{path, link, descriptor};
+    const int closed = ::close(descriptor);
+    remove.descriptor = -1;
+    ASSERT_EQ(closed, 0);
+    ASSERT_EQ(::symlink(path, link.c_str()), 0);
+    EXPECT_FALSE(file.open_existing(link.c_str()));
+    EXPECT_TRUE(file.open_existing(path));
+    EXPECT_TRUE(file.close());
+}
+
 
 TEST(OSALHostIo, WallAndThreadCpuClocksHaveDistinctValidDomains) {
     uint64_t wall = 0U;

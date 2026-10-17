@@ -33,3 +33,5 @@ info捕获原revents/errno和是否真正执行read；失败不改byte。
 `wall_time_us`为UNIX CLOCK_REALTIME微秒，`thread_cpu_time_us`为调用线程CPU微秒，
 均以bool标记有效性并保失败output不变；不能以这些域替代steady_ns时限。
 新增功能只在既有Linux Host后端，CMSIS/template保持启用时明确拒绝，不改变MCU资源或默认能力。
+
+路径与等待阶段文件输入同样经过HostIo：max_path_bytes给出后端路径容量，canonical_directory只向调用方已准备的缓冲写入规范目录，失败返回false；read_regular_prefix只接受普通文件，最多读取调用方容量，不在应用层构造filesystem/fstream或字符串。两者可能等待文件系统I/O，仅用于准备或启用运动之前的permit等待阶段，不承诺磁盘延迟上界。FIFO以非阻塞open后按类型拒绝，不会等待其writer。CMSIS/template保持显式#error，Linux通过POSIX实现同步获得接口。

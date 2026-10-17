@@ -17,31 +17,57 @@ using HostSignalHandler = void (*)(int);
 template <typename Impl>
 class HostIoBase {
 public:
+
     bool open_output(int descriptor) noexcept { return impl().doOpenOutput(descriptor); }
+
     HostIoResult try_write(const uint8_t* bytes, size_t size, size_t* written) noexcept {
         return impl().doTryWrite(bytes, size, written);
     }
+
     bool open_exclusive(const char* path) noexcept { return impl().doOpenExclusive(path); }
+
     bool open_existing(const char* path) noexcept { return impl().doOpenExisting(path); }
+
     HostIoResult read_at(uint8_t* bytes, size_t size, uint64_t offset, size_t* read) noexcept {
         return impl().doReadAt(bytes, size, offset, read);
     }
+
     HostIoResult write_at(const uint8_t* bytes, size_t size, uint64_t offset, size_t* written) noexcept {
         return impl().doWriteAt(bytes, size, offset, written);
     }
+
     bool sync() noexcept { return impl().doSync(); }
+
     static bool rename_file(const char* from, const char* to) noexcept { return Impl::doRenameFile(from, to); }
+
+    static size_t max_path_bytes() noexcept { return Impl::doMaxPathBytes(); }
+
+    static bool canonical_directory(const char* path, char* output, size_t capacity) noexcept {
+        return Impl::doCanonicalDirectory(path, output, capacity);
+    }
+
+    static bool read_regular_prefix(const char* path, uint8_t* output, size_t capacity, size_t* used) noexcept {
+        return Impl::doReadRegularPrefix(path, output, capacity, used);
+    }
+
     static uint64_t steady_ns() noexcept { return Impl::doSteadyNs(); }
+
     static HostIoResult poll_input(uint8_t* byte, HostInputInfo* info) noexcept {
         return Impl::doPollInput(byte, info);
     }
+
     static bool install_termination_handler(HostSignalHandler handler, bool include_interrupt = true) noexcept {
         return Impl::doInstallTerminationHandler(handler, include_interrupt);
     }
+
     static bool wall_time_us(uint64_t* value) noexcept { return Impl::doWallTimeUs(value); }
+
     static bool thread_cpu_time_us(uint64_t* value) noexcept { return Impl::doThreadCpuTimeUs(value); }
+
     static void signal_safe_error(const uint8_t* bytes, size_t size) noexcept { Impl::doSignalSafeError(bytes, size); }
+
     [[noreturn]] static void exit_immediately(int code) noexcept { Impl::doExitImmediately(code); }
+
     bool close() noexcept { return impl().doClose(); }
 protected:
     ~HostIoBase() = default;
