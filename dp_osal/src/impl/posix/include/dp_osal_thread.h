@@ -53,7 +53,12 @@ inline void osal_sleep_ms_interruptible(uint32_t ms) {
         std::unique_lock<std::mutex> lk(ctx->mtx);
         bool stopped = ctx->cv.wait_for(lk, std::chrono::milliseconds(ms), [ctx] { return ctx->stop.load(); });
         if (stopped) {
+#if defined(__cpp_exceptions)
             throw OSALThreadStopException{};
+#else
+            // 禁异常raw入口协作返回，调用方循环检查自身停止状态。
+            return;
+#endif
         }
     } else {
         std::this_thread::sleep_for(std::chrono::milliseconds(ms));
@@ -95,6 +100,17 @@ private:
 
     int doStartRaw(const char *name, ThreadEntry fn, void *arg = nullptr, int priority = 0, int stack_size = 0,
                    void *pstack = nullptr) {
+        return doStartRawWithCleanup(name, fn, arg, nullptr, priority, stack_size, pstack);
+    }
+
+    int doStartRawOwned(const char* name, ThreadEntry fn, void* arg, ThreadCleanup cleanup,
+                        int priority, int stack_size, void* pstack) noexcept {
+        if (cleanup == nullptr) return -1;
+        return doStartRawWithCleanup(name, fn, arg, cleanup, priority, stack_size, pstack);
+    }
+
+    int doStartRawWithCleanup(const char* name, ThreadEntry fn, void* arg, ThreadCleanup cleanup,
+                             int priority, int stack_size, void* pstack) noexcept {
         if (isRunning()) {
             return -1;
         }
@@ -104,6 +120,7 @@ private:
         }
         taskFunction.reset();
         rawTaskFunction_ = fn;
+        rawCleanup_ = cleanup;
         taskArgument = arg;
         entryKind_ = EntryKind::kRaw;
         const int result = doStartNative(name, priority, stack_size, pstack);
@@ -259,12 +276,17 @@ private:
             std::this_thread::yield();
         }
 
+        // owned context可以在cleanup中销毁this；所需参数先保存在runner自身局部。
+        const ThreadCleanup cleanup = thread->rawCleanup_;
+        void* const cleanupContext = thread->taskArgument;
         // Install this thread's stop context so osal_sleep_ms_interruptible() works.
         tl_stop_ctx = &thread->stopCtx_;
 
         if (thread->entryKind_ != EntryKind::kNone) {
             thread->waitIfSuspended();
+#if defined(__cpp_exceptions)
             try {
+#endif
                 if (thread->entryKind_ == EntryKind::kRaw) {
                     ThreadEntry entry = thread->rawTaskFunction_;
                     if (entry != nullptr) {
@@ -273,17 +295,24 @@ private:
                 } else if (thread->taskFunction.has_value() && static_cast<bool>(*thread->taskFunction)) {
                     (*thread->taskFunction)(thread->taskArgument);
                 }
+#if defined(__cpp_exceptions)
             } catch (const OSALThreadStopException &) {
                 // stop() was called while the user function was sleeping.
                 // Exit cleanly without running any more user code.
                 DP_OSAL_LOGD("Thread: user function aborted by stop()\n");
             }
+#endif
         }
         thread->clearEntry();
-        thread->running = false;
-
-        // Clear the thread-local stop context before the thread exits.
         tl_stop_ctx = nullptr;
+        if (cleanup != nullptr) {
+            const pthread_t handle = thread->threadHandle_.exchange(0, std::memory_order_acq_rel);
+            thread->running.store(false, std::memory_order_release); // 最后一次this访问。
+            if (handle != 0) (void)pthread_detach(handle);
+            cleanup(cleanupContext);
+            return nullptr;
+        }
+        thread->running = false;
 
         // Return normally — do NOT call pthread_exit() here.
         // pthread_exit() is noreturn and triggers __asan_handle_no_return →
@@ -307,6 +336,7 @@ private:
     void clearEntry() {
         taskFunction.reset();
         rawTaskFunction_ = nullptr;
+        rawCleanup_ = nullptr;
         taskArgument = nullptr;
         entryKind_ = EntryKind::kNone;
     }
@@ -314,6 +344,7 @@ private:
     std::atomic<pthread_t> threadHandle_{0};
     std::optional<std::function<void(void *)>> taskFunction;
     ThreadEntry rawTaskFunction_ = nullptr;
+    ThreadCleanup rawCleanup_ = nullptr;
     void *taskArgument = nullptr;
     EntryKind entryKind_ = EntryKind::kNone;
     std::atomic<bool> running;

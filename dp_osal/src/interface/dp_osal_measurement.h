@@ -68,6 +68,14 @@ public:
 #endif
     }
 
+    static bool clock_available() noexcept {
+#if defined(DPSDK_MCU_FIRMWARE)
+        return dp_osal_port_measurement_now_us != nullptr;
+#else
+        return true;
+#endif
+    }
+
     static void set_enabled(bool enabled) { enabled_.store(enabled, std::memory_order_release); }
     static bool enabled() { return enabled_.load(std::memory_order_acquire); }
 
@@ -107,7 +115,7 @@ public:
         out.sample_sequence = sample_sequence_.load();
         out.overflow = overflow_.load() ? 1U : 0U;
         out.instrumentation_enabled = enabled() ? 1U : 0U;
-        out.valid = (out.instrumentation_enabled != 0U && out.overflow == 0U) ? 1U : 0U;
+        out.valid = (out.instrumentation_enabled != 0U && out.overflow == 0U && clock_available()) ? 1U : 0U;
         return out;
     }
 

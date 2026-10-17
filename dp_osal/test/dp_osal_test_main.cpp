@@ -39,6 +39,7 @@ using namespace dp::osal;
 #include "gtest_spin_lock.cpp"
 #endif
 #include "gtest_thread.cpp"
+#include "gtest_host_io.cpp"
 #include "gtest_realtime_thread.cpp"
 #include "gtest_static_timer.cpp"
 #if DP_OSAL_ENABLE_THREAD_POOL
@@ -59,7 +60,7 @@ extern "C" void dp_osal_test_main(void) {
     ::testing::GTEST_FLAG(filter) =
         "OSALChrono*:OSALConditionVariable*:OSALLockGuard*:OSALMemoryManager*:OSALMutex*:OSALMessageQueue*:OSALRWLock*:"
         "OSALSemaphore*:TestOSALSpinLock*:OSALThread*:OSALRealtimeThread*:OSALStaticTimer*:OSALTimer*:"
-        "OSALVirtualInjection*:OSALRuntimeMeasurement*";
+        "OSALVirtualInjection*:OSALRuntimeMeasurement*:OSALHostIo*";
     int gtest_result = RUN_ALL_TESTS();
     (void)gtest_result;
 }

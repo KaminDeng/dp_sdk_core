@@ -2,4 +2,4 @@
 // Linux OSAL thread — delegates to posix impl (pthread).
 // pthread is available on all POSIX platforms including Linux.
 #pragma once
-#include "../../posix/include/osal_thread.h"
+#include "../../posix/include/dp_osal_thread.h"

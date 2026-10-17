@@ -102,6 +102,11 @@ target_include_directories(dp_osal
 # must link them externally:
 #   target_link_libraries(dp_osal PUBLIC freertos_kernel cmsis_os2_impl)
 target_link_libraries(dp_osal PUBLIC gtest)
+if(_osal_backend STREQUAL "posix")
+    # 线程平台依赖由OSAL后端公开传递，不要求通信/应用反向猜测pthread。
+    find_package(Threads REQUIRED)
+    target_link_libraries(dp_osal PUBLIC Threads::Threads)
+endif()
 
 # osal_debug.h uses ##__VA_ARGS__ (GNU extension) to support zero-arg variadic
 # macro calls. Suppress the pedantic warning about this GNU extension.
@@ -118,6 +123,31 @@ if(DP_OSAL_BUILD_HOST_TESTS AND _osal_backend STREQUAL "posix")
     if(BUILD_TESTING)
         add_test(NAME dp_osal_chrono_host_tests COMMAND dp_osal_chrono_host_tests)
     endif()
+    add_executable(dp_osal_owned_thread_host_tests
+        test/dp_osal_owned_thread_host_tests.cpp
+        test/dp_osal_host_console_stub.cpp)
+    target_link_libraries(dp_osal_owned_thread_host_tests PRIVATE dp_osal)
+    target_compile_options(dp_osal_owned_thread_host_tests PRIVATE -UNDEBUG -fno-exceptions -fno-rtti)
+    target_link_options(dp_osal_owned_thread_host_tests PRIVATE -Wl,--wrap=pthread_create)
+    if(BUILD_TESTING)
+        add_test(NAME dp_osal_owned_thread_host_tests COMMAND dp_osal_owned_thread_host_tests)
+    endif()
+    foreach(_clock_case host no_clock hook)
+        add_executable(dp_osal_measurement_${_clock_case}_tests test/dp_osal_measurement_clock_host_tests.cpp)
+        target_include_directories(dp_osal_measurement_${_clock_case}_tests PRIVATE src/interface)
+        target_compile_features(dp_osal_measurement_${_clock_case}_tests PRIVATE cxx_std_17)
+        target_compile_options(dp_osal_measurement_${_clock_case}_tests PRIVATE -UNDEBUG)
+        if(NOT _clock_case STREQUAL "host")
+            target_compile_definitions(dp_osal_measurement_${_clock_case}_tests PRIVATE DPSDK_MCU_FIRMWARE=1)
+        endif()
+        if(_clock_case STREQUAL "hook")
+            target_compile_definitions(dp_osal_measurement_${_clock_case}_tests PRIVATE DP_OSAL_TEST_CLOCK_HOOK=1)
+        endif()
+        if(BUILD_TESTING)
+            add_test(NAME dp_osal_measurement_${_clock_case}_tests COMMAND dp_osal_measurement_${_clock_case}_tests)
+        endif()
+    endforeach()
+
 endif()
 
 # ── 原语裁剪：传播编译定义 ────────────────────────────────────────────────────
