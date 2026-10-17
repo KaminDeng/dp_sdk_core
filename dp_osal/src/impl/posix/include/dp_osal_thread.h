@@ -102,7 +102,7 @@ private:
         taskFunction.emplace(std::move(fn));
         taskArgument = arg;
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+        entryKind_ = EntryKind::kLegacy;
 #endif
         const int result = doStartNative(name, priority, stack_size, pstack);
         if (result != 0) {
@@ -124,12 +124,35 @@ private:
 
 
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+    int doStartRawOwned(const char* name, ThreadEntry fn, void* arg, ThreadCleanup cleanup,
+                        int priority, int stack_size, void* pstack) noexcept {
+        if (cleanup == nullptr) return -1;
+        return doStartRawWithCleanup(name, fn, arg, cleanup, priority, stack_size, pstack);
+    }
 #endif
 
 
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+    int doStartRawWithCleanup(const char* name, ThreadEntry fn, void* arg, ThreadCleanup cleanup,
+                             int priority, int stack_size, void* pstack) noexcept {
+        if (isRunning()) {
+            return -1;
+        }
+        if (fn == nullptr) {
+            clearEntry();
+            return -1;
+        }
+        taskFunction.reset();
+        rawTaskFunction_ = fn;
+        rawCleanup_ = cleanup;
+        taskArgument = arg;
+        entryKind_ = EntryKind::kRaw;
+        const int result = doStartNative(name, priority, stack_size, pstack);
+        if (result != 0) {
+            clearEntry();
+        }
+        return result;
+    }
 #endif
 
 
@@ -289,16 +312,28 @@ private:
 
         // owned context可以在cleanup中销毁this；所需参数先保存在runner自身局部。
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
-
+        const ThreadCleanup cleanup = thread->rawCleanup_;
+        void* const cleanupContext = thread->taskArgument;
 #endif
         // Install this thread's stop context so osal_sleep_ms_interruptible() works.
         tl_stop_ctx = &thread->stopCtx_;
 
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+        if (thread->entryKind_ != EntryKind::kNone) {
+#else
         if (thread->taskFunction.has_value()) {
+#endif
             thread->waitIfSuspended();
 #if defined(__cpp_exceptions)
             try {
+#endif
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+                if (thread->entryKind_ == EntryKind::kRaw) {
+                    ThreadEntry entry = thread->rawTaskFunction_;
+                    if (entry != nullptr) {
+                        entry(thread->taskArgument);
+                    }
+                } else
 #endif
                 if (thread->taskFunction.has_value() && static_cast<bool>(*thread->taskFunction)) {
                     (*thread->taskFunction)(thread->taskArgument);
@@ -314,7 +349,13 @@ private:
         thread->clearEntry();
         tl_stop_ctx = nullptr;
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+        if (cleanup != nullptr) {
+            const pthread_t handle = thread->threadHandle_.exchange(0, std::memory_order_acq_rel);
+            thread->running.store(false, std::memory_order_release); // 最后一次this访问。
+            if (handle != 0) (void)pthread_detach(handle);
+            cleanup(cleanupContext);
+            return nullptr;
+        }
 #endif
         thread->running = false;
 
@@ -334,35 +375,41 @@ private:
 
 
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-;
+    enum class EntryKind : uint8_t {
+        kNone,
+        kLegacy,
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+        kRaw,
+#endif
+    };
 #endif
 
 
     void clearEntry() {
         taskFunction.reset();
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+        rawTaskFunction_ = nullptr;
 #endif
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+        rawCleanup_ = nullptr;
 #endif
         taskArgument = nullptr;
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+        entryKind_ = EntryKind::kNone;
 #endif
     }
 
     std::atomic<pthread_t> threadHandle_{0};
     std::optional<std::function<void(void *)>> taskFunction;
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+    ThreadEntry rawTaskFunction_ = nullptr;
 #endif
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+    ThreadCleanup rawCleanup_ = nullptr;
 #endif
     void *taskArgument = nullptr;
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+    EntryKind entryKind_ = EntryKind::kNone;
 #endif
     std::atomic<bool> running;
     std::atomic<bool> suspended;

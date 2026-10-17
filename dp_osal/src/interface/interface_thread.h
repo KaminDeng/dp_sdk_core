@@ -16,6 +16,7 @@ namespace dp::osal {
 using ThreadEntry = void (*)(void *);
 
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
+using ThreadCleanup = void (*)(void *) noexcept;
 #endif
 
 
@@ -32,7 +33,15 @@ public:
 
 
 #if DP_OSAL_ENABLE_LEGACY_COMPAT
-
+    int startRawOwned(const char* name, ThreadEntry entry, void* context, ThreadCleanup cleanup,
+                      int priority = 0, int stack_size = 0, void* stack = nullptr) noexcept {
+        if constexpr (decltype(supportsOwned<Impl>(0))::value) {
+            return impl().doStartRawOwned(name, entry, context, cleanup, priority, stack_size, stack);
+        } else {
+            static_assert(!std::is_same_v<Impl, Impl>, "该OSAL线程后端未实现owned raw cleanup；请显式适配后启用");
+            return -1;
+        }
+    }
 #endif
 
 
@@ -64,7 +73,14 @@ protected:
 
 private:
 
+#if DP_OSAL_ENABLE_LEGACY_COMPAT
+    template <typename Backend>
+    static auto supportsOwned(int) -> decltype(std::declval<Backend&>().doStartRawOwned(
+        static_cast<const char*>(nullptr), ThreadEntry{}, static_cast<void*>(nullptr), ThreadCleanup{},
+        int{}, int{}, static_cast<void*>(nullptr)), std::true_type{});
 
+    template <typename> static std::false_type supportsOwned(...);
+#endif
 
 
     Impl &impl() { return *static_cast<Impl *>(this); }
