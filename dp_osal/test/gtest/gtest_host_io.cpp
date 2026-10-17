@@ -77,4 +77,51 @@ TEST(OSALHostIo, WakePreservesCreditBeforeWaitAndReportsClosedState) {
     EXPECT_EQ(wake.wait_for_ms(0U), dp::osal::HostWakeResult::kTimeout);
     EXPECT_TRUE(wake.close()); EXPECT_TRUE(wake.close());
 }
+
+TEST(OSALHostIo, InputPollingPreservesFlagsAndReportsByteThenEof) {
+    int descriptors[2]{};
+    ASSERT_EQ(::pipe(descriptors), 0);
+    const int previous = ::dup(STDIN_FILENO);
+    ASSERT_GE(previous, 0);
+    struct RestoreInput {
+        int saved;
+        int read;
+        int write;
+        ~RestoreInput() {
+            (void)::dup2(saved, STDIN_FILENO);
+            (void)::close(saved); (void)::close(read);
+            if (write >= 0) (void)::close(write);
+        }
+    } restore{previous, descriptors[0], descriptors[1]};
+    ASSERT_GE(::dup2(descriptors[0], STDIN_FILENO), 0);
+    const int flags = ::fcntl(descriptors[0], F_GETFL);
+    dp::osal::HostInputInfo info{};
+    uint8_t value = 9U;
+    EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kWouldBlock);
+    EXPECT_EQ(value, 9U); EXPECT_FALSE(info.read_attempted);
+    const uint8_t sent = 0U;
+    ASSERT_EQ(::write(descriptors[1], &sent, 1U), 1);
+    EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kOk);
+    EXPECT_EQ(value, 0U); EXPECT_TRUE(info.read_attempted); EXPECT_EQ(info.error, 0);
+    EXPECT_EQ(::fcntl(descriptors[0], F_GETFL), flags);
+    ASSERT_EQ(::close(descriptors[1]), 0); restore.write = -1;
+    EXPECT_EQ(dp::osal::OSALHostIo::poll_input(&value, &info), dp::osal::HostIoResult::kClosed);
+    EXPECT_TRUE(info.read_attempted);
+    EXPECT_EQ(dp::osal::OSALHostIo::poll_input(nullptr, &info), dp::osal::HostIoResult::kError);
+}
+
+TEST(OSALHostIo, WallAndThreadCpuClocksHaveDistinctValidDomains) {
+    uint64_t wall = 0U;
+    uint64_t cpu = 0U;
+    EXPECT_TRUE(dp::osal::OSALHostIo::wall_time_us(&wall));
+    EXPECT_TRUE(dp::osal::OSALHostIo::thread_cpu_time_us(&cpu));
+    EXPECT_GT(wall, UINT64_C(1700000000000000));
+    EXPECT_LT(cpu, wall);
+    const uint64_t previous = cpu;
+    EXPECT_TRUE(dp::osal::OSALHostIo::thread_cpu_time_us(&cpu));
+    EXPECT_GE(cpu, previous);
+    EXPECT_FALSE(dp::osal::OSALHostIo::wall_time_us(nullptr));
+    EXPECT_FALSE(dp::osal::OSALHostIo::thread_cpu_time_us(nullptr));
+    EXPECT_FALSE(dp::osal::OSALHostIo::install_termination_handler(nullptr));
+}
 #endif

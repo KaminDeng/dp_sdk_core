@@ -172,6 +172,15 @@ int main() { return puts(\"probe\") < 0; }" _osal_gnu_wrap_links)
                 if(BUILD_TESTING)
                     add_test(NAME dp_osal_owned_thread_host_tests COMMAND dp_osal_owned_thread_host_tests)
                 endif()
+                add_executable(dp_osal_host_io_fault_tests
+                    test/dp_osal_host_io_fault_tests.cpp test/dp_osal_host_console_stub.cpp)
+                target_link_libraries(dp_osal_host_io_fault_tests PRIVATE dp_osal_legacy_compat gtest)
+                target_link_options(dp_osal_host_io_fault_tests PRIVATE
+                    -Wl,--wrap=sem_init -Wl,--wrap=sem_destroy -Wl,--wrap=sem_clockwait
+                    -Wl,--wrap=clock_gettime -Wl,--wrap=poll -Wl,--wrap=read -Wl,--wrap=signal)
+                if(BUILD_TESTING)
+                    add_test(NAME dp_osal_host_io_fault_tests COMMAND dp_osal_host_io_fault_tests)
+                endif()
                 add_executable(dp_osal_owned_thread_exceptions_host_tests
                     test/dp_osal_owned_thread_host_tests.cpp test/dp_osal_host_console_stub.cpp)
                 target_link_libraries(dp_osal_owned_thread_exceptions_host_tests PRIVATE dp_osal_legacy_compat)
