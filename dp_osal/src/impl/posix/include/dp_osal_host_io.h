@@ -8,6 +8,8 @@
 #include <charconv>
 #include <fcntl.h>
 #include <pthread.h>
+#include <poll.h>
+#include <ctime>
 #include <signal.h>
 #include <sys/stat.h>
 #include <limits>
@@ -115,6 +117,66 @@ private:
         if (::clock_gettime(CLOCK_MONOTONIC, &value) != 0) return 0U;
         return static_cast<uint64_t>(value.tv_sec) * UINT64_C(1000000000) + static_cast<uint64_t>(value.tv_nsec);
     }
+    // 单一stdin消费者；先零等待poll，只有POLLIN/HUP才读一个字节，不改变fd flags。
+    static HostIoResult doPollInput(uint8_t* byte, HostInputInfo* info) noexcept {
+        if (info == nullptr) return HostIoResult::kError;
+        *info = {};
+        if (byte == nullptr) { info->error = EINVAL; return HostIoResult::kError; }
+        pollfd descriptor{STDIN_FILENO, POLLIN, 0};
+        const int ready = ::poll(&descriptor, 1U, 0);
+        info->events = descriptor.revents;
+        if (ready < 0) {
+            info->error = errno;
+            return errno == EINTR ? HostIoResult::kWouldBlock : HostIoResult::kError;
+        }
+        if (ready == 0 || (descriptor.revents & (POLLIN | POLLHUP)) == 0)
+            return HostIoResult::kWouldBlock;
+        info->read_attempted = true;
+        uint8_t value{};
+        const ssize_t count = ::read(STDIN_FILENO, &value, 1U);
+        if (count > 0) { *byte = value; return HostIoResult::kOk; }
+        if (count == 0) return HostIoResult::kClosed;
+        info->error = errno;
+        return HostIoResult::kError;
+    }
+    // 与原进程级signal注册一致；仅启动owner安装，失败回滚已安装的SIGINT。
+    static bool doInstallTerminationHandler(HostSignalHandler handler, bool include_interrupt) noexcept {
+        if (handler == nullptr) return false;
+        if (!include_interrupt) return ::signal(SIGTERM, handler) != SIG_ERR;
+        const auto previous = ::signal(SIGINT, handler);
+        if (previous == SIG_ERR) return false;
+        if (::signal(SIGTERM, handler) != SIG_ERR) return true;
+        (void)::signal(SIGINT, previous);
+        return false;
+    }
+    static bool clock_us(clockid_t clock, uint64_t* output) noexcept {
+        if (output == nullptr) return false;
+        timespec value{};
+        if (::clock_gettime(clock, &value) != 0 || value.tv_sec < 0 || value.tv_nsec < 0 || value.tv_nsec >= 1000000000L)
+            return false;
+        const auto seconds = static_cast<uint64_t>(value.tv_sec);
+        if (seconds > UINT64_MAX / UINT64_C(1000000)) return false;
+        const uint64_t whole = seconds * UINT64_C(1000000);
+        const uint64_t fraction = static_cast<uint64_t>(value.tv_nsec) / 1000U;
+        if (whole > UINT64_MAX - fraction) return false;
+        *output = whole + fraction;
+        return true;
+    }
+    static bool doWallTimeUs(uint64_t* value) noexcept { return clock_us(CLOCK_REALTIME, value); }
+    static bool doThreadCpuTimeUs(uint64_t* value) noexcept {
+#if defined(CLOCK_THREAD_CPUTIME_ID)
+        return clock_us(CLOCK_THREAD_CPUTIME_ID, value);
+#else
+        (void)value; return false;
+#endif
+    }
+    static void doSignalSafeError(const uint8_t* bytes, size_t size) noexcept {
+        if (bytes != nullptr && size != 0U) {
+            const ssize_t ignored = ::write(STDERR_FILENO, bytes, size);
+            (void)ignored;
+        }
+    }
+    [[noreturn]] static void doExitImmediately(int code) noexcept { ::_exit(code); }
     bool doClose() noexcept {
         const int descriptor = descriptor_;
         descriptor_ = -1;

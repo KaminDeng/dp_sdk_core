@@ -17,3 +17,19 @@ POSIX Thread的startRaw不构造std::function；禁异常编译时sleep被stop�
 在最后一次访问Thread对象之后detach并调用cleanup(context)，恰好一次。
 cleanup可释放包含该Thread的上下文。其它backend调用此可选能力明确编译失败；旧startRaw/start语义保持。
 调用方仍须保留owner引用直到停止请求已经发布；超预算可放弃owner，由worker最终归还资源。
+
+`poll_input(byte, HostInputInfo*)`由单一stdin消费者调用，零等待poll后至多读一个字节，
+不修改共享fd flags；未就绪为WouldBlock，读EOF为Closed，读错误为Error。
+info捕获原revents/errno和是否真正执行read；失败不改byte。
+只允许单消费者以保持poll→read间可读性，不把此API用于任意共享描述符。
+
+`install_termination_handler(handler, include_interrupt=true)`保持原进程级SIGTERM/SIGINT处理函数语义；
+仅启动owner注册，空handler失败，第二次注册失败时回滚第一次。
+传false仅安装SIGTERM，保只读probe原SIGINT行为；不是worker级信号或可重入注册API。
+`signal_safe_error`只用异步信号安全的write写stderr固定诊断，保持原probe信号路径的尽力输出语义；
+不保证慢stderr有界，不能用于持权限owner日志，正常owner仍须typed journal。
+`exit_immediately`只供原终止诊断的立即退出。
+
+`wall_time_us`为UNIX CLOCK_REALTIME微秒，`thread_cpu_time_us`为调用线程CPU微秒，
+均以bool标记有效性并保失败output不变；不能以这些域替代steady_ns时限。
+新增功能只在既有Linux Host后端，CMSIS/template保持启用时明确拒绝，不改变MCU资源或默认能力。
