@@ -35,3 +35,39 @@ info捕获原revents/errno和是否真正执行read；失败不改byte。
 新增功能只在既有Linux Host后端，CMSIS/template保持启用时明确拒绝，不改变MCU资源或默认能力。
 
 路径与等待阶段文件输入同样经过HostIo：max_path_bytes给出后端路径容量，canonical_directory只向调用方已准备的缓冲写入规范目录，失败返回false；read_regular_prefix只接受普通文件，最多读取调用方容量，不在应用层构造filesystem/fstream或字符串。两者可能等待文件系统I/O，仅用于准备或启用运动之前的permit等待阶段，不承诺磁盘延迟上界。FIFO以非阻塞open后按类型拒绝，不会等待其writer。CMSIS/template保持显式#error，Linux通过POSIX实现同步获得接口。
+
+
+## 从接口到实现的阅读路线
+
+| 文件位置 | 阅读重点 |
+| --- | --- |
+| `src/interface/interface_host_io.h` | CRTP公开入口、参数生命周期、结果与实际字节数 |
+| `src/interface/interface_host_wake.h` | open/signal/相对毫秒等待/close 的独立唤醒资源 |
+| `src/impl/posix/include/dp_osal_host_io.h` | 当前Linux系统调用、描述符所有权、错误与短传输 |
+| `src/impl/posix/include/dp_osal_host_wake.h` | 单调期限、EINTR重试、信号量令牌与关闭前提 |
+| `src/impl/linux/include/dp_osal_host_*.h` | 只转发到POSIX目录，不复制实现 |
+| `src/impl/cmsis_os/include/`、`port/template/` | 此Host能力未实现时明确编译失败，不默认为MCU可用 |
+
+这里的“POSIX目录”不等于可在任意POSIX系统直接启用：当前Host I/O和HostWake实现含Linux限制，
+其它平台必须提供自己的适配。对象通过CRTP静态调用`Impl::do*`，不经过虚函数；基类受保护非虚析构，
+不能当作拥有资源的多态基类删除。
+
+一次有界输出的调用顺序是：准备阶段显式open取得自持句柄，消费阶段try_write检查状态和实际数量，
+成功短写时只前移已写出的长度，WouldBlock时按调用者预算暂停或重试，Closed/Error时停止使用该通道。
+`kOk`不表示全部请求已传出，更不表示文件已经持久化。文件提交还需分别安排sync、rename及业务提交记录；
+单独rename不会自动同步目录，不能以一次函数成功宣称断电后必定保留全部证据。
+
+所有缓冲、路径及输出指针均由调用者提供，本接口不接管它们的存储。不要在worker仍可能访问时释放上下文；
+owned清理只保证后端在最后一次访问Thread之后交还上下文，调用者仍需让自己的owner停止请求和引用计数配合。
+HostWake的signal只增加一次可消费令牌，不证明业务谓词已满足或目标线程已执行；醒来后仍应检查自己的状态。
+
+`poll_input`的“零等待”指poll超时为零；必须保持stdin单消费者，否则poll与read之间另一读者可能抢走字节。
+`signal_safe_error`只尽力写一次，可能短写、失败或受慢stderr影响；`exit_immediately`不执行C++析构，
+不应把这两个故障入口当作正常日志与资源回收路径。
+
+时间单位必须连同来源一起阅读：HostIo的steady_ns是单调纳秒，wall_time_us是可跳变墙钟微秒，
+thread_cpu_time_us只统计当前线程消耗CPU的微秒。通用Chrono::TimePoint是后端tick：POSIX当前1000Hz，
+CMSIS按内核频率；Mutex::tryLockFor、Queue::receiveFor、Semaphore::tryWaitFor在两个后端也分别使用
+POSIX毫秒和CMSIS原生tick。上述HostWake::wait_for_ms则明确使用毫秒，不能把同一个数值盲目跨接口复用。
+
+本页描述的是接口与当前实现边界，既有测试清单用于定位验证入口，不代表每次阅读或注释修改都重新执行过硬件验证。

@@ -1,3 +1,10 @@
+/**
+ * @file dp_osal_test_main.cpp
+ * @brief 由父工程提供任务上下文的OSAL GTest统一入口。
+ * @details 直接包含各测试源以保留静态注册；外层功能宏避免已裁剪类型参与编译，
+ * 各套件内部还可按TEST开关跳过。此入口设置OSAL过滤器，不创建自己的RTOS测试线程。
+ * RUN_ALL_TESTS状态保存后丢弃，调用方不能仅凭void返回或宿主退出码宣称所有断言通过。
+ */
 //
 // dp_osal_test_main.cpp — entry point for the OSAL gtest suite.
 //
@@ -51,6 +58,11 @@ using namespace dp::osal;
 #include "gtest_virtual_injection.cpp"
 #include "gtest_runtime_measurement.cpp"
 
+/**
+ * @brief 打印所选系统后端，初始化本地GTest参数并同步运行OSAL相关套件。
+ * @details 不透传进程命令行；固定过滤器包括时钟、同步、线程、静态定时器、虚接口注入及Host I/O。
+ * 测试是否实际执行须检查每个功能/测试开关及测试报告，不能把注册存在当作已运行。
+ */
 extern "C" void dp_osal_test_main(void) {
     DP_OSAL_LOGI("System Type: %s\n", System::getInstance().get_system_info());
 
