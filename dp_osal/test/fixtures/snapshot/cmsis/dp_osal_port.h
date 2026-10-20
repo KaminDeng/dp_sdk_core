@@ -1,4 +1,6 @@
-
+/** @file dp_osal_port.h
+ * @brief 可控Host快照fixture；真实CMSIS接口声明配合伪造计数和任务行，不代表RTOS执行。
+ */
 #pragma once
 #include <atomic>
 #include <cstdint>

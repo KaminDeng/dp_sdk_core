@@ -1,4 +1,4 @@
-
+/** @brief 软件时钟反例夹具，不代表 RTOS 或物理 ISR 能力。 */
 #ifndef DP_OSAL_TEST_MEASUREMENT_CLOCK_H_
 #define DP_OSAL_TEST_MEASUREMENT_CLOCK_H_
 #define DP_OSAL_TEST_MEASUREMENT_FIXTURE 1

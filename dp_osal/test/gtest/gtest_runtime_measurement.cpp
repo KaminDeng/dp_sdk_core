@@ -1,4 +1,4 @@
-
+/** @brief 旧公开调用及开关兼容；reset 只在本测试没有并发采样者的边界调用。 */
 #include "dp_osal_measurement.h"
 #include <gtest/gtest.h>
 #include <type_traits>

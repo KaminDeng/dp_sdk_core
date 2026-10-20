@@ -1,4 +1,6 @@
-
+/** @file gtest_snapshot_detail.cpp
+ * @brief 快照解析、窗口和真实POSIX采样回归；文件读取仅通过链接器fixture注入。
+ */
 #include <gtest/gtest.h>
 #include "dp_osal_system.h"
 #include <atomic>

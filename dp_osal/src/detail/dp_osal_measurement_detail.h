@@ -1,4 +1,5 @@
-
+/** @file dp_osal_measurement_detail.h
+ * @brief 私有宽时间戳及时间域质量检查，不包含时间源或采集状态。 */
 #ifndef DP_OSAL_MEASUREMENT_DETAIL_H_
 #define DP_OSAL_MEASUREMENT_DETAIL_H_
 #include <cstdint>

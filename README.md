@@ -172,6 +172,20 @@ This workflow is well suited to validating on the host first and then landing on
 | `interface_system.h` | scheduler, sleep, critical sections, system info |
 | `dp_osal_virtual.h` | host-side virtual wrappers |
 
+### Formal APIs and explicit compatibility
+
+Use the original `Thread::start(name, callable, context, priority, stack_bytes, stack)` for ordinary threads. Function pointers, captureless and capturing lambdas, and existing `std::function` objects use that entry. The backend still defines priority encoding, external-stack requirements, error codes and repeated-start behavior; the callable and borrowed context must remain valid until their final use. `detach()` and `isRunning()` do not prove that context storage can be released.
+
+`dp_osal` supplies formal Thread/Mutex/Semaphore/Queue/System APIs and enabled optional primitives. `DP_OSAL_ENABLE_LEGACY_COMPAT` and `DP_OSAL_ENABLE_MEASUREMENT` default to OFF and propagate as explicit 0/1 definitions through `dp_osal_build_config`; every object linked into one process must use the same configuration. Enable the compatibility role before configuring the core, then link the consumer to `dp_osal_legacy_compat`. The legacy macro enables the old raw/owned methods on Thread. The compatibility include paths expose RealtimeThread, StaticTimer and Linux HostIo/HostWake headers. Headers live under `dp_osal/compat/`, retain their old include names, and are absent from the default public include surface. StaticTimer is a caller-polled deadline helper, not a statically allocated OS timer. Linux-only facilities do not become MCU capabilities by enabling the switch.
+
+Measurement is independent of compatibility. When compiled out, synchronization operations do not call timing hooks and the diagnostic getter returns invalid/disabled data. When compiled in, runtime enablement and per-field validity still apply. Check frequency, source identity/epoch, counter width, overflow and ISR coverage before using an interval; a zero or modulo counter difference alone cannot prove valid elapsed time.
+
+`Chrono::TimePoint` is a wrapping 32-bit backend tick. Use `ticksPerSecond()` for conversions and `sleepUntil()` with an absolute deadline in the same tick domain, within the half-range comparison bound. POSIX uses 1000 Hz; CMSIS reads the actual kernel frequency. Do not substitute this clock for a required wide monotonic timestamp. Host virtual wrappers are test-only: old IChrono mocks report unsupported frequency as 0, and an unimplemented absolute wait aborts the test process rather than returning success.
+
+`System::get_thread_snapshot()` is a bounded diagnostic operation for thread/task context. Shared sampling history is guarded internally; contention or nested sampling can return 0 without waiting. **0 means no sample was produced by this call, not that the system has no threads.** Do not retry without a caller-owned bound. Check each row's validity and truncation flags; read failures, task identity changes, overflow or an unproven counter interval must not be treated as valid zero usage. Diagnostic availability does not authorize business actions.
+
+See [Linux Host compatibility contracts](dp_osal/docs/host_io.md) for I/O errors and owned-worker cleanup. SDK distributors must preserve the compiled 0/1 configuration identity; an archive-only SDK does not gain OSAL public headers merely by installing the library.
+
 ### Backend model
 
 ```text

@@ -1,4 +1,4 @@
-
+/** @brief 私有时间差的确定值反例，独立于真实时钟速度。 */
 #include "detail/dp_osal_measurement_detail.h"
 #include <gtest/gtest.h>
 namespace {

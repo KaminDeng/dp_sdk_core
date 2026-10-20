@@ -1,4 +1,7 @@
-
+/** @file dp_osal_measurement.h
+ * @brief 同步诊断兼容入口。宽采样与质量判定在私有 detail；关闭时没有采集存储。
+ * @details reset 前必须停止并等待所有使用者；关闭开关不是在途采样屏障。
+ * 快照逐字段读取，不提供事务一致性。lock_contended_count 保持获取失败次数语义。 */
 #ifndef DP_OSAL_MEASUREMENT_H_
 #define DP_OSAL_MEASUREMENT_H_
 #include <cstdint>
@@ -25,24 +28,24 @@ extern "C" uint32_t dp_osal_port_measurement_now_us(void);
 namespace dp::osal {
 enum class SynchronizationKind : uint8_t { kLock = 0U, kWake = 1U, kQueue = 2U };
 struct SynchronizationMeasurement {
-    uint32_t lock_wait_count{};
-    uint32_t lock_contended_count{};
-    uint32_t lock_wait_total_us{};
-    uint32_t lock_wait_max_us{};
-    uint32_t wake_wait_count{};
-    uint32_t wake_wait_total_us{};
-    uint32_t wake_wait_max_us{};
-    uint32_t wake_signal_count{};
-    uint32_t wake_isr_signal_count{};
-    uint32_t queue_wait_count{};
-    uint32_t queue_wait_total_us{};
-    uint32_t queue_wait_max_us{};
-    uint32_t instrumentation_overhead_us{};
-    uint32_t sample_sequence{};
-    uint8_t valid{};
-    uint8_t overflow{};
-    uint8_t instrumentation_enabled{};
-    uint8_t time_domain{static_cast<uint8_t>(MeasurementTimeDomain::kMonotonicMicroseconds)};
+    uint32_t lock_wait_count{}; ///< 锁获取包装的记录次数，包含成功与失败。
+    uint32_t lock_contended_count{}; ///< acquired=false的锁调用次数；成功但确实等待过的调用不计入此字段。
+    uint32_t lock_wait_total_us{}; ///< 锁获取包装耗时之和，单位微秒，包含底层整个调用。
+    uint32_t lock_wait_max_us{}; ///< 单次锁获取包装的最大观测耗时，微秒。
+    uint32_t wake_wait_count{}; ///< 信号量等待包装的记录次数，不独立区分成功与失败。
+    uint32_t wake_wait_total_us{}; ///< 等待包装耗时累计，微秒。
+    uint32_t wake_wait_max_us{}; ///< 等待包装最大观测耗时，微秒。
+    uint32_t wake_signal_count{}; ///< 线程与ISR发送包装的总记录次数，不等于成功唤醒线程数。
+    uint32_t wake_isr_signal_count{}; ///< from_isr=true的发送记录次数，是总发送次数的子集。
+    uint32_t queue_wait_count{}; ///< 队列发送/接收包装的记录次数。
+    uint32_t queue_wait_total_us{}; ///< 队列包装耗时累计，微秒。
+    uint32_t queue_wait_max_us{}; ///< 队列包装最大观测耗时，微秒。
+    uint32_t instrumentation_overhead_us{}; ///< 收集器所观测的部分插桩开销累计，微秒，不是全链路精确校准值。
+    uint32_t sample_sequence{}; ///< record_wait/record_signal记录次数，不是保护整份快照的seqlock版本。
+    uint8_t valid{}; ///< 仅当启用、完整范围受支持且所有时间样本有效未溢出时为1；不是事务快照。
+    uint8_t overflow{}; ///< 某次累加超出uint32_t范围后锁存为1，reset清除。
+    uint8_t instrumentation_enabled{}; ///< 快照时开关是否启用；关闭并不清空旧统计。
+    uint8_t time_domain{static_cast<uint8_t>(MeasurementTimeDomain::kMonotonicMicroseconds)}; ///< 声明计数以单调微秒为时间域，不证明旧32位hook质量。
 };
 
 class SynchronizationMeasurementCollector {

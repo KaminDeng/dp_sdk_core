@@ -1,4 +1,5 @@
-
+/** @file gtest_contract_compat.cpp
+ * @brief 旧时钟Mock的源码兼容及真实CRTP时钟适配回归。 */
 #include <gtest/gtest.h>
 #include <cstdio>
 #include <type_traits>

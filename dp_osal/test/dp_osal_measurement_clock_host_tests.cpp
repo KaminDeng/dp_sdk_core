@@ -1,4 +1,4 @@
-
+/** @brief 三个独立进程的完整采样路径测试；不链接 dp_osal 归档，避免时钟 ODR 混用。 */
 #include "dp_osal_measurement.h"
 #include "dp_osal_mutex.h"
 #include "dp_osal_queue.h"

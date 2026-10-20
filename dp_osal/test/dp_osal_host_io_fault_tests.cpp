@@ -1,4 +1,7 @@
-
+/**
+ * @file dp_osal_host_io_fault_tests.cpp
+ * @brief Linux独立进程中的Host能力故障注入；只在实际支持GNU wrap时装配。
+ */
 #include "dp_osal.h"
 #include "dp_osal_host_io.h"
 #include "dp_osal_host_wake.h"

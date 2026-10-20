@@ -1,4 +1,4 @@
-
+/** @brief 旧自定义后端没有宽时钟证据时显式不可用。 */
 #ifndef DP_OSAL_MEASUREMENT_CLOCK_FALLBACK_H_
 #define DP_OSAL_MEASUREMENT_CLOCK_FALLBACK_H_
 #include "detail/dp_osal_measurement_detail.h"

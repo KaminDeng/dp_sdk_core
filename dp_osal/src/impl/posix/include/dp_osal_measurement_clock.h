@@ -1,4 +1,4 @@
-
+/** @brief POSIX 后端私有 steady_clock 宽微秒样本；from_isr 仅是线程调用标签。 */
 #ifndef DP_OSAL_MEASUREMENT_CLOCK_H_
 #define DP_OSAL_MEASUREMENT_CLOCK_H_
 #include <chrono>

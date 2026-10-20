@@ -1,4 +1,11 @@
-
+/**
+ * @file dp_osal_system.h
+ * @brief POSIX系统服务和Linux /proc线程诊断后端。
+ * @details sleep_ms使用当前Thread的协作可中断等待，sleep秒接口则直接sleep_for。
+ * enter/exit_critical为空实现；StartScheduler不是启动内核，而是保留调用线程的无限忙循环。
+ * Linux线程快照用/proc累计tick做相邻窗口差，不冻结线程或整个系统，可能分配容器并等待文件I/O。
+ * 栈和ISR能力未提供，必须按有效标记解读；诊断不能代替设备权限或硬实时资格。
+ */
 //
 // Created by kamin.deng on 2024/8/23.
 //
@@ -26,52 +33,83 @@
 
 namespace dp::osal {
 
-
+/**
+ * @brief 提供静态单例的POSIX系统后端，CRTP基类转发到私有do*操作。
+ */
 class System : public SystemBase<System> {
     friend class SystemBase<System>;
 
 public:
-
+    /**
+     * @brief 惰性创建并返回系统单例。
+     * @return 静态对象引用，调用者不释放。
+     */
     static System& getInstance() {
         static System instance;
         return instance;
     }
 
 private:
-
+    /**
+     * @brief 进入无限空语句忙循环，不创建或启动POSIX调度器，也不返回。
+     * @note 此循环没有sleep/yield，不应把“宿主无需启动调度器”误读为本入口为空操作。
+     */
     void doStartScheduler() {
         // POSIX 系统不需要显式启动调度器
         while (1);
     }
 
-
+    /**
+     * @brief 使用可中断毫秒sleep辅助，runner内可观察协作停止请求。
+     * @param milliseconds 相对毫秒数。
+     * @note 异常启用时停止可抛内部停止异常；禁异常时仅提前返回，任务循环自行退出。
+     */
     void doSleepMs(const uint32_t milliseconds) const { osal_sleep_ms_interruptible(milliseconds); }
 
-
+    /**
+     * @brief 直接按整秒调用std::this_thread::sleep_for。
+     * @param seconds 相对秒数。
+     * @note 此路径不经过停止上下文的条件变量，不能按sleep_ms语义假定会被stop立即唤醒。
+     */
     void doSleep(const uint32_t seconds) const { std::this_thread::sleep_for(std::chrono::seconds(seconds)); }
 
-
+    /**
+     * @brief 读取CLOCK_MONOTONIC并收窄为32位毫秒。
+     * @return 可回绕的系统计数，不是Unix日期。
+     * @note clock_gettime返回码未检查，本接口没有独立时钟失败状态。
+     */
     [[nodiscard]] uint32_t doGetTickMs() const {
         struct timespec ts {};
         clock_gettime(CLOCK_MONOTONIC, &ts);
         return static_cast<uint32_t>(ts.tv_sec * 1000U + ts.tv_nsec / 1000000U);
     }
 
-
+    /**
+     * @brief 当前为空实现，不加锁、不屏蔽信号或中断、不阻止其它线程访问。
+     */
     void doEnterCritical() const {
         // 当前明确无操作；没有实际signal mask或互斥，调用者不能依赖它保护共享数据。
     }
-
+    /**
+     * @brief 当前为空实现，与enter_critical配对不产生主机互斥保护。
+     */
     void doExitCritical() const {}
 
-
+    /**
+     * @brief 返回固定POSIX后端说明。
+     * @return 静态字符串，调用者不释放。
+     */
     const char* doGetSystemInfo() const {
         // 返回一些基本的系统信息
         return "POSIX System";
     }
 
 #if DP_OSAL_ENABLE_THREAD_SNAPSHOT
-
+    /**
+     * @brief Linux /proc快照；总量读取、历史匹配和发布处于同一次采样门内。
+     * @details 争用/嵌套返回0；缺失stat撤销该行基线，总量失败或截断撤销整个窗口。
+     * TID与starttime共同识别任务；所有微秒换算受检，不能用诊断结果作控制授权。
+     */
     size_t doGetThreadSnapshot(ThreadSnapshot* buf, size_t max) const {
         if (buf == nullptr || max == 0U) return 0U;
 #if defined(__linux__)
@@ -224,10 +262,14 @@ private:
 
 #endif
 
-
+    /**
+     * @brief 私有空构造，系统服务通过getInstance获取。
+     */
     System(){};
 
-
+    /**
+     * @brief 私有空析构，不停止进程中的线程或设备。
+     */
     ~System(){};
 };
 

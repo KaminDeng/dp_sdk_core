@@ -1,4 +1,6 @@
-
+/** @file dp_osal_snapshot_cmsis_host_tests.cpp
+ * @brief 真实CMSIS后端头的Host模型回归；不取得真实RTOS运行资格。
+ */
 #include "dp_osal_port.h"
 #include "dp_osal_system.h"
 #include "dp_osal_chrono.h"
