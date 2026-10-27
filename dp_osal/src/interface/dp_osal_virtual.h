@@ -223,153 +223,47 @@ private:
  */
 class IThread {
 public:
-    /**
-     * @brief 虚析构支持经接口指针销毁派生适配器或Mock，资源清理由派生类负责。
-     */
     virtual ~IThread() = default;
-    /**
-     * @brief 使用std::function入口及借用参数启动线程。
-     * @param name 线程名，复制与存活期由后端规定。
-     * @param taskFunction 任务包装，按值传递可能复制并分配资源。
-     * @param taskArgument 借用上下文，覆盖任务最后一次使用。
-     * @param priority 后端优先级编码。
-     * @param stack_size 栈大小请求，单位与零默认由Impl约定。
-     * @param pstack 可选外部栈，存活期及对齐按后端要求。
-     * @return 原样返回实现整数结果，不统一错误码或重复启动语义。
-     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
-     */
-    virtual int start(const char *name, std::function<void(void *)> taskFunction, void *taskArgument, int priority,
-                      int stack_size, void *pstack) = 0;
-    /**
-     * @brief 请求实现停止线程。
-     * @note 协作停止、终止及是否等待由Impl决定；不会自动停车或失能机械臂。
-     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
-     */
-    virtual void stop() = 0;
-    /**
-     * @brief 按后端规则等待线程结束。
-     * @note 对象及上下文仍须覆盖最后访问期，不能由当前线程错误自连接。
-     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
-     */
-    virtual void join() = 0;
-    /**
-     * @brief 请求分离线程资源。
-     * @note 不等于任务已结束，不据此立即释放借用上下文。
-     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
-     */
-    virtual void detach() = 0;
-    /**
-     * @brief 请求挂起线程。
-     * @return 实现返回的状态，不证明任意用户代码已立即停止。
-     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
-     */
+    virtual ThreadResult start(const char *name, std::function<void(void *)> entry, void *context, int priority,
+                               int stack_size, void *stack) = 0;
+    virtual ThreadResult stop() = 0;
+    virtual bool requestStop() noexcept = 0;
+    virtual bool stopRequested() const noexcept = 0;
+    virtual bool joinable() const noexcept = 0;
+    virtual ThreadResult join() = 0;
+    virtual ThreadResult tryJoinFor(uint32_t timeout_ms) = 0;
+    virtual ThreadResult detach() = 0;
     virtual int suspend() = 0;
-    /**
-     * @brief 请求恢复线程。
-     * @return 实现返回的状态，不证明任务已获得CPU。
-     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
-     */
     virtual int resume() = 0;
-    /**
-     * @brief 查询实现维护的运行状态。
-     * @return 瞬时状态；不是任务结束或内存可释放的同步证明。
-     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
-     */
     virtual bool isRunning() const = 0;
-    /**
-     * @brief 请求修改线程优先级。
-     * @param priority 实现约定的优先级编码及权限范围。
-     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
-     */
     virtual void setPriority(int priority) = 0;
-    /**
-     * @brief 读取实现报告的线程优先级。
-     * @return 后端编码，不能跨平台直接比较调度含义。
-     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
-     */
     virtual int getPriority() const = 0;
 };
 
-/**
- * @brief 借用具体线程生命周期后端的虚调用适配器。
- * @note 所有操作转发到impl_；外部保证后端存活并满足线程/资源契约。
- * @tparam Impl 被借用的具体OSAL后端，存活期覆盖所有适配器调用。
- */
+/** @brief 仅Host测试使用的借用式适配器，逐项转发正式线程合同。 */
 template <typename Impl>
 class ThreadVirtual : public IThread {
 public:
-    /**
-     * @brief 借用后端对象构造适配器，不复制或接管后端。
-     * @param impl 外部持有且覆盖适配器使用期的具体后端。
-     */
     explicit ThreadVirtual(Impl &impl) : impl_(impl) {}
-
-    /**
-     * @brief 使用std::function入口及借用参数启动线程。
-     * @param name 线程名，复制与存活期由后端规定。
-     * @param taskFunction 任务包装，按值传递可能复制并分配资源。
-     * @param taskArgument 借用上下文，覆盖任务最后一次使用。
-     * @param priority 后端优先级编码。
-     * @param stack_size 栈大小请求，单位与零默认由Impl约定。
-     * @param pstack 可选外部栈，存活期及对齐按后端要求。
-     * @return 原样返回实现整数结果，不统一错误码或重复启动语义。
-     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
-     */
-    int start(const char *name, std::function<void(void *)> taskFunction, void *taskArgument, int priority,
-              int stack_size, void *pstack) override {
-        return impl_.start(name, taskFunction, taskArgument, priority, stack_size, pstack);
+    ThreadResult start(const char *name, std::function<void(void *)> entry, void *context, int priority, int bytes,
+                       void *stack) override {
+        return impl_.start(name, std::move(entry), context, priority, bytes, stack);
     }
-    /**
-     * @brief 请求实现停止线程。
-     * @note 协作停止、终止及是否等待由Impl决定；不会自动停车或失能机械臂。
-     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
-     */
-    void stop() override { impl_.stop(); }
-    /**
-     * @brief 按后端规则等待线程结束。
-     * @note 对象及上下文仍须覆盖最后访问期，不能由当前线程错误自连接。
-     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
-     */
-    void join() override { impl_.join(); }
-    /**
-     * @brief 请求分离线程资源。
-     * @note 不等于任务已结束，不据此立即释放借用上下文。
-     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
-     */
-    void detach() override { impl_.detach(); }
-    /**
-     * @brief 请求挂起线程。
-     * @return 实现返回的状态，不证明任意用户代码已立即停止。
-     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
-     */
+    ThreadResult stop() override { return impl_.stop(); }
+    bool requestStop() noexcept override { return impl_.requestStop(); }
+    bool stopRequested() const noexcept override { return impl_.stopRequested(); }
+    bool joinable() const noexcept override { return impl_.joinable(); }
+    ThreadResult join() override { return impl_.join(); }
+    ThreadResult tryJoinFor(uint32_t timeout_ms) override { return impl_.tryJoinFor(timeout_ms); }
+    ThreadResult detach() override { return impl_.detach(); }
     int suspend() override { return impl_.suspend(); }
-    /**
-     * @brief 请求恢复线程。
-     * @return 实现返回的状态，不证明任务已获得CPU。
-     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
-     */
     int resume() override { return impl_.resume(); }
-    /**
-     * @brief 查询实现维护的运行状态。
-     * @return 瞬时状态；不是任务结束或内存可释放的同步证明。
-     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
-     */
     bool isRunning() const override { return impl_.isRunning(); }
-    /**
-     * @brief 请求修改线程优先级。
-     * @param priority 实现约定的优先级编码及权限范围。
-     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
-     */
     void setPriority(int priority) override { impl_.setPriority(priority); }
-    /**
-     * @brief 读取实现报告的线程优先级。
-     * @return 后端编码，不能跨平台直接比较调度含义。
-     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
-     */
     int getPriority() const override { return impl_.getPriority(); }
 
 private:
-    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;
 };
 
 /**

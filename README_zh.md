@@ -158,7 +158,7 @@ cmake --build build
 
 | 接口头文件 | 主要能力 |
 |---|---|
-| `interface_thread.h` | 线程启动、停止、join、detach、优先级控制 |
+| `interface_thread.h` | 显式启动、协作停止、真实 join 与可选有限等待 |
 | `interface_mutex.h` | 互斥锁、tryLock、超时获取 |
 | `interface_condition_variable.h` | 条件变量 |
 | `interface_lockguard.h` | RAII 锁守卫 |
@@ -174,11 +174,15 @@ cmake --build build
 
 ### 正式接口与平台能力
 
-普通任务使用`Thread::start(name, callable, context, priority, stack_bytes, stack)`；函数指针及可转换的无捕获lambda直接保存为入口，捕获callable使用同一任务存储中的std::function。后端共用启动/派发机制，不再通过兼容开关选择入口。上下文及包装对象必须存活至其最后一次访问；detach和isRunning不是释放凭据。
+`Thread` 只空构造，禁止复制/移动，默认创建 joinable 线程；一个 owner 串行执行生命周期及挂起/恢复/优先级操作；仅 requestStop、stopRequested、joinable、isRunning 四项允许跨线程调用，仍须由 owner 保证包装对象寿命。推荐 `start(entry, context, attributes)`，也保留 `start(name, entry, context, priority, stack_bytes, stack)` 便捷形式。函数指针及可转换的无捕获 lambda 不为入口包装额外分配，捕获 callable 仍可能由 std::function 分配；不公开任务存储或线程自销毁回调。
 
-最终清理使用同一start的`ThreadFinalizer{cleanup}`重载，调用前可查`supportsFinalizer()`。启动失败不接管上下文，成功后在最后一次包装对象访问之后cleanup恰好一次；任务可能在start返回前完成，调用方之后继续访问须持有自己的有效引用。该模式不支持普通join，不能释放执行中的外部栈/TCB；当前POSIX支持，CMSIS/ESP明确拒绝而不接管。需要连接的普通线程使用join完成资源回收。
+`requestStop()` 幂等发布协作停止请求，业务循环显式查询 `stopRequested()` 并唤醒自身等待；请求不代表已停止。`join()` 成功才确认原生线程结束及资源回收，允许释放借用 context、栈与控制块。自然返回后 `joinable()` 仍为 true，`isRunning()==false` 不是释放屏障。已有回收责任时 start 返回 kBusy；join 失败/超时保留尚未完成的责任，禁止覆盖旧线程。原生线程已回收但同步资源清理失败时，后续 join 仅重试剩余清理，不能重复回收原生句柄；joinable 为 false 也不能抹掉已报告的清理失败。自身 join 返回 kWouldDeadlock。
 
-静态资源通过`ThreadResources`和后端资源存储表达；`supportsControlBlockStorage()`、`supportsDetachedResources()`反映实际能力。永久单次启动属于使用方策略。FreeRTOS完成信号之后仍须等任务离开CPU并由owner回收，ESP保留静态TCB回收同步；RTThread/Zephyr不支持的资源模式显式拒绝。
+析构前必须完成 join 和必要清理；违反约束在 Release 也终止进程/触发平台 fatal，不自动无限等待、不强杀、不静默分离。显式 `stop()` 是 requestStop 加无限 join 的便捷操作，可能一直等待业务退出，不能拿它实现有界关闭。所有后端 `detach()` 返回 kNotSupported。
+
+有限等待通过 `supportsTimedJoin()`（后端 `kSupportsTimedJoin`）查询；`tryJoinFor(timeout_ms)` 使用毫秒相对期限，超时保留全部资源。当前 Linux/glibc >= 2.31 的 GNU 接口和 Zephyr 原生 join 支持，其他 POSIX、FreeRTOS、RT-Thread 与 ESP-IDF 明确返回 kNotSupported，不用“完成通知加无限回收”伪装有界 join。ThreadResult 用 ok()/status/native_error 检查；错误包括 Timeout、NotSupported、InvalidState、Busy、WouldDeadlock 和资源/原生错误。挂起/恢复/优先级是后端扩展，不是通用同步安全点。
+
+静态资源通过`ThreadResources`和后端资源存储表达，`supportsControlBlockStorage()` 反映实际能力；栈容量统一字节。完成通知不等于原生线程真正退出，借用资源须一直保留到成功 join。FreeRTOS/ESP 的 owner 回收与 SMP 在核运行状态由端口处理；不支持的资源配置显式拒绝。
 
 `Semaphore`是唯一计数唤醒原语。`DeferredInit`构造不取得资源，open/release/close反馈错误，waitForMs区分kAcquired/kTimeout/kError，maxCount给出实际配置上限；close/init须在无并发使用者时执行。Linux后端使用原生sem与单调期限，其他POSIX维持可移植等待；CMSIS/ESP按实际内核能力实现。ISR资格与测量资格仍独立检查。
 
@@ -190,7 +194,7 @@ cmake --build build
 
 CORE不保留旧实现切换、旧门面或旧头转发。HAL仅提供硬件机制；通信Profile/provider/会话身份合同由dp_comm_lite拥有。Device公开头使用OSAL Mutex，因此OSAL依赖公开传播；注册表保存借用指针，对象寿命和操作串行化由使用方保证。
 
-详见[正式资源与I/O契约](dp_osal/docs/formal_contracts.md)。SDK分发者必须记录正式合同revision=2和measurement配置，拒绝旧前缀/旧归档混用；archive-only SDK不安装OSAL源码头。
+详见[正式资源与I/O契约](dp_osal/docs/formal_contracts.md)。SDK分发者必须记录正式合同revision=3和measurement配置，拒绝旧前缀/旧归档混用；archive-only SDK不安装OSAL源码头。
 
 ### 后端模型
 

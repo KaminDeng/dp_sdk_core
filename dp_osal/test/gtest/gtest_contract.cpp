@@ -52,7 +52,7 @@ TEST(OSALContract, RealChronoVirtualForwardsDeadlines) {
 }  // namespace
 #endif
 
-// 正式任务契约：CRTP后端接收唯一ThreadTask，支持函数指针与callable。
+// CRTP 后端共用内部入口存储，支持函数指针与 callable。
 #include "dp_osal_thread.h"
 #include <functional>
 #include <utility>
@@ -63,21 +63,22 @@ class TaskBackend : public dp::osal::ThreadBase<TaskBackend> {
     friend class dp::osal::ThreadBase<TaskBackend>;
 
 private:
-    int doStart(const char*, dp::osal::ThreadTask task, void* context, int, int, void*) {
-        if (!task.valid()) return -1;
+    dp::osal::ThreadResult doStart(const char*, dp::osal::detail::ThreadEntryStorage task, void* context, int, int,
+                                   void*, const dp::osal::ThreadResources&) {
+        if (!task.valid()) return {dp::osal::ThreadStatus::kInvalidArgument};
         task.run(context);
-        return 17;
+        return {dp::osal::ThreadStatus::kSuccess};
     }
 };
 void increment(void* context) { ++*static_cast<unsigned*>(context); }
 TEST(OSALThreadContract, BackendReceivesOneTaskRepresentation) {
     TaskBackend backend;
     unsigned count = 0U;
-    EXPECT_EQ(backend.start("pointer", increment, &count), 17);
-    EXPECT_EQ(backend.start("lambda", [](void* context) { increment(context); }, &count), 17);
-    EXPECT_EQ(backend.start("capture", [&count](void*) { ++count; }, nullptr), 17);
+    EXPECT_TRUE(backend.start("pointer", increment, &count).ok());
+    EXPECT_TRUE(backend.start("lambda", [](void* context) { increment(context); }, &count).ok());
+    EXPECT_TRUE(backend.start("capture", [&count](void*) { ++count; }, nullptr).ok());
     std::function<void(void*)> callable = increment;
-    EXPECT_EQ(backend.start("function", callable, &count), 17);
+    EXPECT_TRUE(backend.start("function", callable, &count).ok());
     EXPECT_EQ(count, 4U);
 }
 TEST(OSALThreadContract, RealThreadAcceptsFunctionsAndCaptures) {

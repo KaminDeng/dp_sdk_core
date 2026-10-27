@@ -3,7 +3,7 @@
  * @brief CMSIS系统服务及三种线程诊断路径：流式runtime、批量runtime、基础枚举回退。
  * @details 通用层计算窗口/任务generation匹配/有效标记，端口提供原始任务元数据与计数。
  * runtime历史由一次尝试采样门保护；嵌套或争用返回0，不要求调用方新增单owner约束。
- * sleep_ms当前把分片数直接给osDelay，未按频率换算；物理毫秒仅在相应tick配置成立。
+ * sleep_ms按实际内核频率换算，协作停止仅提前返回，不中断业务栈。
  * 调度锁不屏蔽全部中断，快照诊断也不构成硬件身份、运动授权或完整资格认证。
  */
 //
@@ -56,40 +56,33 @@ private:
         osKernelStart();
     }
 
-    /* 保留现有分片算法：每次最多取数值100并直接传osDelay，返回后检查停止标志。
-     * 这里不调用osThreadFlagsWait，也不按内核频率把名义毫秒换成tick，不能据旧注释保证1ms停止。
-     * 实际物理时长/停止延迟还依赖tick频率、调度与任务是否继续执行。 */
-    /**
-     * @brief 将名义毫秒请求拆成最多100的片段，直接osDelay后检查任务停止标志。
-     * @param milliseconds 请求量名称为毫秒，现实现不按osKernelGetTickFreq转换成tick。
-     * @details osDelay消费原生tick；只有tick为1000Hz等相应配置时请求数值与物理毫秒一致。
-     * 停止标志在每段返回后检查，启用异常时抛内部停止异常，禁异常时仅返回。
-     * @note 不等待线程flags，零请求不进入循环或检查停止；不能凭此代码承诺1ms/100ms硬停止上界。
+    /** @brief 分片睡眠，毫秒按内核频率向上换算；停止请求仅提前返回，不抛异常。
+     * 业务循环必须自行检查 stopRequested；睡眠不保证任意业务自动退出。
      */
     void doSleepMs(const uint32_t milliseconds) const {
-        static constexpr uint32_t SLEEP_CHUNK_MS = 100U;  ///< 名义毫秒分片上限，传osDelay时未经tick频率换算。
+        constexpr uint32_t kChunkMs = 100U;
         uint32_t remaining = milliseconds;
-        while (remaining > 0U) {
-            uint32_t chunk = (remaining > SLEEP_CHUNK_MS) ? SLEEP_CHUNK_MS : remaining;
-            osDelay(chunk);
+        while (remaining != 0U) {
+            auto* stop_flag = osal_cmsis_stop_flag_get();
+            if (stop_flag != nullptr && stop_flag->load(std::memory_order_acquire)) return;
+            const uint32_t chunk = remaining > kChunkMs ? kChunkMs : remaining;
+            const uint64_t ticks = detail::cmsisMillisecondsToTicks(chunk, osKernelGetTickFreq());
+            if (ticks != 0U) (void)osDelay(static_cast<uint32_t>(ticks));
             remaining -= chunk;
-            auto* stop_flag = osal::osal_cmsis_stop_flag_get();
-            if (stop_flag != nullptr && stop_flag->load(std::memory_order_acquire)) {
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
-                throw CmsisThreadStopException{};
-#else
-                return; /* cooperative early return on MCU firmware */
-#endif
-            }
         }
     }
 
-    /**
-     * @brief 将秒数乘1000后交给现有doSleepMs。
-     * @param seconds 相对秒请求，调用者限制乘法范围。
-     * @note 乘法可能在32位回绕，且沿用doSleepMs未按tick频率换算的现有边界。
-     */
-    void doSleep(const uint32_t seconds) const { doSleepMs(seconds * 1000); }
+    /** @brief 分秒睡眠避免 seconds * 1000 的 32 位回绕。 */
+    void doSleep(const uint32_t seconds) const {
+        uint32_t remaining = seconds;
+        while (remaining != 0U) {
+            auto* stop_flag = osal_cmsis_stop_flag_get();
+            if (stop_flag != nullptr && stop_flag->load(std::memory_order_acquire)) return;
+            const uint32_t chunk = remaining > 3600U ? 3600U : remaining;
+            doSleepMs(chunk * 1000U);
+            remaining -= chunk;
+        }
+    }
 
     /**
      * @brief 原生内核tick乘1000再除频率，得到32位毫秒表示。

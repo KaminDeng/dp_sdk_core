@@ -1,62 +1,28 @@
-// dp_osal_thread_stop.h — Cooperative thread-stop support for CMSIS-OS backend.
-//
-// Provides the stop exception class and per-thread stop-flag access.
-//
-// Two backends:
-//   POSIX/desktop (default): C++ inline thread_local pointer — zero overhead.
-//   ARM MCU firmware (DPSDK_MCU_FIRMWARE): FreeRTOS per-task TLS slot 0.
-//     Requires configNUM_THREAD_LOCAL_STORAGE_POINTERS >= 1 in FreeRTOSConfig.h.
+/** @file dp_osal_thread_stop.h
+ * @brief CMSIS 当前任务的协作停止标志；不会通过异常或强制取消退出业务。
+ */
 #pragma once
-
 #include <atomic>
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
-#include <exception>
-#endif
-
+#include <cstdint>
 #ifdef DPSDK_MCU_FIRMWARE
 #include "FreeRTOS.h"
 #include "task.h"
 #endif
-
 namespace dp::osal {
-
-/* Thrown by System::sleep_ms() when the current thread's stop flag is set.
- * Caught by Thread::taskRunner() so code after the sleep call is skipped.
- * Under -fno-exceptions (MCU firmware), the struct has no base class and is never
- * thrown; stop() relies on cooperative task exit instead. */
-#if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
-struct CmsisThreadStopException : public std::exception {
-    const char* what() const noexcept override { return "Thread (CMSIS-OS): stop requested"; }
-};
-#else
-struct CmsisThreadStopException {};
-#endif
-
-/* ── Per-thread stop-flag access ──────────────────────────────────────────── */
-
+namespace detail {
+/** @brief 毫秒向上换算tick，64位中间值避免乘法回绕；调用方检查端口可表示范围。 */
+constexpr uint64_t cmsisMillisecondsToTicks(uint32_t milliseconds, uint32_t frequency) noexcept {
+    return (static_cast<uint64_t>(milliseconds) * frequency + 999ULL) / 1000ULL;
+}
+}  // namespace detail
 #ifdef DPSDK_MCU_FIRMWARE
-/* ARM MCU firmware: use FreeRTOS per-task TLS slot 0.
- * Thread-local pointer to the running Thread's stop flag.
- * Set by taskRunner() before calling the user function; cleared on exit.
- * sleep_ms() reads this to detect stop requests.                            */
-
-/** @brief Get the current task's stop flag pointer from FreeRTOS TLS slot 0. */
 inline std::atomic<bool>* osal_cmsis_stop_flag_get() {
     return static_cast<std::atomic<bool>*>(pvTaskGetThreadLocalStoragePointer(nullptr, 0));
 }
-
-/** @brief Set the current task's stop flag pointer in FreeRTOS TLS slot 0. */
-inline void osal_cmsis_stop_flag_set(std::atomic<bool>* p) { vTaskSetThreadLocalStoragePointer(nullptr, 0, p); }
-
+inline void osal_cmsis_stop_flag_set(std::atomic<bool>* flag) { vTaskSetThreadLocalStoragePointer(nullptr, 0, flag); }
 #else
-/* POSIX/desktop: C++ inline thread_local — exact same semantics. */
 inline thread_local std::atomic<bool>* tl_cmsis_stop_flag_storage = nullptr;
-
 inline std::atomic<bool>* osal_cmsis_stop_flag_get() { return tl_cmsis_stop_flag_storage; }
-inline void osal_cmsis_stop_flag_set(std::atomic<bool>* p) { tl_cmsis_stop_flag_storage = p; }
-
-/* Backward-compat alias for any code that still uses the old name. */
-inline thread_local std::atomic<bool>*& tl_cmsis_stop_flag = tl_cmsis_stop_flag_storage;
+inline void osal_cmsis_stop_flag_set(std::atomic<bool>* flag) { tl_cmsis_stop_flag_storage = flag; }
 #endif
-
 }  // namespace dp::osal

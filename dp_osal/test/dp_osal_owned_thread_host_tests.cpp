@@ -1,214 +1,207 @@
 /**
  * @file dp_osal_owned_thread_host_tests.cpp
- * @brief 真实pthread后端的owned上下文清理生命周期主机回归。
- * @details 链接器wrap注入一次pthread_create失败；成功路径重复64次，cleanup真实delete内嵌Thread的上下文。
- * 启动表达式在断言之前执行；仍须保留有效断言才能核对结果。
- * 若目标启用ASAN，可进一步观测backend最后访问后的释放问题；源码存在不代表本轮已运行ASAN。
+ * @brief 真实 pthread 后端的显式拥有者生命周期回归。
+ * @details 旧目标名暂由构建入口沿用；不再存在后台最终清理模式。
  */
 #include "dp_osal_thread.h"
+#if DP_OSAL_ENABLE_THREAD_POOL
+#include "dp_osal_thread_pool.h"
+#endif
 #include <atomic>
 #include <cassert>
 #include <cerrno>
 #include <chrono>
-#include <memory>
-#include <new>
-#include <pthread.h>
 #include <cstdio>
+#include <cstdlib>
+#include <exception>
+#include <memory>
+#include <pthread.h>
+#include <sys/wait.h>
 #include <thread>
+#include <unistd.h>
 
 namespace {
-/**
- * @brief 链接wrap的创建失败注入开关，只在主测试同步控制的失败分支置true。
- */
+using dp::osal::Thread;
+using dp::osal::ThreadStatus;
 std::atomic<bool> fail_creation{false};
-/**
- * @brief 比OwnedState更长寿的原子观察对象，记录入口、cleanup、析构次数与完成发布。
- * @details entries/cleanups/destructions分别累计一次生命周期事件，done用release/acquire供main等待。
- */
-struct Observation {
-    std::atomic<unsigned> entries{0U},  ///< raw入口累计进入次数。
-        cleanups{0U},                   ///< backend调用cleanup累计次数。
-        destructions{0U};               ///< 上下文析构累计次数。
-    std::atomic<bool> hold{false};      ///< 测试超时期间保留上下文，随后显式允许正常退出。
-    std::atomic<bool> done{false};      ///< delete完成后release发布，供main acquire等待。
+std::atomic<int> join_error{0};
+std::atomic<int> timed_join_error{0};
+struct Work {
+    Thread* thread = nullptr;
+    std::atomic<bool> entered{false};
+    std::atomic<bool> release{false};
+    std::atomic<int> self_join{0};
 };
-/**
- * @brief 可被cleanup真实删除的上下文，内嵌线程后端并借用外部Observation。
- */
-struct OwnedState {
-    dp::osal::Thread worker;  ///< 成功路径由cleanup删除所属对象，backend需先结束自身访问。
-    std::shared_ptr<unsigned> payload;  ///< 超时期间必须由仍存活的上下文保留的引用。
-    Observation* observation;           ///< 借用的外部计数对象，比当前上下文存活更久。
-    /**
-     * @brief 绑定外部观察对象，不启动任务。
-     * @param value 覆盖worker清理期的观察对象。
-     */
-    explicit OwnedState(Observation& value) : observation(&value) {}
-    /**
-     * @brief 累计上下文析构次数；随后按C++成员析构顺序销毁worker。
-     */
-    ~OwnedState() { observation->destructions.fetch_add(1U); }
-};
-/**
- * @brief raw任务入口仅增加一次入口计数。
- * @param context 有效OwnedState，存活至后端cleanup。
- */
-void entry(void* context) {
-    auto* observation = static_cast<OwnedState*>(context)->observation;
-    observation->entries.fetch_add(1U);
-    while (observation->hold.load(std::memory_order_acquire)) std::this_thread::yield();
+void blocked(void* context) {
+    auto& work = *static_cast<Work*>(context);
+    work.entered.store(true, std::memory_order_release);
+    while (!work.release.load(std::memory_order_acquire)) std::this_thread::yield();
 }
-/**
- * @brief 缓存外部观察指针后delete上下文，再发布done完成标记。
- * @param context 成功启动后由backend移交的OwnedState。
- * @note delete同时销毁内嵌Thread，后端此后不能再读this或该上下文；观察对象仍由main持有。
- */
-void cleanup(void* context) noexcept {
-    auto* state = static_cast<OwnedState*>(context);
-    auto* observation = state->observation;
-    observation->cleanups.fetch_add(1U);
-    delete state;  // 真实删除含Thread的对象；ASAN检查backend此后不再碰this/TLS。
-    observation->done.store(true, std::memory_order_release);
+void cooperative(void* context) {
+    auto& work = *static_cast<Work*>(context);
+    work.entered.store(true, std::memory_order_release);
+    while (!work.thread->stopRequested()) dp::osal::osal_sleep_ms_interruptible(5000U);
+    work.release.store(true, std::memory_order_release);
 }
-/** @brief 仅等待独立观察对象，不读取可能已被cleanup释放的state。 */
-void waitDone(Observation& observation) {
+void immediate(void* context) {
+    if (context != nullptr) static_cast<std::atomic<unsigned>*>(context)->fetch_add(1U);
+}
+void selfJoin(void* context) {
+    auto& work = *static_cast<Work*>(context);
+    const auto result = work.thread->join();
+    work.self_join.store(result.status == ThreadStatus::kWouldDeadlock ? 1 : -1);
+}
+void awaitEntry(Work& work) {
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
-    while (!observation.done.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline)
+    while (!work.entered.load(std::memory_order_acquire) && std::chrono::steady_clock::now() < deadline)
         std::this_thread::yield();
-    assert(observation.done.load(std::memory_order_acquire));
+    assert(work.entered.load());
 }
-Observation* null_observation = nullptr;  ///< null上下文用例由main顺序装配，不在运行中改写。
-void nullEntry(void* context) {
-    assert(context == nullptr);
-    null_observation->entries.fetch_add(1U);
-}
-void nullCleanup(void* context) noexcept {
-    assert(context == nullptr);
-    null_observation->cleanups.fetch_add(1U);
-    null_observation->done.store(true, std::memory_order_release);
-}
-
 }  // namespace
-/**
- * @brief 链接器--wrap提供的真实pthread_create入口声明，不是本文件自己实现。
- * @details 未命名参数沿pthread_create签名传递；测试目标须配置正确链接wrap选项。
- */
 extern "C" int __real_pthread_create(pthread_t*, const pthread_attr_t*, void* (*)(void*), void*);
-/**
- * @brief 创建失败开关开启时返回EAGAIN，否则转发真实pthread_create。
- * @param handle 后端线程句柄输出。
- * @param attr 线程属性。
- * @param run pthread入口。
- * @param context pthread上下文。
- * @return 注入的EAGAIN或真实创建结果，不创建硬件/设备任务。
- */
-extern "C" int __wrap_pthread_create(pthread_t* handle, const pthread_attr_t* attr, void* (*run)(void*),
-                                     void* context) {
-    if (fail_creation.load()) return EAGAIN;
-    return __real_pthread_create(handle, attr, run, context);
+extern "C" int __wrap_pthread_create(pthread_t* handle, const pthread_attr_t* attr, void* (*run)(void*), void* arg) {
+    return fail_creation.load() ? EAGAIN : __real_pthread_create(handle, attr, run, arg);
 }
-/**
- * @brief 重复验证成功路径恰好一次清理，再验证创建/参数失败不接管上下文。
- * @return 断言全部满足时隐式0，否则assert终止；需保持NDEBUG未定义。
- * @details 每轮以2秒主机单调期限等待done，不是实时延迟上界测试。失败创建由unique_ptr保留所有权，
- * 空入口或空cleanup仍不调用cleanup，最后由调用者reset触发一次析构。
- */
+extern "C" int __real_pthread_join(pthread_t, void**);
+extern "C" int __wrap_pthread_join(pthread_t handle, void** result) {
+    const int error = join_error.exchange(0);
+    return error != 0 ? error : __real_pthread_join(handle, result);
+}
+#if defined(__linux__) && defined(__GLIBC__) && defined(__USE_GNU)
+#if __GLIBC_PREREQ(2, 31)
+extern "C" int __real_pthread_clockjoin_np(pthread_t, void**, clockid_t, const timespec*);
+extern "C" int __wrap_pthread_clockjoin_np(pthread_t handle, void** result, clockid_t clock, const timespec* deadline) {
+    assert(clock == CLOCK_MONOTONIC);
+    const int error = timed_join_error.exchange(0);
+    return error != 0 ? error : __real_pthread_clockjoin_np(handle, result, clock, deadline);
+}
+#endif
+#endif
 int main() {
-    static_assert(dp::osal::Thread::supportsFinalizer());
-    static_assert(noexcept(
-        std::declval<dp::osal::Thread&>().start("checked", entry, nullptr, dp::osal::ThreadFinalizer{cleanup})));
-    // 普通raw复用原生启动后，创建失败仍回滚，下一次启动不残留旧入口/参数。
-    dp::osal::Thread ordinary;
-    std::atomic<unsigned> raw_calls{0U};
-    auto raw_entry = +[](void* context) { static_cast<std::atomic<unsigned>*>(context)->fetch_add(1U); };
+    Thread thread;
+    assert(!thread.joinable());
+    assert(thread.join().status == ThreadStatus::kInvalidState);
+    assert(thread.tryJoinFor(0).status == ThreadStatus::kInvalidState);
+    assert(thread.requestStop());
+    assert(!thread.requestStop());
+    const auto invalid = thread.start("invalid", nullptr, nullptr);
+    assert(invalid.status == ThreadStatus::kInvalidArgument && !thread.joinable());
+    std::atomic<unsigned> calls{0U};
     fail_creation = true;
-    const int raw_failed = ordinary.start("raw-fail", raw_entry, &raw_calls);
+    const auto failed = thread.start("failed", immediate, &calls);
     fail_creation = false;
-    assert(raw_failed != 0 && raw_calls.load() == 0U);
-    const int raw_retried = ordinary.start("raw-retry", raw_entry, &raw_calls);
-    assert(raw_retried == 0);
-    ordinary.join();
-    assert(raw_calls.load() == 1U);
-    std::weak_ptr<unsigned> failed_capture;
-    fail_creation = true;
-    // 原生失败不得残留可调用包装；用独立weak引用检查实际捕获析构。
+    assert(failed.status == ThreadStatus::kResourceExhausted && failed.native_error == EAGAIN);
+    assert(!thread.joinable() && calls.load() == 0U);
+    // 创建失败必须释放被入口包装捕获的资源，且允许显式重试。
     auto capture = std::make_shared<unsigned>(3U);
-    failed_capture = capture;
-    const int observed_failed = ordinary.start("capture-fail", [capture](void*) {}, nullptr);
+    std::weak_ptr<unsigned> weak = capture;
+    fail_creation = true;
+    const auto capture_failed = thread.start("capture-fail", [capture](void*) {}, nullptr);
     capture.reset();
     fail_creation = false;
-    assert(observed_failed != 0 && failed_capture.expired());
-    // 在有效断言装配下真实创建并等待64个独立任务，覆盖快速返回与清理的重复生命周期。
-    for (unsigned index = 0U; index < 64U; ++index) {
-        Observation observation;
-        auto* state = new (std::nothrow) OwnedState(observation);
-        assert(state);
-        const int started = state->worker.start("owned", entry, state, dp::osal::ThreadFinalizer{cleanup});
-        assert(started == 0);
-        waitDone(observation);
-        assert(observation.done.load() && observation.entries.load() == 1U && observation.cleanups.load() == 1U &&
-               observation.destructions.load() == 1U);
+    assert(!capture_failed.ok() && weak.expired());
+
+    for (unsigned index = 0; index < 300U; ++index) {
+        assert(thread.start("quick", immediate, &calls).ok());
+        while (thread.isRunning()) std::this_thread::yield();
+        assert(thread.joinable());
+        assert(thread.start("not-reaped", immediate, &calls).status == ThreadStatus::kBusy);
+        assert(thread.join().ok());
+        assert(!thread.joinable());
     }
-    Observation failed;
-    std::unique_ptr<OwnedState> state(new (std::nothrow) OwnedState(failed));
-    assert(state);
-    fail_creation = true;
-    const int failed_start = state->worker.start("failed", entry, state.get(), dp::osal::ThreadFinalizer{cleanup});
-    assert(failed_start != 0);
-    assert(state->worker.join() == 0);  // 创建失败回滚为普通空闲对象。
-    fail_creation = false;
-    assert(failed.entries.load() == 0U && failed.cleanups.load() == 0U && failed.destructions.load() == 0U);
-    const int invalid_entry = state->worker.start("invalid", nullptr, state.get(), dp::osal::ThreadFinalizer{cleanup});
-    assert(invalid_entry != 0);
-    const int invalid_cleanup = state->worker.start("invalid", entry, state.get(), dp::osal::ThreadFinalizer{nullptr});
-    assert(invalid_cleanup != 0);
-    const int invalid_stack = state->worker.start("unsafe-stack", entry, state.get(),
-                                                  dp::osal::ThreadFinalizer{cleanup}, 0, 16384, state.get());
-    assert(invalid_stack != 0);
-    assert(failed.cleanups.load() == 0U);
-    state.reset();
-    assert(failed.destructions.load() == 1U);
+    assert(calls.load() == 300U);
+    // 外部栈只有真实 join 后才能复用；不能把小栈默默上调为越界的有效容量。
+    void* stack = nullptr;
+    constexpr int stack_bytes = 1024 * 1024;
+    assert(posix_memalign(&stack, static_cast<size_t>(sysconf(_SC_PAGESIZE)), stack_bytes) == 0);
+    const auto small_stack = thread.start("small-stack", immediate, nullptr, 0, 1, stack);
+    assert(small_stack.status == ThreadStatus::kInvalidArgument && !thread.joinable());
+    for (unsigned index = 0; index < 3U; ++index) {
+        assert(thread.start("external-stack", immediate, nullptr, 0, stack_bytes, stack).ok());
+        assert(thread.join().ok());
+    }
+    free(stack);
+    Work work;
+    work.thread = &thread;
+    assert(thread.start("blocking", blocked, &work).ok());
+    awaitEntry(work);
+    assert(thread.start("busy", immediate, nullptr).status == ThreadStatus::kBusy);
+    assert(thread.detach().status == ThreadStatus::kNotSupported && thread.joinable());
+    if (Thread::supportsTimedJoin()) {
+        const auto before = std::chrono::steady_clock::now();
+        assert(thread.tryJoinFor(10).status == ThreadStatus::kTimeout);
+        assert(thread.tryJoinFor(0).status == ThreadStatus::kTimeout);
+        assert(std::chrono::steady_clock::now() - before < std::chrono::seconds(1));
+        assert(thread.joinable());
+        timed_join_error = EIO;
+        const auto timed_failed = thread.tryJoinFor(1);
+        assert(timed_failed.status == ThreadStatus::kNativeError && timed_failed.native_error == EIO);
+        assert(thread.joinable());
+    } else {
+        assert(thread.tryJoinFor(1).status == ThreadStatus::kNotSupported);
+    }
+    join_error = EIO;
+    const auto join_failed = thread.join();
+    assert(join_failed.status == ThreadStatus::kNativeError && join_failed.native_error == EIO);
+    assert(thread.joinable());
+    work.release = true;
+    assert(thread.join().ok() && !thread.joinable());
 
-    // 原生创建失败后，同一对象重试仍能移交一次清理责任。
-    Observation retried;
-    auto* retry = new (std::nothrow) OwnedState(retried);
-    assert(retry);
-    fail_creation = true;
-    const int retry_failed = retry->worker.start("retry-fail", entry, retry, dp::osal::ThreadFinalizer{cleanup});
-    fail_creation = false;
-    assert(retry_failed != 0 && retried.cleanups.load() == 0U && retried.entries.load() == 0U);
-    const int retry_started = retry->worker.start("retry", entry, retry, dp::osal::ThreadFinalizer{cleanup});
-    assert(retry_started == 0);
-    waitDone(retried);
-    assert(retried.entries.load() == 1U && retried.cleanups.load() == 1U && retried.destructions.load() == 1U);
+    Work self;
+    self.thread = &thread;
+    assert(thread.start("self-join", selfJoin, &self).ok());
+    assert(thread.join().ok());
+    assert(self.self_join.load() == 1);
+    // requestStop 唤醒可中断 sleep，用户自行返回，不靠异常退出。
+    Work stop;
+    stop.thread = &thread;
+    assert(thread.start("cooperative", cooperative, &stop).ok());
+    awaitEntry(stop);
+    const auto before_stop = std::chrono::steady_clock::now();
+    assert(thread.requestStop());
+    assert(!thread.requestStop());
+    assert(thread.stopRequested());
+    assert(thread.join().ok());
+    assert(stop.release.load() && std::chrono::steady_clock::now() - before_stop < std::chrono::seconds(1));
+    assert(thread.start("reset-stop", immediate, nullptr).ok());
+    assert(!thread.stopRequested());
+    if (Thread::supportsTimedJoin())
+        assert(thread.tryJoinFor(2000).ok());
+    else
+        assert(thread.join().ok());
 
-    // 普通等待超时不表示内核退出，也不能回收任务仍持有的引用。
-    Observation blocked;
-    blocked.hold = true;
-    auto* retained = new (std::nothrow) OwnedState(blocked);
-    assert(retained);
-    retained->payload = std::make_shared<unsigned>(7U);
-    std::weak_ptr<unsigned> payload = retained->payload;
-    const int blocked_started = retained->worker.start("retained", entry, retained, dp::osal::ThreadFinalizer{cleanup});
-    assert(blocked_started == 0);
-    const auto timeout = std::chrono::steady_clock::now() + std::chrono::milliseconds(2);
-    while (std::chrono::steady_clock::now() < timeout) std::this_thread::yield();
-    assert(!blocked.done.load() && blocked.cleanups.load() == 0U && blocked.destructions.load() == 0U);
-    assert(!payload.expired());
-    blocked.hold.store(false, std::memory_order_release);
-    waitDone(blocked);
-    assert(blocked.entries.load() == 1U && blocked.cleanups.load() == 1U && blocked.destructions.load() == 1U);
-    assert(payload.expired());
-
-    // nullptr参数是有效借用值；非空入口和cleanup必须各执行一次。
-    Observation null_context;
-    null_observation = &null_context;
-    dp::osal::Thread null_worker;
-    const int null_started =
-        null_worker.start("null-context", nullEntry, nullptr, dp::osal::ThreadFinalizer{nullCleanup});
-    assert(null_started == 0);
-    waitDone(null_context);
-    assert(null_context.entries.load() == 1U && null_context.cleanups.load() == 1U);
-    assert(null_worker.join() != 0);  // 自动回收模式不把join当cleanup完成同步。
-    std::puts("owned: success=67 create_failure=2 invalid_parameters=2 timeout_retained=1 null_context=1");
+    // 析构不能静默 join、detach 或遗失回收责任。
+    const pid_t child = fork();
+    assert(child >= 0);
+    if (child == 0) {
+        std::set_terminate([] { _Exit(77); });
+        {
+            Thread unreaped;
+            if (!unreaped.start("unreaped", immediate, nullptr).ok()) _Exit(78);
+        }
+        _Exit(79);
+    }
+    int status = 0;
+    assert(waitpid(child, &status, 0) == child);
+    assert(WIFEXITED(status) && WEXITSTATUS(status) == 77);
+#if DP_OSAL_ENABLE_THREAD_POOL
+    // 聚合拥有者在 join 原生失败时也必须保留 worker，而非清容器触发析构违约。
+    {
+        dp::osal::ThreadPool pool;
+        pool.start(1);
+        join_error = EIO;
+        pool.stop();
+        pool.stop();  // 第二次回收此前仍被拥有的线程。
+        pool.start(1);
+        pool.stop();
+        fail_creation = true;
+        pool.start(1);
+        fail_creation = false;
+        assert(!pool.isStarted());
+        pool.stop();
+        pool.start(1);
+        pool.stop();
+    }
+#endif
+    std::puts("线程生命周期：300 次复用、超时重试、原生失败保留、协作停止、自连接及析构约束通过");
 }

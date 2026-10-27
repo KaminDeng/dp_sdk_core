@@ -83,9 +83,12 @@ TEST(OSALConditionVariableTest, TestOSALConditionVariableNotifyAll) {
         taskExecutedCount++;
     };
 
-    Thread thread1("test_thread1", worker, nullptr, 0, 1024);
-    Thread thread2("test_thread2", worker, nullptr, 0, 1024);
-    Thread thread3("test_thread3", worker, nullptr, 0, 1024);
+    Thread thread1;
+    ASSERT_EQ(thread1.start("test_thread1", worker, nullptr, 0, 1024), 0);
+    Thread thread2;
+    ASSERT_EQ(thread2.start("test_thread2", worker, nullptr, 0, 1024), 0);
+    Thread thread3;
+    ASSERT_EQ(thread3.start("test_thread3", worker, nullptr, 0, 1024), 0);
 
     System::getInstance().sleep_ms(100);  // Ensure all threads are waiting
     EXPECT_EQ(taskExecutedCount.load(), 0);

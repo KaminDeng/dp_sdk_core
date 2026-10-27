@@ -18,7 +18,8 @@ ThreadPool::ThreadPool()
 ThreadPool::~ThreadPool() { stop(); }
 
 void ThreadPool::doStart(uint32_t numThreads, int priority, int stack_size) {
-    stop();  // 停止任何现有的线程池
+    stop();  // 先回收现有 worker；失败保留拥有关系，不覆盖旧状态。
+    if (!threads_.empty()) return;
     isstarted_ = true;
     minThreads_ = numThreads;
     maxThreads_ = numThreads;
@@ -27,6 +28,7 @@ void ThreadPool::doStart(uint32_t numThreads, int priority, int stack_size) {
     for (uint32_t i = 0; i < numThreads; ++i) {
         ThreadPool::OSALAddTread();
     }
+    if (threads_.empty()) isstarted_ = false;
     DP_OSAL_LOGD("Thread pool started with %u threads\n", numThreads);
 }
 
@@ -36,7 +38,11 @@ bool ThreadPool::OSALAddTread() {
         DP_OSAL_LOGE("Failed to create thread\n");
         return false;
     } else {
-        thread->start("ThreadPool", threadEntry, this, priority_, stack_size_);
+        const auto result = thread->start("ThreadPool", threadEntry, this, priority_, stack_size_);
+        if (!result.ok()) {
+            DP_OSAL_LOGE("线程池 worker 启动失败，原生错误=%d\n", result.native_error);
+            return false;
+        }
         threads_.push_back(std::move(thread));
         return true;
     }
@@ -46,7 +52,7 @@ bool ThreadPool::OSALDelTread() {
     auto it = std::find_if(threads_.begin(), threads_.end(),
                            [](const std::shared_ptr<Thread> &t) { return !t->isRunning(); });
     if (it != threads_.end()) {
-        (*it)->stop();
+        if (!(*it)->stop().ok()) return false;
         threads_.erase(it);
         return true;
     }
@@ -54,12 +60,22 @@ bool ThreadPool::OSALDelTread() {
 }
 
 void ThreadPool::doStop() {
-    isstarted_ = false;
-    condition_.notify_all();
-    for (std::shared_ptr<Thread> thread : threads_) {
-        thread->stop();
+    {
+        std::lock_guard<std::mutex> lock(queueMutex_);
+        isstarted_ = false;
     }
-    threads_.clear();
+    // 先通知全部 worker，再逐个连接；不依赖停止异常打断用户回调。
+    for (auto &thread : threads_) (void)thread->requestStop();
+    condition_.notify_all();
+    for (auto it = threads_.begin(); it != threads_.end();) {
+        const auto result = (*it)->join();
+        if (result.ok()) {
+            it = threads_.erase(it);
+        } else {
+            DP_OSAL_LOGE("线程池 worker 回收失败，保留资源供重试，原生错误=%d\n", result.native_error);
+            ++it;
+        }
+    }
     DP_OSAL_LOGD("Thread pool stopped\n");
 }
 
@@ -199,6 +215,6 @@ void ThreadPool::threadLoop() {
     }
 }
 
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif /* DP_OSAL_ENABLE_THREAD_POOL */

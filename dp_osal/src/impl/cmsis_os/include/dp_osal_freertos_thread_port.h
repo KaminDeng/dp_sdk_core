@@ -7,6 +7,10 @@
 #include "FreeRTOS.h"
 #include "task.h"
 
+// 此协议只在单核上证明同步回收。SMP删除可能交给idle延迟处理，禁止误复用外部TCB。
+#if defined(configNUMBER_OF_CORES) && configNUMBER_OF_CORES > 1
+#error "CMSIS FreeRTOS SMP requires a synchronous native thread reap port"
+#endif
 #define DP_OSAL_PORT_THREAD_JOINABLE_ATTR 0U
 #define DP_OSAL_PORT_THREAD_REAP(handle) dp_osal_freertos_thread_reap(handle)
 #define DP_OSAL_PORT_THREAD_FINISH() dp_osal_freertos_thread_finish()
@@ -14,8 +18,8 @@
 
 inline bool dp_osal_freertos_thread_resources_valid(const osThreadAttr_t& attr) noexcept {
     if (attr.stack_mem == nullptr) return attr.cb_mem == nullptr && attr.cb_size == 0U;
-    if ((attr.stack_size % sizeof(StackType_t)) != 0U || attr.cb_mem == nullptr ||
-        attr.cb_size < sizeof(StaticTask_t)) return false;
+    if ((attr.stack_size % sizeof(StackType_t)) != 0U || attr.cb_mem == nullptr || attr.cb_size < sizeof(StaticTask_t))
+        return false;
     void* stack = attr.stack_mem;
     size_t stack_capacity = attr.stack_size;
     void* control_block = attr.cb_mem;
