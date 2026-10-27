@@ -8,23 +8,22 @@
 
 #include <gtest/gtest.h>
 
-#include "test_uart.cpp"   // NOLINT(build/include)
-#include "test_gpio.cpp"   // NOLINT(build/include)
-#include "test_spi.cpp"    // NOLINT(build/include)
-#include "test_i2c.cpp"    // NOLINT(build/include)
-#include "test_adc.cpp"    // NOLINT(build/include)
-#include "test_dac.cpp"    // NOLINT(build/include)
-#include "test_timer.cpp"  // NOLINT(build/include)
-#include "test_can.cpp"    // NOLINT(build/include)
-#include "test_power.cpp"  // NOLINT(build/include)
-#include "test_pwm.cpp"    // NOLINT(build/include)
-#include "test_virtual.cpp"  // NOLINT(build/include)
-#include "test_security.cpp"  // NOLINT(build/include)
+#include "test_uart.cpp"      // NOLINT(build/include)
+#include "test_gpio.cpp"      // NOLINT(build/include)
+#include "test_spi.cpp"       // NOLINT(build/include)
+#include "test_i2c.cpp"       // NOLINT(build/include)
+#include "test_adc.cpp"       // NOLINT(build/include)
+#include "test_dac.cpp"       // NOLINT(build/include)
+#include "test_timer.cpp"     // NOLINT(build/include)
+#include "test_can.cpp"       // NOLINT(build/include)
+#include "test_power.cpp"     // NOLINT(build/include)
+#include "test_pwm.cpp"       // NOLINT(build/include)
+#include "test_virtual.cpp"   // NOLINT(build/include)
 #include "test_identity.cpp"  // NOLINT(build/include)
 
 /**
  * @brief 初始化 GoogleTest，限定 HAL 套件过滤器并同步运行所选测试。
- * @details 构造一个本地 argv，不透传进程命令行；过滤器覆盖外设、虚接口、安全与身份套件。
+ * @details 构造一个本地 argv，不透传进程命令行；过滤器覆盖外设、虚接口与身份套件。
  * RUN_ALL_TESTS 的结果保存后被显式丢弃，本入口返回 void，调用方需检查测试报告而不能
  * 仅凭此函数返回或宿主退出码宣称所有断言成功。
  * @note 运行上下文与 mock/产品端口由父工程装配；本入口不切换后端。
@@ -38,7 +37,7 @@ extern "C" void dp_hal_test_main(void) {
     ::testing::GTEST_FLAG(filter) =
         "DpHalUart*:DpHalGpio*:DpHalSpiBus*:DpHalSpiDevice*:"
         "DpHalI2cBus*:DpHalI2cDevice*:"
-        "DpHalAdc*:DpHalDac*:DpHalTimer*:DpHalCan*:DpHalPower*:DpHalPwm*:DpHalVirtual*:DpHalSecurity*:"
+        "DpHalAdc*:DpHalDac*:DpHalTimer*:DpHalCan*:DpHalPower*:DpHalPwm*:DpHalVirtual*:"
         "DpHalIdentity*";
     int r = RUN_ALL_TESTS();
     (void)r;

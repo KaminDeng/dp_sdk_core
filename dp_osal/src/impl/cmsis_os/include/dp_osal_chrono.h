@@ -39,6 +39,16 @@ public:
     }
 
 private:
+    // CMSIS只提供32位tick，不能据此证明64位单调时间或真实纳秒精度。
+    static uint64_t doSteadyNs() noexcept { return 0U; }
+    static bool doWallTimeUs(uint64_t *value) noexcept {
+        (void)value;
+        return false;
+    }
+    static bool doThreadCpuTimeUs(uint64_t *value) noexcept {
+        (void)value;
+        return false;
+    }
     /**
      * @brief 直接读取 CMSIS 内核 tick，不换成毫秒。
      * @return 可回绕的后端 tick，不是日历时间。
@@ -98,9 +108,7 @@ private:
      * @brief 直接读取内核声明的实际tick频率，避免浮点倒数舍入。
      * @return 内核频率，0仍表示来源无效。
      */
-    uint32_t doTicksPerSecond() const {
-        return osKernelGetTickFreq();
-    }
+    uint32_t doTicksPerSecond() const { return osKernelGetTickFreq(); }
 
     /**
      * @brief 仅对半圈窗口内未来期限调用 osDelayUntil。
@@ -124,7 +132,7 @@ private:
      */
     Chrono() = default;
 };
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif /* DP_OSAL_ENABLE_CHRONO */
 

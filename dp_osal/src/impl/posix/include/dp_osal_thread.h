@@ -1,6 +1,6 @@
 /**
  * @file dp_osal_thread.h
- * @brief pthread线程后端，支持legacy/raw入口及owned上下文最终清理。
+ * @brief pthread线程后端，支持函数指针/callable入口及owned上下文最终清理。
  * @details start发布ready后runner才读任务字段；普通任务通过join/stop回收，owned路径先完成
  * 最后一次Thread访问再调用cleanup，因此cleanup可以删除内嵌当前Thread的上下文。
  * stop是协作请求并等待，未提供有界超时；禁异常任务必须自行返回，不能把此API当强制终止。
@@ -20,7 +20,6 @@
 #include <functional>
 #include <iostream>
 #include <mutex>
-#include <optional>
 #include <stdexcept>
 #include <thread>
 
@@ -42,7 +41,7 @@ struct OSALThreadStopException : public std::exception {
      * @brief 返回固定停止原因文本，不分配字符串。
      * @return 静态字面量指针，调用者不释放。
      */
-    const char *what() const noexcept override { return "Thread: stop requested"; }
+    const char* what() const noexcept override { return "Thread: stop requested"; }
 };
 
 // Per-thread stop context: owned by Thread, pointed to by the thread-local
@@ -51,9 +50,9 @@ struct OSALThreadStopException : public std::exception {
  * @brief 每个Thread自持的停止请求与可中断等待上下文，TLS只借用其地址。
  */
 struct OSALThreadStopCtx {
-    std::mutex mtx; ///< 保护停止等待与通知的条件变量配对。
-    std::condition_variable cv; ///< stop请求可唤醒当前线程的可中断sleep。
-    std::atomic<bool> stop{false}; ///< 当前Thread的协作停止请求，不代表设备STOP授权。
+    std::mutex mtx;                 ///< 保护停止等待与通知的条件变量配对。
+    std::condition_variable cv;     ///< stop请求可唤醒当前线程的可中断sleep。
+    std::atomic<bool> stop{false};  ///< 当前Thread的协作停止请求，不代表设备STOP授权。
 };
 
 // Thread-local pointer to the current thread's stop context.
@@ -62,7 +61,7 @@ struct OSALThreadStopCtx {
 /**
  * @brief 当前pthread正在执行的Thread停止上下文，runner进入时设置、退出前清空。
  */
-inline thread_local OSALThreadStopCtx *tl_stop_ctx = nullptr;
+inline thread_local OSALThreadStopCtx* tl_stop_ctx = nullptr;
 
 // Interruptible sleep used by System::sleep_ms in the POSIX backend.
 // - If called from inside an Thread and stop() is requested before the
@@ -75,7 +74,7 @@ inline thread_local OSALThreadStopCtx *tl_stop_ctx = nullptr;
  * 不在本后端runner内时没有停止上下文，回退普通主机休眠。
  */
 inline void osal_sleep_ms_interruptible(uint32_t ms) {
-    OSALThreadStopCtx *ctx = tl_stop_ctx;
+    OSALThreadStopCtx* ctx = tl_stop_ctx;
     if (ctx) {
         std::unique_lock<std::mutex> lk(ctx->mtx);
         bool stopped = ctx->cv.wait_for(lk, std::chrono::milliseconds(ms), [ctx] { return ctx->stop.load(); });
@@ -83,7 +82,7 @@ inline void osal_sleep_ms_interruptible(uint32_t ms) {
 #if defined(__cpp_exceptions)
             throw OSALThreadStopException{};
 #else
-            // 禁异常raw入口协作返回，调用方循环检查自身停止状态。
+            // 禁异常入口协作返回，调用方循环检查自身停止状态。
             return;
 #endif
         }
@@ -100,6 +99,9 @@ class Thread : public ThreadBase<Thread> {
     friend class ThreadBase<Thread>;
 
 public:
+    static constexpr bool kSupportsFinalizer = true;
+    static constexpr bool kSupportsControlBlockStorage = false;
+    static constexpr bool kSupportsDetachedResources = false;
     /**
      * @brief 构造无句柄、未运行且未挂起的对象，不创建pthread。
      */
@@ -108,7 +110,7 @@ public:
     }
 
     /**
-     * @brief 构造后立即调用legacy start，启动失败只经日志/状态体现，构造函数不返回错误码。
+     * @brief 构造后立即调用start，启动失败只经日志/状态体现，构造函数不返回错误码。
      * @param name 本后端不使用的线程名。
      * @param fn 任务包装，按值传递。
      * @param arg 借用参数。
@@ -116,8 +118,8 @@ public:
      * @param stack_size 请求栈字节数。
      * @param pstack 可选外部栈，调用者保证大小/对齐/存活期。
      */
-    Thread(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
-               int stack_size = 0, void *pstack = nullptr)
+    Thread(const char* name, std::function<void(void*)> fn, void* arg = nullptr, int priority = 0, int stack_size = 0,
+           void* pstack = nullptr)
         : threadHandle_(0), running(false), suspended(false), priority_(priority) {
         DP_OSAL_LOGD("Thread parameterized constructor called\n");
         start(name, fn, arg, priority, stack_size, pstack);
@@ -129,106 +131,25 @@ public:
     ~Thread() { doStop(); }
 
 private:
-    /**
-     * @brief 保存legacy可调用包装并启动pthread，已在运行时直接返回0且不替换任务。
-     * @param name 本实现不使用线程名。
-     * @param fn 按值传入的std::function，可为空；包装存入optional。
-     * @param arg 借用任务参数，覆盖任务最后使用期。
-     * @param priority 请求优先级，启动属性配置不证明OS实际采用。
-     * @param stack_size 栈字节数请求，正数会至少抬到端口最小值。
-     * @param pstack 可选调用者栈，存储需足够容纳实际抬高后的大小并满足pthread约束。
-     * @return pthread属性/创建结果，0为成功；已运行的legacy重复启动也为0。
-     * @note 失败清空任务入口；只转发成功状态，不保证全链路无分配。
-     */
-    int doStart(const char *name, std::function<void(void *)> fn, void *arg = nullptr, int priority = 0,
-                int stack_size = 0, void *pstack = nullptr) {
-        if (isRunning()) {
-            return 0;
-        }
-        taskFunction.emplace(std::move(fn));
-        taskArgument = arg;
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-        entryKind_ = EntryKind::kLegacy;
-#endif
-        const int result = doStartNative(name, priority, stack_size, pstack);
+    /** @brief 保存唯一任务并共用原生创建；失败回滚，不调用最终清理。 */
+    int doStart(const char* name, ThreadTask task, void* context, int priority, int stack_size, void* stack,
+                const ThreadResources& resources = {}) noexcept {
+        if (resources.control_block != nullptr || resources.completion_control_block != nullptr ||
+            resources.completion != ThreadCompletion::kJoinable)
+            return -1;
+        if (isRunning() || !task.valid() || (task.finalizer() != nullptr && stack != nullptr)) return -1;
+        doJoin();  // 已结束的旧pthread仍需回收，才能再次使用入口存储。
+        auto_cleanup_ = task.finalizer() != nullptr;
+        task_ = std::move(task);
+        taskArgument = context;
+        const int result = doStartNative(name, priority, stack_size, stack);
+        // 成功发布ready之后可能已经执行finalizer，成功路径不能再访问this。
         if (result != 0) {
             clearEntry();
+            auto_cleanup_ = false;
         }
         return result;
     }
-
-    /**
-     * @brief 保留raw参数/重复检查后共用普通启动，不转移上下文释放责任。
-     * @param name 未使用的线程名。
-     * @param fn 非空原始入口。
-     * @param arg 借用上下文。
-     * @param priority 请求优先级。
-     * @param stack_size 栈字节数请求。
-     * @param pstack 可选外部栈。
-     * @return 公共raw启动结果；运行中重复启动为-1，与legacy分支不同。
-     */
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    int doStartRaw(const char *name, ThreadEntry fn, void *arg = nullptr, int priority = 0, int stack_size = 0,
-                   void *pstack = nullptr) {
-        // 保留raw拒绝重复/空入口的契约，再共用普通启动的准备与失败回滚。
-        if (isRunning()) return -1;
-        if (fn == nullptr) { clearEntry(); return -1; }
-        return doStart(name, std::function<void(void*)>(fn), arg, priority, stack_size, pstack);
-    }
-#endif
-
-    /**
-     * @brief 要求非空cleanup后走raw公共路径，成功后移交最终上下文清理责任。
-     * @param name 未使用的线程名。
-     * @param fn 非空任务入口。
-     * @param arg 要移交的上下文，失败仍由调用者持有。
-     * @param cleanup 不抛出的最终清理回调。
-     * @param priority 请求优先级。
-     * @param stack_size 栈字节数。
-     * @param pstack 可选外部栈。
-     * @return cleanup为空时-1，否则公共raw启动结果。
-     */
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    int doStartRawOwned(const char* name, ThreadEntry fn, void* arg, ThreadCleanup cleanup,
-                        int priority, int stack_size, void* pstack) noexcept {
-        if (cleanup == nullptr) return -1;
-        return doStartRawWithCleanup(name, fn, arg, cleanup, priority, stack_size, pstack);
-    }
-#endif
-
-    /**
-     * @brief 验证未运行及非空入口，保存raw/cleanup后调用pthread装配，失败清空入口。
-     * @param name 转发但原生路径不使用的名称。
-     * @param fn 有效raw入口。
-     * @param arg 借用或按cleanup约定移交的上下文。
-     * @param cleanup 可空；非空时runner执行最终清理。
-     * @param priority 优先级请求。
-     * @param stack_size 栈字节数请求。
-     * @param pstack 外部栈或NULL让系统提供。
-     * @return 运行中/空入口为-1，其余为原生启动结果；失败不调用cleanup。
-     */
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    int doStartRawWithCleanup(const char* name, ThreadEntry fn, void* arg, ThreadCleanup cleanup,
-                             int priority, int stack_size, void* pstack) noexcept {
-        if (isRunning()) {
-            return -1;
-        }
-        if (fn == nullptr) {
-            clearEntry();
-            return -1;
-        }
-        taskFunction.reset();
-        rawTaskFunction_ = fn;
-        rawCleanup_ = cleanup;
-        taskArgument = arg;
-        entryKind_ = EntryKind::kRaw;
-        const int result = doStartNative(name, priority, stack_size, pstack);
-        if (result != 0) {
-            clearEntry();
-        }
-        return result;
-    }
-#endif
 
     /**
      * @brief 初始化pthread属性、配置外部/系统栈并创建joinable线程，最后release发布ready。
@@ -239,7 +160,7 @@ private:
      * @return 属性初始化/栈设置/创建结果，0表示pthread_create成功。
      * @note 不设显式调度继承策略，不能仅凭参数断言实际实时优先级；pthread自身仍可分配控制资源。
      */
-    int doStartNative(const char *name, int priority, int stack_size, void *pstack) {
+    int doStartNative(const char* name, int priority, int stack_size, void* pstack) noexcept {
         (void)name;
         int result = 0;
 
@@ -351,26 +272,26 @@ private:
 
     /**
      * @brief 取走保存句柄并等待对应pthread结束，已无句柄则不操作。
-     * @note 不发送停止请求、无超时且忽略pthread_join状态；任务须自然返回或已收到协作停止。
+     * @note 不发送停止请求、无超时且返回pthread_join状态；任务须自然返回或已收到协作停止。
      */
-    void doJoin() {
+    int doJoin() {
+        if (auto_cleanup_) return -1;
         pthread_t h = threadHandle_.exchange(0);
         if (h) {
-            pthread_join(h, nullptr);
+            const int result = pthread_join(h, nullptr);
+            if (result != 0) return result;
             DP_OSAL_LOGD("Thread joined\n");
         }
+        return 0;
     }
 
     /**
-     * @brief 取走保存句柄并请求pthread_detach，忽略返回码。
+     * @brief 取走保存句柄并返回pthread_detach结果。
      * @note 不结束任务、不延长当前对象或上下文生命期，外部仍须保证它们不被过早销毁。
      */
-    void doDetach() {
+    int doDetach() {
         pthread_t h = threadHandle_.exchange(0);
-        if (h) {
-            pthread_detach(h);
-            DP_OSAL_LOGD("Thread detached\n");
-        }
+        return h ? pthread_detach(h) : 0;
     }
 
     /**
@@ -416,69 +337,32 @@ private:
      * 随后只用局部变量detach和cleanup；cleanup可delete包含本对象的上下文。
      * @note 只捕获内部停止异常，不捕获任意任务异常，不能据此保证异常终止进程时仍完成清理。
      */
-    static void *taskRunner(void *parameters) {
-        Thread *thread = static_cast<Thread *>(parameters);
-
-        // Wait until the constructor / start() has finished initializing all
-        // members. Without this barrier, TSAN reports data races on taskFunction,
-        // mutex_, cv_, stopCtx_, etc. because pthread_create() can schedule the
-        // new thread before start() returns.
-        while (!thread->ready_.load(std::memory_order_acquire)) {
-            std::this_thread::yield();
-        }
-
-        // owned context可以在cleanup中销毁this；所需参数先保存在runner自身局部。
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-        const ThreadCleanup cleanup = thread->rawCleanup_;
-        void* const cleanupContext = thread->taskArgument;
-#endif
-        // Install this thread's stop context so osal_sleep_ms_interruptible() works.
+    static void* taskRunner(void* parameters) {
+        auto* thread = static_cast<Thread*>(parameters);
+        while (!thread->ready_.load(std::memory_order_acquire)) std::this_thread::yield();
+        const ThreadCleanup cleanup = thread->task_.finalizer();
+        void* const context = thread->taskArgument;
         tl_stop_ctx = &thread->stopCtx_;
-
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-        if (thread->entryKind_ != EntryKind::kNone) {
-#else
-        if (thread->taskFunction.has_value()) {
-#endif
-            thread->waitIfSuspended();
+        thread->waitIfSuspended();
 #if defined(__cpp_exceptions)
-            try {
+        try {
 #endif
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-                if (thread->entryKind_ == EntryKind::kRaw) {
-                    ThreadEntry entry = thread->rawTaskFunction_;
-                    if (entry != nullptr) {
-                        entry(thread->taskArgument);
-                    }
-                } else
-#endif
-                if (thread->taskFunction.has_value() && static_cast<bool>(*thread->taskFunction)) {
-                    (*thread->taskFunction)(thread->taskArgument);
-                }
+            thread->task_.run(context);
 #if defined(__cpp_exceptions)
-            } catch (const OSALThreadStopException &) {
-                // stop() was called while the user function was sleeping.
-                // Exit cleanly without running any more user code.
-                DP_OSAL_LOGD("Thread: user function aborted by stop()\n");
-            }
-#endif
+        } catch (const OSALThreadStopException&) {
+            DP_OSAL_LOGD("Thread stopped cooperatively\n");
         }
+#endif
         thread->clearEntry();
         tl_stop_ctx = nullptr;
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
         if (cleanup != nullptr) {
             const pthread_t handle = thread->threadHandle_.exchange(0, std::memory_order_acq_rel);
-            thread->running.store(false, std::memory_order_release); // 最后一次this访问。
+            thread->running.store(false, std::memory_order_release);  // 最后一次this访问。
             if (handle != 0) (void)pthread_detach(handle);
-            cleanup(cleanupContext);
+            cleanup(context);
             return nullptr;
         }
-#endif
-        thread->running = false;
-
-        // Return normally — do NOT call pthread_exit() here.
-        // pthread_exit() is noreturn and triggers __asan_handle_no_return →
-        // PlatformUnpoisonStacks() → sigaltstack interceptor → GCC 11 ASan CHECK failure.
+        thread->running.store(false, std::memory_order_release);
         return nullptr;
     }
 
@@ -493,60 +377,26 @@ private:
         }
     }
 
-    /**
-     * @brief 区分无入口、legacy可调用包装和raw函数指针，runner据此派发。
-     */
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    enum class EntryKind : uint8_t {
-        kNone,   ///< 未保存可执行入口。
-        kLegacy, ///< 通过optional<std::function>执行，可为空包装。
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-        kRaw,    ///< 通过函数指针执行，可能另有owned cleanup。
-#endif
-    };
-#endif
-
-    /**
-     * @brief 清空任务包装、raw入口、cleanup、参数与入口类别，不释放外部上下文本身。
-     * @note owned清理回调需由runner事先缓存，此函数不会直接调用它。
-     */
-    void clearEntry() {
-        taskFunction.reset();
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-        rawTaskFunction_ = nullptr;
-#endif
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-        rawCleanup_ = nullptr;
-#endif
+    void clearEntry() noexcept {
+        task_.reset();
         taskArgument = nullptr;
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-        entryKind_ = EntryKind::kNone;
-#endif
     }
 
-    std::atomic<pthread_t> threadHandle_{0}; ///< 尚由对象管理的句柄，join/stop/detach或owned退出时取走。
-    std::optional<std::function<void(void *)>> taskFunction; ///< legacy包装，raw路径reset以避免构造该包装。
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    ThreadEntry rawTaskFunction_ = nullptr; ///< raw任务入口，clearEntry后为空。
-#endif
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    ThreadCleanup rawCleanup_ = nullptr; ///< 可选最终清理入口，runner在最后this访问前缓存。
-#endif
-    void *taskArgument = nullptr; ///< 任务借用参数，owned时同时传给cleanup。
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    EntryKind entryKind_ = EntryKind::kNone; ///< 当前保存的入口类别。
-#endif
-    std::atomic<bool> running; ///< 本地运行观测标记，不负责底层句柄全部回收。
-    std::atomic<bool> suspended; ///< runner入口使用的协作挂起谓词。
+    std::atomic<pthread_t> threadHandle_{0};
+    ThreadTask task_;
+    void* taskArgument = nullptr;
+    std::atomic<bool> running;    ///< 本地运行观测标记，不负责底层句柄全部回收。
+    std::atomic<bool> suspended;  ///< runner入口使用的协作挂起谓词。
     // Signals the thread that start() has finished writing all members.
     // Prevents TSAN data races when pthread_create() schedules the thread
     // before the constructor/start() returns.
-    std::atomic<bool> ready_{false}; ///< start完成字段写入后的release/acquire发布屏障。
-    int priority_;  ///< 缓存请求优先级，不证明OS设置成功。
-    std::mutex mutex_; ///< 协作挂起/恢复的条件变量互斥。
-    std::condition_variable cv_; ///< runner等待resume的条件变量。
-    OSALThreadStopCtx stopCtx_; ///< 自持停止上下文，runner通过TLS临时借用。
+    std::atomic<bool> ready_{false};  ///< start完成字段写入后的release/acquire发布屏障。
+    bool auto_cleanup_ = false;       ///< 自动最终清理模式不支持普通join同步。
+    int priority_;                    ///< 缓存请求优先级，不证明OS设置成功。
+    std::mutex mutex_;                ///< 协作挂起/恢复的条件变量互斥。
+    std::condition_variable cv_;      ///< runner等待resume的条件变量。
+    OSALThreadStopCtx stopCtx_;       ///< 自持停止上下文，runner通过TLS临时借用。
 };
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif  // DP_OSAL_POSIX_THREAD_H_

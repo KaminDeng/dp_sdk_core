@@ -52,8 +52,8 @@ uint64_t dp_hal_port_time_us(void);
  * @param[in] buf 至少可读取 len 字节的文本缓冲区，调用期间保持有效。
  * @param len 请求输出的字节长度。
  * @note 产品端口要求支持 OSAL 初始化前及 ISR 场景，阻塞和缓冲策略由端口提供。
- * 主机 mock 在日志初始化后使用受长度限制的字符串格式化，遇到 NUL 会提前结束，
- * 因而不能把此接口当作保证逐字节传输的二进制通道。
+ * 主机端直接写 stderr，保留 NUL；MCU 端直接使用底层 UART。
+ * 接口没有错误返回或持久化承诺，不能将其当作可靠文件传输通道。
  */
 void dp_hal_port_log(const char *buf, size_t len);
 

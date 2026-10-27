@@ -28,7 +28,7 @@
 
 ```text
 device  ->  hal   (public)
-device  ->  osal  (private)
+device  ->  osal  (public)
 hal     ->  independent
 osal    ->  POSIX / CMSIS-OS backend
 ```
@@ -171,6 +171,26 @@ cmake --build build
 | `interface_chrono.h` | 单调时钟与时间转换 |
 | `interface_system.h` | 调度器、sleep、critical section、系统信息 |
 | `dp_osal_virtual.h` | host 测试用虚接口包装 |
+
+### 正式接口与平台能力
+
+普通任务使用`Thread::start(name, callable, context, priority, stack_bytes, stack)`；函数指针及可转换的无捕获lambda直接保存为入口，捕获callable使用同一任务存储中的std::function。后端共用启动/派发机制，不再通过兼容开关选择入口。上下文及包装对象必须存活至其最后一次访问；detach和isRunning不是释放凭据。
+
+最终清理使用同一start的`ThreadFinalizer{cleanup}`重载，调用前可查`supportsFinalizer()`。启动失败不接管上下文，成功后在最后一次包装对象访问之后cleanup恰好一次；任务可能在start返回前完成，调用方之后继续访问须持有自己的有效引用。该模式不支持普通join，不能释放执行中的外部栈/TCB；当前POSIX支持，CMSIS/ESP明确拒绝而不接管。需要连接的普通线程使用join完成资源回收。
+
+静态资源通过`ThreadResources`和后端资源存储表达；`supportsControlBlockStorage()`、`supportsDetachedResources()`反映实际能力。永久单次启动属于使用方策略。FreeRTOS完成信号之后仍须等任务离开CPU并由owner回收，ESP保留静态TCB回收同步；RTThread/Zephyr不支持的资源模式显式拒绝。
+
+`Semaphore`是唯一计数唤醒原语。`DeferredInit`构造不取得资源，open/release/close反馈错误，waitForMs区分kAcquired/kTimeout/kError，maxCount给出实际配置上限；close/init须在无并发使用者时执行。Linux后端使用原生sem与单调期限，其他POSIX维持可移植等待；CMSIS/ESP按实际内核能力实现。ISR资格与测量资格仍独立检查。
+
+`Chrono`的TimePoint仍为32位后端tick，绝对等待要求同域及半圈约束。steadyNs单独提供真实64位单调纳秒，失败返回0；wallTimeUs/threadCpuTimeUs以bool反馈读取结果，失败不覆盖输出。未具备可靠来源的后端报告不支持，不能通过tick乘常数伪造精度。原有频率、epoch和measurement有效性规则保持。
+
+字节输出、文件与文件系统分别使用`ByteOutput`、`File`、`FileSystem`，数量及IoResult一起检查；时钟不再属于I/O对象。描述符绑定、标准输入、信号与进程退出放在明确native port中，不进入通用接口。短写、背压和部分失败需要调用方处理；文件sync不等于同步父目录。
+
+`DP_OSAL_ENABLE_MEASUREMENT`默认OFF，通过唯一dp_osal_build_config传播0/1；同一进程所有对象配置一致，不在单TU手写宏。编译关闭时不读取采样时钟，诊断返回disabled/invalid；开启后仍检查时间域、频率、epoch、溢出与ISR覆盖。线程快照返回0表示本次无样本，不能解释为无线程或无界重试。
+
+CORE不保留旧实现切换、旧门面或旧头转发。HAL仅提供硬件机制；通信Profile/provider/会话身份合同由dp_comm_lite拥有。Device公开头使用OSAL Mutex，因此OSAL依赖公开传播；注册表保存借用指针，对象寿命和操作串行化由使用方保证。
+
+详见[正式资源与I/O契约](dp_osal/docs/formal_contracts.md)。SDK分发者必须记录正式合同revision=2和measurement配置，拒绝旧前缀/旧归档混用；archive-only SDK不安装OSAL源码头。
 
 ### 后端模型
 

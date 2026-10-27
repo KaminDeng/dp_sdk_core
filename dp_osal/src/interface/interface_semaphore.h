@@ -2,8 +2,10 @@
  * @file interface_semaphore.h
  * @brief 计数信号量 CRTP 接口及等待/唤醒统计入口。
  * @details wait/signal 的 void 返回不暴露后端错误，测量记录不能替代业务成功确认。
- * signalFromIsr 表达调用用途，是否可在真实 ISR 使用必须由后端保证；
- * POSIX 模拟实现仍使用 std::mutex，不具有 MCU ISR/异步信号安全能力。
+ * release/waitForMs/open/close 提供受检结果，原有便捷调用仍可丢弃错误。
+ * signalFromIsr 的真实 ISR 可用性由后端保证；Linux使用sem_post及无锁计数，
+ * 其它POSIX保留mutex/CV且不支持真实ISR/异步signal，
+ * 但measurement路径仍须满足来源与原子操作的上下文要求。
  */
 #ifndef DP_OSAL_INTERFACE_SEMAPHORE_H_
 #define DP_OSAL_INTERFACE_SEMAPHORE_H_
@@ -14,11 +16,40 @@
 
 namespace dp::osal {
 
+enum class WaitResult : uint8_t { kAcquired, kTimeout, kError };
+
 /** @brief 将信号量操作静态绑定到后端。
  * @tparam Impl 提供 doWait/doSignal 等实现的具体类型。 */
 template <typename Impl>
 class SemaphoreBase {
 public:
+    /** @brief 显式初始化；max=0使用后端声明上限，重复open失败。 */
+    bool open(uint32_t initial = 0U, uint32_t maximum = 0U) noexcept { return impl().doOpen(initial, maximum); }
+    /** @brief 无并发使用者时释放；关闭后不能再发送/等待。 */
+    bool close() noexcept { return impl().doClose(); }
+    /** @brief checked发送，满计数/未初始化/后端错误均失败。 */
+    bool release() noexcept {
+        const bool result = impl().doRelease();
+#if DP_OSAL_ENABLE_MEASUREMENT
+        if (Measurement::enabled()) Measurement::record_signal(false);
+#endif
+        return result;
+    }
+    /** @brief 同一单调期限内等待，毫秒单位；超时与后端错误分开。 */
+    WaitResult waitForMs(uint32_t milliseconds) noexcept {
+#if DP_OSAL_ENABLE_MEASUREMENT
+        if (Measurement::enabled()) {
+            const auto started = detail::measurementNow();
+            const auto result = impl().doWaitForMs(milliseconds);
+            detail::MeasurementAccess::recordWait(SynchronizationKind::kWake, started, detail::measurementNow(),
+                                                  result == WaitResult::kAcquired);
+            return result;
+        }
+#endif
+        return impl().doWaitForMs(milliseconds);
+    }
+    uint32_t maxCount() const noexcept { return impl().doMaxCount(); }
+
     /**
      * @brief 等待并由后端尝试消费一个令牌，返回后记录唤醒类调用时长。
      * @note 本 void 包装向统计层传 true，即使后端仅打印了错误也无法由此判断成功。
@@ -42,7 +73,7 @@ public:
 #if DP_OSAL_ENABLE_MEASUREMENT
         if (Measurement::enabled()) {
             impl().doSignal();
-            Measurement::record_signal(false); // 记录前再次检查开关，允许在途关闭后丢弃。
+            Measurement::record_signal(false);  // 记录前再次检查开关，允许在途关闭后丢弃。
             return;
         }
 #endif
@@ -73,7 +104,8 @@ public:
         if (Measurement::enabled()) {
             const auto started = detail::measurementNow();
             const bool result = impl().doTryWait();
-            detail::MeasurementAccess::recordWait(SynchronizationKind::kWake, started, detail::measurementNow(), result);
+            detail::MeasurementAccess::recordWait(SynchronizationKind::kWake, started, detail::measurementNow(),
+                                                  result);
             return result;
         }
 #endif
@@ -89,7 +121,8 @@ public:
         if (Measurement::enabled()) {
             const auto started = detail::measurementNow();
             const bool result = impl().doTryWaitFor(timestamp);
-            detail::MeasurementAccess::recordWait(SynchronizationKind::kWake, started, detail::measurementNow(), result);
+            detail::MeasurementAccess::recordWait(SynchronizationKind::kWake, started, detail::measurementNow(),
+                                                  result);
             return result;
         }
 #endif
@@ -126,6 +159,6 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif  // DP_OSAL_INTERFACE_SEMAPHORE_H_

@@ -34,6 +34,13 @@ public:
      */
     using Duration = double;
 
+    /** @brief 实际64位单调纳秒，零表示能力/时钟不可用；不由32位tick扩展。 */
+    [[nodiscard]] static uint64_t steadyNs() noexcept { return Impl::doSteadyNs(); }
+    /** @brief Unix墙钟微秒，可跳变；失败不改变输出。 */
+    static bool wallTimeUs(uint64_t *value) noexcept { return Impl::doWallTimeUs(value); }
+    /** @brief 当前线程CPU微秒；无可靠源时明确失败，不替换为墙钟。 */
+    static bool threadCpuTimeUs(uint64_t *value) noexcept { return Impl::doThreadCpuTimeUs(value); }
+
     /**
      * @brief 获取当前后端 tick。
      * @return 从后端起点累计的 32 位值，长期运行会回绕。
@@ -102,7 +109,7 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif /* DP_OSAL_ENABLE_CHRONO */
 

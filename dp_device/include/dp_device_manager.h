@@ -23,7 +23,9 @@ using DeviceForEachCallback = void (*)(Device *dev, void *ctx);
 /** @brief  Thread-safe singleton device registry.
  *
  *  Holds a fixed-size array of Device pointers (no heap allocation).
- *  All public methods are protected by an OSAL mutex. */
+ *  注册表修改与查找由 OSAL mutex 保护，Device 本身的生命周期操作由调用方串行化。
+ *  注册表借用 Device 指针，设备须在注册及全部借用访问期间存活。
+ *  find 返回后的指针不受注册表锁保护；forEach 回调持锁执行，不可重入注册表。 */
 class DeviceManager {
 public:
     /** @brief  Maximum number of simultaneously registered devices. */

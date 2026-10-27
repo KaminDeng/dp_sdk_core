@@ -4,7 +4,7 @@
  * @details I*定义可替换虚接口，*Virtual持有外部Impl引用，再将调用转发到原具体对象。
  * 增加虚表间接调用，不取得Impl所有权、不额外加锁、不修改错误结果或时间单位。
  * 后端和借用上下文必须覆盖适配器使用期；std::function按值转发可能复制并分配资源。
- * 这是当前列出的可选接口子集，不包含Thread raw/owned、Queue trySend或全部新增测量/Host接口。
+ * 这是当前列出的可选接口子集，不包含Thread finalizer/控制资源、Queue trySend或全部新增测量/Host接口。
  * 功能宏会裁剪对应类型，消费者必须使用一致配置；生产路径优先直接使用具体CRTP类型。
  */
 #ifndef DP_OSAL_VIRTUAL_H_
@@ -108,7 +108,7 @@ public:
     bool tryLockFor(uint32_t timeout_ms) override { return impl_.tryLockFor(timeout_ms); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 
 /**
@@ -214,7 +214,7 @@ public:
     void init(int initialValue) override { impl_.init(initialValue); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 
 /**
@@ -369,7 +369,7 @@ public:
     int getPriority() const override { return impl_.getPriority(); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 
 /**
@@ -483,7 +483,7 @@ public:
     void clear() override { impl_.clear(); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 
 #if DP_OSAL_ENABLE_RW_LOCK
@@ -633,7 +633,7 @@ public:
     bool isWriteLocked() const override { return impl_.isWriteLocked(); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 #endif
 
@@ -728,7 +728,7 @@ public:
     bool isLocked() const override { return impl_.isLocked(); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 #endif
 
@@ -825,7 +825,7 @@ public:
     int getWaitCount() const override { return impl_.getWaitCount(); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 #endif
 
@@ -845,7 +845,7 @@ public:
      * @param interval_ms 间隔数值，形参名为毫秒但此层不做后端tick转换。
      * @param periodic 是否请求周期触发。
      * @param callback 按值传递的回调，复制可能分配；执行线程/ISR上下文由后端规定。
-     * @note 这是OS软件定时器包装，与无后台线程的StaticTimer不同。
+     * @note 这是OS软件定时器包装，回调由后端软件定时器执行上下文调用。
      * @details 纯虚契约，实际执行及错误处理由派生实现提供。
      */
     virtual void start(uint32_t interval_ms, bool periodic, std::function<void()> callback) = 0;
@@ -894,7 +894,7 @@ public:
      * @param interval_ms 间隔数值，形参名为毫秒但此层不做后端tick转换。
      * @param periodic 是否请求周期触发。
      * @param callback 按值传递的回调，复制可能分配；执行线程/ISR上下文由后端规定。
-     * @note 这是OS软件定时器包装，与无后台线程的StaticTimer不同。
+     * @note 这是OS软件定时器包装，回调由后端软件定时器执行上下文调用。
      * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
      */
     void start(uint32_t interval_ms, bool periodic, std::function<void()> callback) override {
@@ -926,7 +926,7 @@ public:
     void reset() override { impl_.reset(); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 #endif
 
@@ -1078,7 +1078,9 @@ public:
      * @param stack_size 后端栈大小请求，单位及默认由Impl规定。
      * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
      */
-    void start(uint32_t num_threads, int priority, int stack_size) override { impl_.start(num_threads, priority, stack_size); }
+    void start(uint32_t num_threads, int priority, int stack_size) override {
+        impl_.start(num_threads, priority, stack_size);
+    }
     /**
      * @brief 请求停止池，任务排空/取消/等待策略由Impl保证。
      * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
@@ -1162,7 +1164,9 @@ public:
      * @param callback 按值传递的回调，触发上下文、参数内容与存活期按Impl契约。
      * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
      */
-    void setTaskFailureCallback(std::function<void(void *)> callback) override { impl_.setTaskFailureCallback(callback); }
+    void setTaskFailureCallback(std::function<void(void *)> callback) override {
+        impl_.setTaskFailureCallback(callback);
+    }
     /**
      * @brief 请求配置线程数上限。
      * @param max_threads 后端接受的上限值，与最小值的一致性由实现约束。
@@ -1189,7 +1193,7 @@ public:
     uint32_t getMinThreads() const override { return impl_.getMinThreads(); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 #endif
 
@@ -1200,8 +1204,8 @@ private:
  */
 class IChrono {
 public:
-    using TimePoint = uint32_t; ///< 可回绕的后端原生tick，频率由ticksPerSecond报告。
-    using Duration = double; ///< elapsed返回的浮点秒数。
+    using TimePoint = uint32_t;  ///< 可回绕的后端原生tick，频率由ticksPerSecond报告。
+    using Duration = double;     ///< elapsed返回的浮点秒数。
 
     /**
      * @brief 虚析构支持经接口指针销毁派生适配器或Mock，资源清理由派生类负责。
@@ -1322,7 +1326,7 @@ public:
     std::string to_string(const TimePoint &time_point) const override { return impl_.to_string(time_point); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 #endif
 
@@ -1460,7 +1464,7 @@ public:
 #endif
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 
 #if DP_OSAL_ENABLE_MEMORY_MANAGER
@@ -1541,7 +1545,9 @@ public:
      * @return 实现报告初始化成功为true。
      * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
      */
-    bool initialize(size_t block_size, size_t block_count) override { return impl_.initialize(block_size, block_count); }
+    bool initialize(size_t block_size, size_t block_count) override {
+        return impl_.initialize(block_size, block_count);
+    }
     /**
      * @brief 请求分配内存。
      * @param size 请求字节数。
@@ -1580,10 +1586,10 @@ public:
     size_t getAllocatedSize() const override { return impl_.getAllocatedSize(); }
 
 private:
-    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
+    Impl &impl_;  ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 #endif
 
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif  // DP_OSAL_VIRTUAL_H_

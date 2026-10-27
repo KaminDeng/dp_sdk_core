@@ -13,6 +13,11 @@
 #include <exception>
 #endif
 
+#ifdef DPSDK_MCU_FIRMWARE
+#include "FreeRTOS.h"
+#include "task.h"
+#endif
+
 namespace dp::osal {
 
 /* Thrown by System::sleep_ms() when the current thread's stop flag is set.
@@ -21,7 +26,7 @@ namespace dp::osal {
  * thrown; stop() relies on cooperative task exit instead. */
 #if defined(__cpp_exceptions) || defined(__EXCEPTIONS)
 struct CmsisThreadStopException : public std::exception {
-    const char *what() const noexcept override { return "Thread (CMSIS-OS): stop requested"; }
+    const char* what() const noexcept override { return "Thread (CMSIS-OS): stop requested"; }
 };
 #else
 struct CmsisThreadStopException {};
@@ -34,8 +39,6 @@ struct CmsisThreadStopException {};
  * Thread-local pointer to the running Thread's stop flag.
  * Set by taskRunner() before calling the user function; cleared on exit.
  * sleep_ms() reads this to detect stop requests.                            */
-#include "FreeRTOS.h"
-#include "task.h"
 
 /** @brief Get the current task's stop flag pointer from FreeRTOS TLS slot 0. */
 inline std::atomic<bool>* osal_cmsis_stop_flag_get() {
@@ -43,19 +46,17 @@ inline std::atomic<bool>* osal_cmsis_stop_flag_get() {
 }
 
 /** @brief Set the current task's stop flag pointer in FreeRTOS TLS slot 0. */
-inline void osal_cmsis_stop_flag_set(std::atomic<bool>* p) {
-    vTaskSetThreadLocalStoragePointer(nullptr, 0, p);
-}
+inline void osal_cmsis_stop_flag_set(std::atomic<bool>* p) { vTaskSetThreadLocalStoragePointer(nullptr, 0, p); }
 
 #else
 /* POSIX/desktop: C++ inline thread_local — exact same semantics. */
-inline thread_local std::atomic<bool> *tl_cmsis_stop_flag_storage = nullptr;
+inline thread_local std::atomic<bool>* tl_cmsis_stop_flag_storage = nullptr;
 
 inline std::atomic<bool>* osal_cmsis_stop_flag_get() { return tl_cmsis_stop_flag_storage; }
 inline void osal_cmsis_stop_flag_set(std::atomic<bool>* p) { tl_cmsis_stop_flag_storage = p; }
 
 /* Backward-compat alias for any code that still uses the old name. */
-inline thread_local std::atomic<bool> *&tl_cmsis_stop_flag = tl_cmsis_stop_flag_storage;
+inline thread_local std::atomic<bool>*& tl_cmsis_stop_flag = tl_cmsis_stop_flag_storage;
 #endif
 
-} // namespace dp::osal
+}  // namespace dp::osal

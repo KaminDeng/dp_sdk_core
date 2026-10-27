@@ -89,8 +89,7 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreBlockingWait) {
     System::getInstance().sleep_ms(100);
     EXPECT_FALSE(consumerDone.load());  // still blocking
 
-    producer.start(
-        "Producer", [&](void *) { semaphore.signal(); }, nullptr, 0, 2048);
+    producer.start("Producer", [&](void *) { semaphore.signal(); }, nullptr, 0, 2048);
 
     consumer.join();
     producer.join();
@@ -158,6 +157,30 @@ TEST(OSALSemaphoreTest, TestOSALSemaphoreReinit) {
     EXPECT_EQ(semaphore.getValue(), 0);
     semaphore.signal();
     EXPECT_EQ(semaphore.getValue(), 1);
+#else
+    GTEST_SKIP();
+#endif
+}
+TEST(OSALSemaphoreTest, CheckedLifecycleAndExplicitMaximum) {
+#if (DP_OSAL_TEST_SEMAPHORE_ENABLED || DP_OSAL_TEST_ALL)
+    Semaphore semaphore{Semaphore::DeferredInit{}};
+    EXPECT_FALSE(semaphore.release());
+    EXPECT_EQ(semaphore.waitForMs(0U), WaitResult::kError);
+    EXPECT_FALSE(semaphore.open(3U, 2U));
+    ASSERT_TRUE(semaphore.open(1U, 2U));
+    EXPECT_EQ(semaphore.maxCount(), 2U);
+    EXPECT_FALSE(semaphore.open());
+    EXPECT_TRUE(semaphore.release());
+    EXPECT_FALSE(semaphore.release());
+    EXPECT_EQ(semaphore.waitForMs(0U), WaitResult::kAcquired);
+    EXPECT_EQ(semaphore.waitForMs(0U), WaitResult::kAcquired);
+    EXPECT_EQ(semaphore.waitForMs(0U), WaitResult::kTimeout);
+    EXPECT_TRUE(semaphore.close());
+    EXPECT_TRUE(semaphore.close());
+    EXPECT_FALSE(semaphore.release());
+    EXPECT_EQ(semaphore.waitForMs(0U), WaitResult::kError);
+    EXPECT_TRUE(semaphore.open());
+    EXPECT_TRUE(semaphore.close());
 #else
     GTEST_SKIP();
 #endif

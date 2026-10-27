@@ -14,6 +14,7 @@
 // ═══════════════════════════════════════════════════════════════════════════════
 // #define DP_OSAL_BACKEND_POSIX
 #define DP_OSAL_BACKEND_CMSIS_OS
+#define DP_OSAL_PORT_FREERTOS_THREAD_LIFECYCLE 1
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Section 2: Platform Includes
@@ -47,7 +48,7 @@
 // Keep this in the FreeRTOS port instead of OSAL core.
 #ifndef DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID
 #if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1)
-#define DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (*reinterpret_cast<uint32_t *>(thread_id))
+#define DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (*reinterpret_cast<uint32_t*>(thread_id))
 #else
 #define DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (0U)
 #endif
@@ -122,16 +123,16 @@ inline void osal_port_debug_write(const char* buf, uint32_t len) {
 #define DP_OSAL_TEST_CONDITION_VARIABLE_ENABLED 1  // all condition variable tests enabled
 #define DP_OSAL_TEST_LOCKGUARD_ENABLED 1           // all lockguard tests enabled
 #define DP_OSAL_TEST_MEMORY_MANAGER_ENABLED \
-    1                                    // all memory manager tests enabled
-                                         // (GetAllocatedSize was 0 in old format;
-                                         //  per-case control now requires GTEST_SKIP)
+    1                                       // all memory manager tests enabled
+                                            // (GetAllocatedSize was 0 in old format;
+                                            //  per-case control now requires GTEST_SKIP)
 #define DP_OSAL_TEST_QUEUE_ENABLED 1        // all queue tests enabled
 #define DP_OSAL_TEST_SEMAPHORE_ENABLED 1    // all semaphore tests enabled
 #define DP_OSAL_TEST_THREAD_POOL_ENABLED 1  // all thread pool tests enabled
 #define DP_OSAL_TEST_TIMER_ENABLED 1        // all timer tests enabled
 #define DP_OSAL_TEST_RWLOCK_ENABLED \
-    1                                 // all rwlock tests enabled
-                                      // (GetReadLockCount=0, IsWriteLocked=0 in old
-                                      //  format; per-case control now requires GTEST_SKIP)
+    1                                    // all rwlock tests enabled
+                                         // (GetReadLockCount=0, IsWriteLocked=0 in old
+                                         //  format; per-case control now requires GTEST_SKIP)
 #define DP_OSAL_TEST_SPINLOCK_ENABLED 1  // all spinlock tests enabled
 #endif

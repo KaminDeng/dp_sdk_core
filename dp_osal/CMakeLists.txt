@@ -32,7 +32,6 @@ option(DP_OSAL_ENABLE_CHRONO         "高精度时钟"      ON)
 option(DP_OSAL_ENABLE_MEMORY_MANAGER "OSAL 内存管理"   ON)
 option(DP_OSAL_ENABLE_THREAD_SNAPSHOT  "线程快照（top）"  ON)
 option(DP_OSAL_STATIC_ALLOC          "静态分配模式"    OFF)
-option(DP_OSAL_ENABLE_LEGACY_COMPAT "旧接口兼容装配" OFF)
 option(DP_OSAL_ENABLE_MEASUREMENT    "同步测量" OFF)
 option(DP_OSAL_BUILD_HOST_TESTS      "Build standalone host OSAL tests" OFF)
 
@@ -93,7 +92,7 @@ file(GLOB_RECURSE GTEST_SUITE_SOURCES "${GOOGLETEST_SUITE_PATH}/*.cpp")
 set(_osal_single_tu_tests
     chrono chrono_deadline condition_variable lockguard memory_manger mutex queue rwlock semaphore
     spin_lock thread thread_pool timer virtual_injection runtime_measurement measurement_detail
-    contract_compat snapshot_detail realtime_thread static_timer host_io)
+    contract snapshot_detail thread_start host_io)
 foreach(_suite IN LISTS _osal_single_tu_tests)
     list(FILTER GTEST_SUITE_SOURCES EXCLUDE REGEX "/gtest_${_suite}\\.cpp$")
 endforeach()
@@ -113,15 +112,16 @@ add_library(dp_osal STATIC
 # 同一进程的库、独立测试与消费者共享唯一0/1配置来源。
 add_library(dp_osal_build_config INTERFACE)
 target_compile_definitions(dp_osal_build_config INTERFACE
-    DP_OSAL_ENABLE_MEASUREMENT=$<BOOL:${DP_OSAL_ENABLE_MEASUREMENT}>
-    DP_OSAL_ENABLE_LEGACY_COMPAT=$<BOOL:${DP_OSAL_ENABLE_LEGACY_COMPAT}>)
-foreach(_cap IN ITEMS LEGACY_COMPAT MEASUREMENT)
+    DP_OSAL_ENABLE_MEASUREMENT=$<BOOL:${DP_OSAL_ENABLE_MEASUREMENT}>)
+foreach(_cap IN ITEMS MEASUREMENT)
     set_property(TARGET dp_osal_build_config PROPERTY
         INTERFACE_DP_OSAL_CONFIG_${_cap} "${DP_OSAL_ENABLE_${_cap}}")
     set_property(TARGET dp_osal_build_config APPEND PROPERTY
         COMPATIBLE_INTERFACE_BOOL DP_OSAL_CONFIG_${_cap})
 endforeach()
 target_link_libraries(dp_osal PUBLIC dp_osal_build_config)
+set_property(TARGET dp_osal_build_config PROPERTY INTERFACE_DP_OSAL_CONTRACT_REVISION 2)
+set_property(TARGET dp_osal_build_config APPEND PROPERTY COMPATIBLE_INTERFACE_STRING DP_OSAL_CONTRACT_REVISION)
 
 # ── Include directories ────────────────────────────────────────────────────────
 # DP_OSAL_PORT_DIR is PUBLIC so downstream targets can also see dp_osal_port.h
@@ -140,21 +140,6 @@ target_include_directories(dp_osal
         "${CMAKE_CURRENT_SOURCE_DIR}/test"
         "${CMAKE_CURRENT_SOURCE_DIR}/${GOOGLETEST_SUITE_PATH}"
 )
-
-# 核心内部兼容测试可见私有路径；只有显式target向消费者公开，禁止反向链接形成环。
-if(DP_OSAL_ENABLE_LEGACY_COMPAT)
-    set(_osal_compat_includes "${CMAKE_CURRENT_SOURCE_DIR}/compat/include"
-        "${CMAKE_CURRENT_SOURCE_DIR}/compat/interface")
-    if(_osal_backend STREQUAL "posix" OR _osal_backend STREQUAL "cmsis_os")
-        list(APPEND _osal_compat_includes "${CMAKE_CURRENT_SOURCE_DIR}/compat/${_osal_backend}")
-    else()
-        list(APPEND _osal_compat_includes "${CMAKE_CURRENT_SOURCE_DIR}/compat/template")
-    endif()
-    target_include_directories(dp_osal PRIVATE ${_osal_compat_includes})
-    add_library(dp_osal_legacy_compat INTERFACE)
-    target_link_libraries(dp_osal_legacy_compat INTERFACE dp_osal)
-    target_include_directories(dp_osal_legacy_compat INTERFACE ${_osal_compat_includes})
-endif()
 
 # ── Dependencies ───────────────────────────────────────────────────────────────
 # gtest is always linked (test sources always compiled).
@@ -200,24 +185,23 @@ int main() { return puts(\"probe\") < 0; }" _osal_gnu_wrap_links)
             set(DP_OSAL_HOST_HAS_GNU_WRAP TRUE)
         endif()
     endif()
-    if(DP_OSAL_ENABLE_LEGACY_COMPAT)
-        add_executable(dp_osal_legacy_host_tests
-            test/dp_osal_legacy_host_test_main.cpp test/dp_osal_host_console_stub.cpp)
-        target_link_libraries(dp_osal_legacy_host_tests PRIVATE dp_osal_legacy_compat gtest)
+        add_executable(dp_osal_thread_host_tests
+            test/dp_osal_thread_host_test_main.cpp test/dp_osal_host_console_stub.cpp)
+        target_link_libraries(dp_osal_thread_host_tests PRIVATE dp_osal gtest)
         if(BUILD_TESTING)
-            add_test(NAME dp_osal_legacy_host_tests COMMAND dp_osal_legacy_host_tests)
+            add_test(NAME dp_osal_thread_host_tests COMMAND dp_osal_thread_host_tests)
         endif()
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             add_executable(dp_osal_host_io_tests
                 test/dp_osal_host_io_test_main.cpp test/dp_osal_host_console_stub.cpp)
-            target_link_libraries(dp_osal_host_io_tests PRIVATE dp_osal_legacy_compat gtest)
+            target_link_libraries(dp_osal_host_io_tests PRIVATE dp_osal gtest)
             if(BUILD_TESTING)
                 add_test(NAME dp_osal_host_io_tests COMMAND dp_osal_host_io_tests)
             endif()
             if(DP_OSAL_HOST_HAS_GNU_WRAP)
                 add_executable(dp_osal_owned_thread_host_tests
                     test/dp_osal_owned_thread_host_tests.cpp test/dp_osal_host_console_stub.cpp)
-                target_link_libraries(dp_osal_owned_thread_host_tests PRIVATE dp_osal_legacy_compat)
+                target_link_libraries(dp_osal_owned_thread_host_tests PRIVATE dp_osal)
                 target_compile_options(dp_osal_owned_thread_host_tests PRIVATE -UNDEBUG -fno-exceptions -fno-rtti)
                 target_link_options(dp_osal_owned_thread_host_tests PRIVATE -Wl,--wrap=pthread_create)
                 if(BUILD_TESTING)
@@ -225,17 +209,20 @@ int main() { return puts(\"probe\") < 0; }" _osal_gnu_wrap_links)
                 endif()
                 add_executable(dp_osal_host_io_fault_tests
                     test/dp_osal_host_io_fault_tests.cpp test/dp_osal_host_console_stub.cpp)
-                target_link_libraries(dp_osal_host_io_fault_tests PRIVATE dp_osal_legacy_compat gtest)
+                target_link_libraries(dp_osal_host_io_fault_tests PRIVATE dp_osal gtest)
                 target_link_options(dp_osal_host_io_fault_tests PRIVATE
                     -Wl,--wrap=sem_init -Wl,--wrap=sem_destroy -Wl,--wrap=sem_clockwait
-                    -Wl,--wrap=clock_gettime -Wl,--wrap=poll -Wl,--wrap=read -Wl,--wrap=signal)
+                    -Wl,--wrap=clock_gettime -Wl,--wrap=poll -Wl,--wrap=read -Wl,--wrap=signal
+                    -Wl,--wrap=write -Wl,--wrap=pread -Wl,--wrap=pwrite -Wl,--wrap=fsync
+                    -Wl,--wrap=close -Wl,--wrap=pthread_sigmask
+                    -Wl,--wrap=__poll_chk -Wl,--wrap=__read_chk -Wl,--wrap=__pread_chk)
                 if(BUILD_TESTING)
                     add_test(NAME dp_osal_host_io_fault_tests COMMAND dp_osal_host_io_fault_tests)
                 endif()
                 # 同源异常开启对照，不继承no-exceptions目标的编译选项。
                 add_executable(dp_osal_owned_thread_exceptions_host_tests
                     test/dp_osal_owned_thread_host_tests.cpp test/dp_osal_host_console_stub.cpp)
-                target_link_libraries(dp_osal_owned_thread_exceptions_host_tests PRIVATE dp_osal_legacy_compat)
+                target_link_libraries(dp_osal_owned_thread_exceptions_host_tests PRIVATE dp_osal)
                 target_compile_options(dp_osal_owned_thread_exceptions_host_tests PRIVATE -UNDEBUG -fexceptions)
                 target_link_options(dp_osal_owned_thread_exceptions_host_tests PRIVATE -Wl,--wrap=pthread_create)
                 if(BUILD_TESTING)
@@ -244,7 +231,6 @@ int main() { return puts(\"probe\") < 0; }" _osal_gnu_wrap_links)
                 endif()
             endif()
         endif()
-    endif()
     add_executable(dp_osal_contract_host_tests
         test/dp_osal_contract_host_test_main.cpp test/dp_osal_host_console_stub.cpp)
     target_link_libraries(dp_osal_contract_host_tests PRIVATE dp_osal gtest)

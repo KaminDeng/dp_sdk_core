@@ -1,132 +1,265 @@
-/**
- * @file dp_osal_semaphore.h
- * @brief 以互斥锁、条件变量及整数计数实现的 POSIX 计数信号量。
- * @details 等待与发送由 SemaphoreBase 包装计时，本文件负责底层资源与计数。
- * 相对超时按毫秒解释；signalFromIsr 仍使用 std::mutex，不可在硬件 ISR 或异步信号处理器调用。
- * 销毁、重设计数须由调用者与所有使用者协调，不能在等待线程仍使用资源时销毁。
- */
-//
-// Created by kamin.deng on 2024/8/23.
-//
-#ifndef DP_OSAL_POSIX_SEMAPHORE_H_
-#define DP_OSAL_POSIX_SEMAPHORE_H_
-
-#include <chrono>
-#include <condition_variable>
-#include <mutex>
-
+/** @file dp_osal_semaphore.h
+ * @brief POSIX计数信号量；Linux显式单调期限，发送不取得用户mutex。
+ * 默认构造保持既有正式API零初值自动初始化；DeferredInit构造不取得资源。
+ * close/init必须与全部使用者协调，不允许销毁仍被等待的资源。 */
+#pragma once
 #include "interface_semaphore.h"
-#include "dp_osal_debug.h"
-
+#include <atomic>
+#include <cerrno>
+#include <climits>
+#include <ctime>
+#include <limits>
+#if defined(__linux__)
+#include <semaphore.h>
+#else
+#include <pthread.h>
+#endif
 namespace dp::osal {
-
-/**
- * @brief 主机计数信号量，令牌数保存在受 mutex 保护的 int 中。
- */
+#if defined(__linux__)
 class Semaphore : public SemaphoreBase<Semaphore> {
     friend class SemaphoreBase<Semaphore>;
 
 public:
-    /**
-     * @brief 以零令牌构造主机对象，不预先唤醒任何线程。
-     */
-    Semaphore() : count_(0) { DP_OSAL_LOGD("Semaphore initialized\n"); }
-
-    /**
-     * @brief 销毁主机成员并输出调试日志，调用者须保证没有等待者/并发使用者。
-     */
-    ~Semaphore() { DP_OSAL_LOGD("Semaphore destroyed\n"); }
+    struct DeferredInit {};
+    Semaphore() noexcept { (void)doOpen(0U, 0U); }
+    explicit Semaphore(DeferredInit) noexcept {}
+    ~Semaphore() { (void)doClose(); }
+    Semaphore(const Semaphore&) = delete;
+    Semaphore& operator=(const Semaphore&) = delete;
 
 private:
-    /**
-     * @brief 等待谓词 count_>0 成立后消费一枚令牌，循环谓词屏蔽虚假唤醒。
-     */
-    void doWait() {
-        std::unique_lock<std::mutex> lock(mutex_);
-        cond_.wait(lock, [this]() { return count_ > 0; });
+    bool doOpen(uint32_t initial, uint32_t maximum) noexcept {
+        if (opened_) return false;
+        const uint32_t limit = static_cast<uint32_t>(SEM_VALUE_MAX);
+        if (maximum == 0U) maximum = limit;
+        if (maximum > limit || initial > maximum) return false;
+        if (::sem_init(&semaphore_, 0, initial) != 0) return false;
+        maximum_ = maximum;
+        credits_.store(initial, std::memory_order_relaxed);
+        opened_ = true;
+        return true;
+    }
+    bool doClose() noexcept {
+        if (!opened_) return true;
+        opened_ = false;
+        return ::sem_destroy(&semaphore_) == 0;
+    }
+    bool doRelease() noexcept {
+        if (!opened_) return false;
+        uint32_t count = credits_.load(std::memory_order_relaxed);
+        do {
+            if (count >= maximum_) {
+                errno = EOVERFLOW;
+                return false;
+            }
+        } while (!credits_.compare_exchange_weak(count, count + 1U, std::memory_order_relaxed));
+        if (::sem_post(&semaphore_) == 0) return true;
+        const int error = errno;
+        credits_.fetch_sub(1U, std::memory_order_relaxed);
+        errno = error;
+        return false;
+    }
+    WaitResult consume(int result) noexcept {
+        if (result == 0) {
+            credits_.fetch_sub(1U, std::memory_order_relaxed);
+            return WaitResult::kAcquired;
+        }
+        return errno == ETIMEDOUT || errno == EAGAIN ? WaitResult::kTimeout : WaitResult::kError;
+    }
+    WaitResult doWaitForMs(uint32_t milliseconds) noexcept {
+        if (!opened_) return WaitResult::kError;
+        timespec deadline{};
+        if (::clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) return WaitResult::kError;
+        if (deadline.tv_sec > std::numeric_limits<time_t>::max() - static_cast<time_t>(milliseconds / 1000U) - 1)
+            return WaitResult::kError;
+        deadline.tv_sec += static_cast<time_t>(milliseconds / 1000U);
+        deadline.tv_nsec += static_cast<long>(milliseconds % 1000U) * 1000000L;
+        if (deadline.tv_nsec >= 1000000000L) {
+            ++deadline.tv_sec;
+            deadline.tv_nsec -= 1000000000L;
+        }
+        for (;;) {
+            const int result = ::sem_clockwait(&semaphore_, CLOCK_MONOTONIC, &deadline);
+            if (result == 0 || errno != EINTR) return consume(result);
+            timespec now{};
+            if (::clock_gettime(CLOCK_MONOTONIC, &now) != 0) return WaitResult::kError;
+            if (now.tv_sec > deadline.tv_sec || (now.tv_sec == deadline.tv_sec && now.tv_nsec >= deadline.tv_nsec))
+                return WaitResult::kTimeout;
+        }
+    }
+    void doWait() noexcept {
+        if (!opened_) return;
+        int result;
+        do {
+            result = ::sem_wait(&semaphore_);
+        } while (result != 0 && errno == EINTR);
+        (void)consume(result);
+    }
+    void doSignal() noexcept { (void)doRelease(); }
+    void doSignalFromIsr() noexcept { (void)doRelease(); }
+    bool doTryWait() noexcept { return opened_ && consume(::sem_trywait(&semaphore_)) == WaitResult::kAcquired; }
+    bool doTryWaitFor(uint32_t milliseconds) noexcept { return doWaitForMs(milliseconds) == WaitResult::kAcquired; }
+    int doGetValue() const noexcept { return opened_ ? static_cast<int>(credits_.load(std::memory_order_relaxed)) : 0; }
+    uint32_t doMaxCount() const noexcept { return maximum_; }
+    void doInit(int initial) noexcept {
+        if (initial < 0 || static_cast<uint32_t>(initial) > maximum_) return;
+        if (!opened_) {
+            (void)doOpen(static_cast<uint32_t>(initial), maximum_);
+            return;
+        }
+        for (;;) {
+            if (::sem_trywait(&semaphore_) == 0) continue;
+            if (errno == EINTR) continue;
+            if (errno != EAGAIN) return;
+            break;
+        }
+        credits_.store(0U, std::memory_order_relaxed);
+        for (int i = 0; i < initial; ++i)
+            if (!doRelease()) break;
+    }
+    sem_t semaphore_{};
+    static_assert(std::atomic<uint32_t>::is_always_lock_free, "计数发送要求无锁32位原子");
+    std::atomic<uint32_t> credits_{0U};
+    uint32_t maximum_{static_cast<uint32_t>(SEM_VALUE_MAX)};
+    bool opened_{};
+};
+#else
+/** @brief 非Linux POSIX使用原生mutex/CV；checked初始化不依赖C++异常或堆。 */
+class Semaphore : public SemaphoreBase<Semaphore> {
+    friend class SemaphoreBase<Semaphore>;
+
+public:
+    struct DeferredInit {};
+    Semaphore() noexcept { (void)doOpen(0U, 0U); }
+    explicit Semaphore(DeferredInit) noexcept {}
+    ~Semaphore() { (void)doClose(); }
+    Semaphore(const Semaphore&) = delete;
+    Semaphore& operator=(const Semaphore&) = delete;
+
+private:
+    bool doOpen(uint32_t initial, uint32_t maximum) noexcept {
+        if (opened_) return false;
+        if (maximum == 0U) maximum = INT32_MAX;
+        if (maximum > INT32_MAX || initial > maximum) return false;
+        if (::pthread_mutex_init(&mutex_, nullptr) != 0) return false;
+        pthread_condattr_t attr{};
+        if (::pthread_condattr_init(&attr) != 0) {
+            (void)::pthread_mutex_destroy(&mutex_);
+            return false;
+        }
+#if defined(__APPLE__)
+        const int configured = 0;  // Darwin用原生相对单调等待入口，不使用墙钟绝对期限。
+#else
+        const int configured = ::pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+#endif
+        const int created = configured == 0 ? ::pthread_cond_init(&condition_, &attr) : configured;
+        const int released = ::pthread_condattr_destroy(&attr);
+        if (created != 0 || released != 0) {
+            if (created == 0) (void)::pthread_cond_destroy(&condition_);
+            (void)::pthread_mutex_destroy(&mutex_);
+            return false;
+        }
+        count_ = initial;
+        maximum_ = maximum;
+        opened_ = true;
+        return true;
+    }
+    bool doClose() noexcept {
+        if (!opened_) return true;
+        opened_ = false;
+        const int condition = ::pthread_cond_destroy(&condition_);
+        const int mutex = ::pthread_mutex_destroy(&mutex_);
+        return condition == 0 && mutex == 0;
+    }
+    bool doRelease() noexcept {
+        if (!opened_ || ::pthread_mutex_lock(&mutex_) != 0) return false;
+        bool good = count_ < maximum_;
+        if (good) {
+            ++count_;
+            if (::pthread_cond_signal(&condition_) != 0) {
+                --count_;
+                good = false;
+            }
+        }
+        return ::pthread_mutex_unlock(&mutex_) == 0 && good;
+    }
+    WaitResult doWaitForMs(uint32_t milliseconds) noexcept {
+        if (!opened_) return WaitResult::kError;
+        timespec deadline{};
+        if (::clock_gettime(CLOCK_MONOTONIC, &deadline) != 0) return WaitResult::kError;
+        if (deadline.tv_sec > std::numeric_limits<time_t>::max() - static_cast<time_t>(milliseconds / 1000U) - 1)
+            return WaitResult::kError;
+        deadline.tv_sec += static_cast<time_t>(milliseconds / 1000U);
+        deadline.tv_nsec += static_cast<long>(milliseconds % 1000U) * 1000000L;
+        if (deadline.tv_nsec >= 1000000000L) {
+            ++deadline.tv_sec;
+            deadline.tv_nsec -= 1000000000L;
+        }
+        if (::pthread_mutex_lock(&mutex_) != 0) return WaitResult::kError;
+        const auto finish = [this](WaitResult result) noexcept {
+            return ::pthread_mutex_unlock(&mutex_) == 0 ? result : WaitResult::kError;
+        };
+        while (count_ == 0U) {
+#if defined(__APPLE__)
+            timespec now{};
+            if (::clock_gettime(CLOCK_MONOTONIC, &now) != 0) return finish(WaitResult::kError);
+            if (now.tv_sec > deadline.tv_sec || (now.tv_sec == deadline.tv_sec && now.tv_nsec >= deadline.tv_nsec))
+                return finish(WaitResult::kTimeout);
+            timespec remaining{deadline.tv_sec - now.tv_sec, deadline.tv_nsec - now.tv_nsec};
+            if (remaining.tv_nsec < 0) {
+                --remaining.tv_sec;
+                remaining.tv_nsec += 1000000000L;
+            }
+            const int result = ::pthread_cond_timedwait_relative_np(&condition_, &mutex_, &remaining);
+#else
+            const int result = ::pthread_cond_timedwait(&condition_, &mutex_, &deadline);
+#endif
+            if (result == ETIMEDOUT && count_ == 0U) return finish(WaitResult::kTimeout);
+            if (result != 0 && result != EINTR && result != ETIMEDOUT) return finish(WaitResult::kError);
+        }
         --count_;
-        DP_OSAL_LOGD("Semaphore wait succeeded\n");
+        return finish(WaitResult::kAcquired);
     }
-
-    /**
-     * @brief 持锁增加计数并通知一个条件变量等待者。
-     * @note 没有显式最大值检查，调用者必须避免 int 计数溢出。
-     */
-    void doSignal() {
-        std::lock_guard<std::mutex> lock(mutex_);
-        ++count_;
-        cond_.notify_one();
-        DP_OSAL_LOGD("Semaphore signal succeeded\n");
+    void doWait() noexcept {
+        if (!opened_ || ::pthread_mutex_lock(&mutex_) != 0) return;
+        int result{};
+        while (count_ == 0U && result == 0) result = ::pthread_cond_wait(&condition_, &mutex_);
+        if (result == 0) --count_;
+        (void)::pthread_mutex_unlock(&mutex_);
     }
-
-    /**
-     * @brief 主机兼容入口：仍持 std::mutex 增计数并通知，不是异步信号安全函数。
-     */
-    void doSignalFromIsr() {
-        std::lock_guard<std::mutex> lock(mutex_);
-        ++count_;
-        cond_.notify_one();
+    void doSignal() noexcept { (void)doRelease(); }
+    void doSignalFromIsr() noexcept { (void)doRelease(); }  // 仅线程模拟标签，不支持真实ISR/异步signal。
+    bool doTryWait() noexcept {
+        if (!opened_ || ::pthread_mutex_lock(&mutex_) != 0) return false;
+        const bool acquired = count_ != 0U;
+        if (acquired) --count_;
+        return ::pthread_mutex_unlock(&mutex_) == 0 && acquired;
     }
-
-    /**
-     * @brief 持锁查看计数，非零时消费一枚，不等待未来令牌。
-     * @return 取得令牌为 true，否则 false；获取内部 mutex 本身仍可能等待。
-     */
-    bool doTryWait() {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (count_ > 0) {
-            --count_;
-            DP_OSAL_LOGD("Semaphore tryWait succeeded\n");
-            return true;
+    bool doTryWaitFor(uint32_t milliseconds) noexcept { return doWaitForMs(milliseconds) == WaitResult::kAcquired; }
+    int doGetValue() const noexcept {
+        if (!opened_ || ::pthread_mutex_lock(&mutex_) != 0) return 0;
+        const int count = static_cast<int>(count_);
+        (void)::pthread_mutex_unlock(&mutex_);
+        return count;
+    }
+    uint32_t doMaxCount() const noexcept { return maximum_; }
+    void doInit(int initial) noexcept {
+        if (initial < 0 || static_cast<uint32_t>(initial) > maximum_) return;
+        if (!opened_) {
+            (void)doOpen(static_cast<uint32_t>(initial), maximum_);
+            return;
         }
-        DP_OSAL_LOGD("Semaphore tryWait failed\n");
-        return false;
+        if (::pthread_mutex_lock(&mutex_) != 0) return;
+        count_ = static_cast<uint32_t>(initial);
+        (void)::pthread_mutex_unlock(&mutex_);
     }
-
-    /**
-     * @brief 以 steady_clock 构造相对毫秒期限，条件成立则消费令牌。
-     * @param timestamp 相对等待量，单位为毫秒；不是墙钟或绝对时间戳。
-     * @return 成功消费为 true，期限内无令牌为 false。
-     */
-    bool doTryWaitFor(uint32_t timestamp) {
-        std::unique_lock<std::mutex> lock(mutex_);
-        const auto now = std::chrono::steady_clock::now();
-        if (cond_.wait_until(lock, now + std::chrono::milliseconds(timestamp), [this] { return count_ > 0; })) {
-            --count_;
-            DP_OSAL_LOGD("Semaphore tryWaitFor succeeded\n");
-            return true;
-        }
-        DP_OSAL_LOGD("Semaphore tryWaitFor failed\n");
-        return false;
-    }
-
-    /**
-     * @brief 获取当前令牌计数的瞬时观测。
-     * @return 持锁复制的 int 计数。
-     * @note 读取不预留令牌，并发等待可立即消费该计数。
-     */
-    int doGetValue() const {
-        std::lock_guard<std::mutex> lock(mutex_);
-        DP_OSAL_LOGD("Semaphore value: %d\n", count_);
-        return count_;
-    }
-
-    /**
-     * @brief 持锁把计数直接设成指定初值，不发送条件变量通知。
-     * @param initialValue 目标非负计数，调用者须满足后端范围。
-     * @pre 准备阶段调用，保证没有并发等待、发送或其他重设操作。
-     * @note 本实现没有负值/溢出检查，也不自动唤醒已等待线程。
-     */
-    void doInit(int initialValue) {
-        std::lock_guard<std::mutex> lock(mutex_);
-        count_ = initialValue;
-        DP_OSAL_LOGD("Semaphore initialized with value %d\n", initialValue);
-    }
-    mutable std::mutex mutex_;  ///< 保护 count_，const 查询也需持锁。
-    std::condition_variable cond_;  ///< 令牌可用通知，与 mutex_ 和 count_ 谓词配合。
-    int count_;  ///< 可用令牌数；由调用者避免负值初始量和累加溢出。
+    mutable pthread_mutex_t mutex_{};
+    pthread_cond_t condition_{};
+    uint32_t count_{};
+    uint32_t maximum_{INT32_MAX};
+    bool opened_{};
 };
 
-} // namespace dp::osal
+#endif
 
-#endif  // DP_OSAL_POSIX_SEMAPHORE_H_
+}  // namespace dp::osal

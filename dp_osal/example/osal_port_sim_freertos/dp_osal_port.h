@@ -9,6 +9,7 @@
 // Section 1: Backend Selection
 // ═══════════════════════════════════════════════════════════════════════════════
 #define DP_OSAL_BACKEND_CMSIS_OS
+#define DP_OSAL_PORT_FREERTOS_THREAD_LIFECYCLE 1
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Section 2: Platform Includes
@@ -38,7 +39,7 @@
 // Keep this in the FreeRTOS port instead of OSAL core.
 #ifndef DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID
 #if defined(configUSE_TRACE_FACILITY) && (configUSE_TRACE_FACILITY == 1)
-#define DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (*reinterpret_cast<uint32_t *>(thread_id))
+#define DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (*reinterpret_cast<uint32_t*>(thread_id))
 #else
 #define DP_OSAL_PORT_THREAD_STACK_POINTER_FROM_ID(thread_id) (0U)
 #endif

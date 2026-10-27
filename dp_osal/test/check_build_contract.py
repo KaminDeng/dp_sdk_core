@@ -10,7 +10,7 @@ from pathlib import Path
 import shlex
 import sys
 
-MACROS = ("DP_OSAL_ENABLE_LEGACY_COMPAT", "DP_OSAL_ENABLE_MEASUREMENT")
+MACROS = ("DP_OSAL_ENABLE_MEASUREMENT",)
 
 
 def response_arguments(arguments, directory, stack=()):
@@ -185,12 +185,11 @@ def check(root, requested, expected):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--build-dir", required=True)
-    parser.add_argument("--legacy", choices=("0", "1"), required=True)
     parser.add_argument("--measurement", choices=("0", "1"), required=True)
     parser.add_argument("--targets", nargs="+", required=True)
     args = parser.parse_args()
     try:
-        check(Path(args.build_dir).resolve(), args.targets, (args.legacy, args.measurement))
+        check(Path(args.build_dir).resolve(), args.targets, (args.measurement,))
         return 0
     except (ValueError, KeyError, OSError, TypeError) as error:
         print(f"OSAL构建契约失败：{error}", file=sys.stderr)

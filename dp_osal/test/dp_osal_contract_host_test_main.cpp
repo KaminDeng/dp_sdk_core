@@ -3,11 +3,10 @@
 #include "gtest_runtime_measurement.cpp"
 #include "gtest_measurement_detail.cpp"
 #include "gtest_snapshot_detail.cpp"
-#include "gtest_contract_compat.cpp"
+#include "gtest_contract.cpp"
 int main(int argc, char** argv) {
 #if DP_OSAL_ENABLE_CHRONO
-    if (argc == 2 && std::strcmp(argv[1], "--dp-osal-unsupported-chrono") == 0)
-        return runUnsupportedChronoDefault();
+    if (argc == 2 && std::strcmp(argv[1], "--dp-osal-unsupported-chrono") == 0) return runUnsupportedChronoDefault();
 #endif
     ::testing::InitGoogleTest(&argc, argv);
     ::testing::GTEST_FLAG(death_test_style) = "threadsafe";

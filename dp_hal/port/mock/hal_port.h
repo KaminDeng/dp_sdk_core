@@ -16,7 +16,11 @@
 #include "mock_uart.h"
 #include "mock_pwm.h"
 
+#include "dp_can_async.h"
+
 namespace dp::hal {
+
+using DpCanAsync = UnsupportedCanAsync;  ///< 本 port 尚未实现异步物理能力。
 
 using DpUart = mock::MockUart;
 using DpGpioPin = mock::MockGpioPin;

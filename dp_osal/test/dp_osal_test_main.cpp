@@ -59,7 +59,7 @@ using namespace dp::osal;
 
 /**
  * @brief 打印所选系统后端，初始化本地GTest参数并同步运行OSAL相关套件。
- * @details 不透传进程命令行；固定过滤器包括时钟、同步、线程、静态定时器、虚接口注入及Host I/O。
+ * @details 不透传进程命令行；固定过滤器包括时钟、同步、线程、虚接口注入及字节I/O。
  * 测试是否实际执行须检查每个功能/测试开关及测试报告，不能把注册存在当作已运行。
  */
 extern "C" void dp_osal_test_main(void) {

@@ -18,7 +18,9 @@ static constexpr size_t kDeviceNameMax = 32;
 /** @brief  Base class for all managed devices.
  *
  *  Provides name/type identification and open/close reference counting.
- *  Subclasses override doOpen()/doClose() for hardware-specific behaviour. */
+ *  Subclasses override doOpen()/doClose() for hardware-specific behaviour.
+ *  调用方负责串行化 open/close 及引用计数访问；注册表锁不保护这些操作。
+ *  适配器借用的 HAL 实现必须覆盖设备的全部使用期。 */
 class Device {
 public:
     /** @brief  Construct a named device of the given type.

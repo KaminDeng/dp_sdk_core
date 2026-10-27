@@ -15,6 +15,8 @@
 #if DP_OSAL_ENABLE_CHRONO
 
 #include <chrono>
+#include <limits>
+#include <time.h>
 #include <ctime>
 #include <iomanip>
 #include <sstream>
@@ -42,6 +44,31 @@ public:
     }
 
 private:
+    static bool clockValue(clockid_t clock, uint64_t scale, uint64_t divisor, uint64_t *output) noexcept {
+        if (output == nullptr) return false;
+        timespec value{};
+        if (::clock_gettime(clock, &value) != 0 || value.tv_sec < 0 || value.tv_nsec < 0 ||
+            value.tv_nsec >= 1000000000L)
+            return false;
+        const auto seconds = static_cast<uint64_t>(value.tv_sec);
+        const auto fraction = static_cast<uint64_t>(value.tv_nsec) / divisor;
+        if (seconds > (UINT64_MAX - fraction) / scale) return false;
+        *output = seconds * scale + fraction;
+        return true;
+    }
+    static uint64_t doSteadyNs() noexcept {
+        uint64_t value{};
+        return clockValue(CLOCK_MONOTONIC, UINT64_C(1000000000), 1U, &value) ? value : 0U;
+    }
+    static bool doWallTimeUs(uint64_t *value) noexcept { return clockValue(CLOCK_REALTIME, 1000000U, 1000U, value); }
+    static bool doThreadCpuTimeUs(uint64_t *value) noexcept {
+#if defined(CLOCK_THREAD_CPUTIME_ID)
+        return clockValue(CLOCK_THREAD_CPUTIME_ID, 1000000U, 1000U, value);
+#else
+        (void)value;
+        return false;
+#endif
+    }
     /**
      * @brief 读取 steady_clock 自身 epoch 以来的毫秒并收窄为 uint32_t。
      * @return 可回绕的后端 tick，不是日历时间。
@@ -126,7 +153,7 @@ private:
     Chrono() = default;
 };
 
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif /* DP_OSAL_ENABLE_CHRONO */
 

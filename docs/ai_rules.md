@@ -54,7 +54,7 @@ All test `.cpp` files are `#include`d into a single `*_test_main.cpp` per module
 
 ```
 device  -->  hal  (public)
-device  -->  osal (private, for DeviceManager mutex)
+device  -->  osal (public, DeviceManager公开头使用Mutex)
 hal     -->  (independent, header-only CRTP)
 osal    -->  (POSIX or CMSIS-OS2 backend)
 ```

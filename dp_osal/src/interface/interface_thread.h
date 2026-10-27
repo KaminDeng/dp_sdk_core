@@ -1,94 +1,135 @@
 /**
  * @file interface_thread.h
  * @brief 线程入口、上下文所有权及生命周期操作的 CRTP 约定。
- * @details 兼容raw入口可复用普通启动包装；owned入口另保留checked/noexcept与成功后的恰好一次cleanup。
+ * @details 函数指针、callable与最终清理共用启动/派发；成功清理一次，失败不转移上下文。
  * 基类只转发，不统一后端优先级、栈分配、停止与挂起能力；对象及借用上下文必须
  * 在后端最后一次访问之前存活，不能把 detach 或 isRunning 当作释放内存的同步证明。
  */
 #ifndef DP_OSAL_INTERFACE_THREAD_H_
 #define DP_OSAL_INTERFACE_THREAD_H_
 
-#ifndef DP_OSAL_ENABLE_LEGACY_COMPAT
-#define DP_OSAL_ENABLE_LEGACY_COMPAT 0
-#endif
-
+#include <cstdint>
 #include <functional>
 #include <type_traits>
 #include <utility>
+#include <variant>
 
 namespace dp::osal {
 
-/**
- * @brief 原始线程入口，参数为调用者提供的上下文指针。
- */
-using ThreadEntry = void (*)(void *);
-/**
- * @brief owned 上下文清理入口，不允许抛出异常，在后端不再访问 Thread 后执行。
- */
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-using ThreadCleanup = void (*)(void *) noexcept;
-#endif
+using ThreadEntry = void (*)(void*);
+using ThreadCleanup = void (*)(void*) noexcept;
 
-/** @brief 将线程操作静态绑定到具体后端的基类。
- * @tparam Impl 实现 doStart/doStop 等操作且授予基类访问权限的线程类型。 */
+/** @brief 成功启动后移交的最终清理；失败仍由调用者持有上下文。
+ * cleanup只在后端最后一次对象访问之后执行，不能释放仍执行中的外部栈或TCB。
+ * 入口须正常返回或遵守后端协作停止约定；未捕获的用户异常仍按C++线程规则终止进程。
+ */
+struct ThreadFinalizer {
+    ThreadCleanup cleanup;
+};
+
+/** @brief 原生控制资源视图；存储由调用者持有，不由Thread释放。
+ * Detached不创建连接信号量，调用者负责保证Thread及静态资源覆盖任务整个存活期。
+ * Joinable成功join后才可回收/复用栈和控制块。容量以字节表达。
+ */
+enum class ThreadCompletion : uint8_t { kJoinable, kDetached };
+struct ThreadResources {
+    void* control_block = nullptr;
+    uint32_t control_block_size = 0;
+    void* completion_control_block = nullptr;
+    uint32_t completion_control_block_size = 0;
+    ThreadCompletion completion = ThreadCompletion::kJoinable;
+};
+
+/** @brief 唯一任务存储；函数指针和callable共享存储，不重复维护入口状态。
+ * std::function构造允许分配/抛异常；函数指针及finalizer构造不分配且不抛异常。
+ */
+class ThreadTask {
+public:
+    using Function = std::function<void(void*)>;
+    ThreadTask() noexcept = default;
+    explicit ThreadTask(ThreadEntry entry) noexcept : value_(entry) {}
+    explicit ThreadTask(Function function) noexcept : value_(std::move(function)) {}
+    ThreadTask(ThreadEntry entry, ThreadFinalizer finalizer) noexcept
+        : value_(FinalizedEntry{entry, finalizer.cleanup}) {}
+
+    bool valid() const noexcept {
+        if (const auto* entry = std::get_if<ThreadEntry>(&value_)) return *entry != nullptr;
+        if (const auto* entry = std::get_if<FinalizedEntry>(&value_))
+            return entry->entry != nullptr && entry->cleanup != nullptr;
+        const auto* function = std::get_if<Function>(&value_);
+        return function != nullptr && static_cast<bool>(*function);
+    }
+    ThreadCleanup finalizer() const noexcept {
+        const auto* entry = std::get_if<FinalizedEntry>(&value_);
+        return entry != nullptr ? entry->cleanup : nullptr;
+    }
+    void run(void* context) {
+        if (auto* entry = std::get_if<ThreadEntry>(&value_))
+            (*entry)(context);
+        else if (auto* finalized = std::get_if<FinalizedEntry>(&value_))
+            finalized->entry(context);
+        else if (auto* function = std::get_if<Function>(&value_)) {
+            if (*function) (*function)(context);
+        }
+    }
+    void reset() noexcept { value_.emplace<std::monostate>(); }
+
+private:
+    struct FinalizedEntry {
+        ThreadEntry entry;
+        ThreadCleanup cleanup;
+    };
+    std::variant<std::monostate, ThreadEntry, Function, FinalizedEntry> value_;
+};
+
+/** @brief Thread CRTP正式契约。生命周期操作由同一owner串行调用。
+ * isRunning仅是观测；对象、借用上下文和外部栈至少存活至join/stop完成。
+ */
 template <typename Impl>
 class ThreadBase {
 public:
-    /**
-     * @brief 使用函数指针及借用上下文启动线程，不移交上下文释放责任。
-     * @param[in] name 线程名称；所需存活期/复制方式由后端定义。
-     * @param taskFunction 有效原始入口。
-     * @param taskArgument 借用参数，至少存活至线程最后一次使用。
-     * @param priority 后端优先级编码，零值含义由后端定义。
-     * @param stack_size 请求栈大小，单位及零默认由后端规定，当前 CMSIS 使用字节。
-     * @param pstack 可选调用者栈存储，使用方式及对齐/存活期由后端规定。
-     * @return 原样转发后端整数结果，不统一错误编码或运行中重复 start 的语义。
+    /** @brief 启动普通任务。函数指针直接存储；其它callable显式保存为std::function。
+     * 栈长度以字节表达；零使用后端默认；外部栈须满足端口容量/对齐要求。
+     * 返回0表示成功，非零不接管上下文；重复启动未结束任务返回失败。
      */
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    int startRaw(const char *name, ThreadEntry taskFunction, void *taskArgument, int priority = 0,
-                 int stack_size = 0, void *pstack = nullptr) {
-        return impl().doStartRaw(name, taskFunction, taskArgument, priority, stack_size, pstack);
-    }
-#endif
-
-    /**
-     * @brief 启动带上下文清理责任转移的 raw 线程。
-     * @param[in] name 后端线程名。
-     * @param entry 原始任务入口。
-     * @param context 待移交的上下文，可内嵌当前 Thread 对象。
-     * @param cleanup 非抛出清理回调，成功后由后端在最后一次访问 Thread 之后恰好调用一次。
-     * @param priority 后端优先级编码。
-     * @param stack_size 后端约定的栈大小。
-     * @param stack 可选外部栈存储，生命周期须满足后端要求。
-     * @return 后端启动结果；失败时调用者仍拥有 context 并负责释放。
-     * @note 如果后端没有匹配的 owned raw 能力，实例化走 static_assert，不能靠返回 -1 静默降级。
-     */
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    int startRawOwned(const char* name, ThreadEntry entry, void* context, ThreadCleanup cleanup,
-                      int priority = 0, int stack_size = 0, void* stack = nullptr) noexcept {
-        if constexpr (decltype(supportsOwned<Impl>(0))::value) {
-            return impl().doStartRawOwned(name, entry, context, cleanup, priority, stack_size, stack);
+    template <typename Callable>
+    int start(const char* name, Callable&& callable, void* context = nullptr, int priority = 0, int stack_size = 0,
+              void* stack = nullptr) noexcept(std::is_convertible_v<Callable, ThreadEntry>) {
+        if constexpr (std::is_convertible_v<Callable, ThreadEntry>) {
+            return impl().doStart(name, ThreadTask(static_cast<ThreadEntry>(callable)), context, priority, stack_size,
+                                  stack);
         } else {
-            static_assert(!std::is_same_v<Impl, Impl>, "该OSAL线程后端未实现owned raw cleanup；请显式适配后启用");
-            return -1;
+            return impl().doStart(name, ThreadTask(ThreadTask::Function(std::forward<Callable>(callable))), context,
+                                  priority, stack_size, stack);
         }
     }
-#endif
 
-    /**
-     * @brief 使用 std::function 任务包装启动线程。
-     * @param[in] name 线程名，复制和存活期依后端约定。
-     * @param taskFunction 可调用任务包装；构造/复制可能涉及动态资源。
-     * @param taskArgument 借用的任务参数。
-     * @param priority 后端优先级编码。
-     * @param stack_size 后端栈大小请求。
-     * @param pstack 可选外部栈，后端决定是否使用。
-     * @return 后端结果，不能跨后端假定所有错误码和重复调用语义相同。
+    /** @brief 在同一启动机制中移交最终清理责任，不进行std::function包装。
+     * 不支持此能力的后端返回失败；外部栈/TCB禁止由finalizer回收。
+     * 成功后的runner可以立即结束，故调用者须在启动前完成自身所有权准备。
+     * 此模式自动回收，join返回不支持；cleanup完成由独立观察对象同步，不依赖可能已销毁的Thread。
      */
-    int start(const char *name, std::function<void(void *)> taskFunction, void *taskArgument, int priority = 0,
-              int stack_size = 0, void *pstack = nullptr) {
-        return impl().doStart(name, taskFunction, taskArgument, priority, stack_size, pstack);
+    int start(const char* name, ThreadEntry entry, void* context, ThreadFinalizer finalizer, int priority = 0,
+              int stack_size = 0, void* stack = nullptr) noexcept {
+        return impl().doStart(name, ThreadTask(entry, finalizer), context, priority, stack_size, stack);
     }
+
+    /** @brief 使用显式原生控制资源启动；失败不占用调用者资源。 */
+    template <typename Callable>
+    int start(const char* name, Callable&& callable, void* context, const ThreadResources& resources, int priority = 0,
+              int stack_size = 0, void* stack = nullptr) noexcept(std::is_convertible_v<Callable, ThreadEntry>) {
+        if constexpr (std::is_convertible_v<Callable, ThreadEntry>) {
+            return impl().doStart(name, ThreadTask(static_cast<ThreadEntry>(callable)), context, priority, stack_size,
+                                  stack, resources);
+        } else {
+            return impl().doStart(name, ThreadTask(ThreadTask::Function(std::forward<Callable>(callable))), context,
+                                  priority, stack_size, stack, resources);
+        }
+    }
+
+    static constexpr bool supportsFinalizer() noexcept { return Impl::kSupportsFinalizer; }
+    static constexpr bool supportsControlBlockStorage() noexcept { return Impl::kSupportsControlBlockStorage; }
+    static constexpr bool supportsDetachedResources() noexcept { return Impl::kSupportsDetachedResources; }
 
     /**
      * @brief 请求后端停止线程，等待/协作/终止策略由具体实现决定。
@@ -98,11 +139,11 @@ public:
     /**
      * @brief 由后端等待线程结束；可连接状态及不能自连接等要求由调用者遵守。
      */
-    void join() { impl().doJoin(); }
+    int join() { return impl().doJoin(); }
     /**
      * @brief 按后端规则分离线程资源，不代表任务已结束或上下文可立即释放。
      */
-    void detach() { impl().doDetach(); }
+    int detach() { return impl().doDetach(); }
     /**
      * @brief 请求挂起线程。
      * @return 后端整数结果；POSIX 当前为协作挂起标志，不等价于立即停止任意用户代码。
@@ -137,35 +178,17 @@ protected:
 
 private:
     /**
-     * @brief 优先探测后端是否存在匹配 owned raw 签名，只用于编译期类型判断。
-     * @tparam Backend 被探测的后端类型。
-     * @details 未命名 int 参数仅用于优先重载选择，不执行运行时调用。
-     * @return 可匹配时为 std::true_type。
-     */
-#if DP_OSAL_ENABLE_LEGACY_COMPAT
-    template <typename Backend>
-    static auto supportsOwned(int) -> decltype(std::declval<Backend&>().doStartRawOwned(
-        static_cast<const char*>(nullptr), ThreadEntry{}, static_cast<void*>(nullptr), ThreadCleanup{},
-        int{}, int{}, static_cast<void*>(nullptr)), std::true_type{});
-    /**
-     * @brief owned raw 探测失败时的省略号后备重载，只用于未求值的类型判断。
-     * @return std::false_type，触发显式不支持诊断。
-     */
-    template <typename> static std::false_type supportsOwned(...);
-#endif
-
-    /**
      * @brief 静态转回具体线程后端。
      * @return 当前 Impl 可写引用。
      */
-    Impl &impl() { return *static_cast<Impl *>(this); }
+    Impl& impl() { return *static_cast<Impl*>(this); }
     /**
      * @brief 静态转回具体线程后端的只读视图。
      * @return 当前 Impl 的 const 引用。
      */
-    const Impl &impl() const { return *static_cast<const Impl *>(this); }
+    const Impl& impl() const { return *static_cast<const Impl*>(this); }
 };
 
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif  // DP_OSAL_INTERFACE_THREAD_H_
