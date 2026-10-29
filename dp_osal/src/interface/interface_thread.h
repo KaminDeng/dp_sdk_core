@@ -140,9 +140,25 @@ public:
     }
     // 挂起、恢复及优先级是后端扩展，不作为跨平台安全点。
     int suspend() { return impl().doSuspend(); }
+    /**
+     * @brief 请求恢复线程。
+     * @return 后端整数结果；恢复请求成功不代表任务已经获得 CPU。
+     */
     int resume() { return impl().doResume(); }
+    /**
+     * @brief 查询后端维护的运行状态。
+     * @return 状态观测值；并发变化后可立即过时，不是线程结束的同步屏障。
+     */
     [[nodiscard]] bool isRunning() const { return impl().doIsRunning(); }
+    /**
+     * @brief 请求调整线程优先级。
+     * @param priority 后端编码；权限、范围和错误处理由实现决定。
+     */
     void setPriority(int priority) { impl().doSetPriority(priority); }
+    /**
+     * @brief 获取后端维护或查询的优先级。
+     * @return 后端优先级值，不跨平台统一调度含义。
+     */
     [[nodiscard]] int getPriority() const { return impl().doGetPriority(); }
 
 protected:

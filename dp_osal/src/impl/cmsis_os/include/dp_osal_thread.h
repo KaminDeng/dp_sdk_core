@@ -18,6 +18,10 @@
 #endif
 
 namespace dp::osal {
+/**
+ * @brief 持有CMSIS线程句柄、退出信号量及任务入口的CRTP后端。
+ * @note 生命周期字段不构成并发join/stop协议，不允许靠局部句柄副本推断并发删除安全。
+ */
 class Thread : public ThreadBase<Thread> {
     friend class ThreadBase<Thread>;
 

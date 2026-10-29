@@ -30,6 +30,23 @@ dp_hal_device_id_status_t dp_hal_port_get_device_id(dp_hal_device_id_t *out) {
     return DP_HAL_DEVICE_ID_OK;
 }
 
+/**
+ * @brief 写出固定的 MOCK 测试身份，便于验证重复读取稳定且整体非零。
+ * @param[out] out 有效的 16 字节身份对象。
+ * @return 空指针返回 INVALID_ARGUMENT，否则复制固定值并返回 OK。
+ * @note 所有使用此端口的实例得到相同值，不代表主机或机械臂硬件的唯一身份。
+ */
+dp_hal_device_id_status_t dp_hal_port_get_device_id(dp_hal_device_id_t *out) {
+    if (out == nullptr) return DP_HAL_DEVICE_ID_INVALID_ARGUMENT;
+    // 前四字节为 ASCII MOCK，末字节为 1；中间零字节不会影响“整体非零”。
+    static constexpr uint8_t kMockId[16] = {
+        0x4DU, 0x4FU, 0x43U, 0x4BU, 0x00U, 0x00U, 0x00U, 0x00U,
+        0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U,
+    };
+    std::memcpy(out->bytes, kMockId, sizeof(kMockId));
+    return DP_HAL_DEVICE_ID_OK;
+}
+
 /* ---- dp_hal_port_time_us ------------------------------------------------ */
 /**
  * @brief 返回 steady_clock 的单调微秒值，供主机测试计算经过时间。

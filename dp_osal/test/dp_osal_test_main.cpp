@@ -46,6 +46,9 @@ using namespace dp::osal;
 #include "gtest_spin_lock.cpp"
 #endif
 #include "gtest_thread.cpp"
+#include "gtest_host_io.cpp"
+#include "gtest_realtime_thread.cpp"
+#include "gtest_static_timer.cpp"
 #if DP_OSAL_ENABLE_THREAD_POOL
 #include "gtest_thread_pool.cpp"
 #endif

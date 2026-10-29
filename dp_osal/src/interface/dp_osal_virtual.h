@@ -223,6 +223,9 @@ private:
  */
 class IThread {
 public:
+    /**
+     * @brief 虚析构支持经接口指针销毁派生适配器或Mock，资源清理由派生类负责。
+     */
     virtual ~IThread() = default;
     virtual ThreadResult start(const char *name, std::function<void(void *)> entry, void *context, int priority,
                                int stack_size, void *stack) = 0;
@@ -234,9 +237,29 @@ public:
     virtual ThreadResult tryJoinFor(uint32_t timeout_ms) = 0;
     virtual ThreadResult detach() = 0;
     virtual int suspend() = 0;
+    /**
+     * @brief 请求恢复线程。
+     * @return 实现返回的状态，不证明任务已获得CPU。
+     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
+     */
     virtual int resume() = 0;
+    /**
+     * @brief 查询实现维护的运行状态。
+     * @return 瞬时状态；不是任务结束或内存可释放的同步证明。
+     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
+     */
     virtual bool isRunning() const = 0;
+    /**
+     * @brief 请求修改线程优先级。
+     * @param priority 实现约定的优先级编码及权限范围。
+     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
+     */
     virtual void setPriority(int priority) = 0;
+    /**
+     * @brief 读取实现报告的线程优先级。
+     * @return 后端编码，不能跨平台直接比较调度含义。
+     * @details 纯虚契约，实际执行及错误处理由派生实现提供。
+     */
     virtual int getPriority() const = 0;
 };
 
@@ -244,6 +267,10 @@ public:
 template <typename Impl>
 class ThreadVirtual : public IThread {
 public:
+    /**
+     * @brief 借用后端对象构造适配器，不复制或接管后端。
+     * @param impl 外部持有且覆盖适配器使用期的具体后端。
+     */
     explicit ThreadVirtual(Impl &impl) : impl_(impl) {}
     ThreadResult start(const char *name, std::function<void(void *)> entry, void *context, int priority, int bytes,
                        void *stack) override {
@@ -257,13 +284,33 @@ public:
     ThreadResult tryJoinFor(uint32_t timeout_ms) override { return impl_.tryJoinFor(timeout_ms); }
     ThreadResult detach() override { return impl_.detach(); }
     int suspend() override { return impl_.suspend(); }
+    /**
+     * @brief 请求恢复线程。
+     * @return 实现返回的状态，不证明任务已获得CPU。
+     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
+     */
     int resume() override { return impl_.resume(); }
+    /**
+     * @brief 查询实现维护的运行状态。
+     * @return 瞬时状态；不是任务结束或内存可释放的同步证明。
+     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
+     */
     bool isRunning() const override { return impl_.isRunning(); }
+    /**
+     * @brief 请求修改线程优先级。
+     * @param priority 实现约定的优先级编码及权限范围。
+     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
+     */
     void setPriority(int priority) override { impl_.setPriority(priority); }
+    /**
+     * @brief 读取实现报告的线程优先级。
+     * @return 后端编码，不能跨平台直接比较调度含义。
+     * @details 原样转发到借用后端impl_，不新增重试、超时换算或资源所有权。
+     */
     int getPriority() const override { return impl_.getPriority(); }
 
 private:
-    Impl &impl_;
+    Impl &impl_; ///< 借用后端引用，不由适配器delete；外部保证存活与并发协调。
 };
 
 /**

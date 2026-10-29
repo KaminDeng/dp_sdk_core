@@ -25,9 +25,9 @@
 namespace dp::osal {
 /** @brief 线程自持停止状态；TLS 在执行入口期间借用，不独立分配。 */
 struct OSALThreadStopCtx {
-    std::mutex mtx;
-    std::condition_variable cv;
-    std::atomic<bool> stop{false};
+    std::mutex mtx; ///< 保护停止等待与通知的条件变量配对。
+    std::condition_variable cv; ///< stop请求可唤醒当前线程的可中断sleep。
+    std::atomic<bool> stop{false}; ///< 当前Thread的协作停止请求，不代表设备STOP授权。
 };
 inline thread_local OSALThreadStopCtx* tl_stop_ctx = nullptr;
 
@@ -42,6 +42,10 @@ inline void osal_sleep_ms_interruptible(uint32_t ms) {
     }
 }
 
+/**
+ * @brief 具体pthread线程对象及借用任务状态，CRTP基类访问私有do*入口。
+ * @note running是本地观测，不是完整资源所有权；detach后任务仍可能继续访问对象。
+ */
 class Thread : public ThreadBase<Thread> {
     friend class ThreadBase<Thread>;
 
@@ -164,6 +168,10 @@ private:
     }
     ThreadResult doDetach() { return {ThreadStatus::kNotSupported}; }
 
+    /**
+     * @brief 持锁设置协作挂起标志，不调用OS强制挂起任意已执行用户代码。
+     * @return 固定0；真正等待发生在runner入口的waitIfSuspended检查点。
+     */
     int doSuspend() {
         std::lock_guard<std::mutex> lock(suspend_mutex_);
         suspended_.store(true, std::memory_order_release);
