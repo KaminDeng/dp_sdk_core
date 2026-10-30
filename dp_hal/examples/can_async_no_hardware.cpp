@@ -4,7 +4,6 @@
 #include "dp_can.h"
 #include "dp_can_async.h"
 #include <cassert>
-#include <cstdio>
 #include <utility>
 
 using namespace dp::hal;
@@ -137,5 +136,5 @@ int main() {
     assert(terminal.owner[2] == request.opaque[4] && terminal.owner_byte == 0xa5);
     assert(terminal.state == CanTerminalState::kSent);
     assert(async.submitDirect(request) == Status::kNotSupported);
-    std::puts("PASS ordinary CanBase + one-slot async example (software only)");
+    // 所有断言通过后以正常退出码结束；不为教学模型引入日志/设备依赖。
 }

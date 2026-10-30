@@ -30,7 +30,7 @@ c++ -std=c++17 -Wall -Wextra -Werror -UNDEBUG \
 /tmp/can-async-example
 ```
 
-输出 `PASS ordinary CanBase + one-slot async example (software only)`。它只证明公共 API 的调用与值寿命，模型的 `simulate_completion` 不证明真实发送或 ISR。
+全部断言通过后正常退出（退出码0），不引入stdio或日志依赖。它只证明公共 API 的调用与值寿命，模型的 `simulate_completion` 不证明真实发送或 ISR。
 
 ## 新 port
 
