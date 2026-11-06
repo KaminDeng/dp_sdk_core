@@ -1,6 +1,6 @@
 /**
  * @file dp_hal_port.h
- * @brief HAL 平台端口的 C 接口：设备身份、微秒时间、调试输出和断言失败。
+ * @brief HAL 平台端口的 C 接口：设备与启动身份、微秒时间、调试输出和断言失败。
  * @details 通用 HAL 仅依赖这些声明；具体实现由所选端口的 dp_hal_port_impl.cpp 提供。
  * 产品端口应满足下面的稳定身份及上下文要求，主机 mock 用于测试，template 用于移植起步。
  * 声明本身不会提供硬件 UID、加锁或中断适配；评估实际平台能力时必须阅读对应实现。
@@ -38,6 +38,57 @@ typedef enum {
  * 不能用于证明多块硬件唯一性；真正的身份来源及并发约束由产品端口实现。
  */
 dp_hal_device_id_status_t dp_hal_port_get_device_id(dp_hal_device_id_t *out);
+
+/** @name 可选的平台启动身份能力
+ * @details 启动身份在本次启动内保持不变，且同设备的新启动不得重用旧值。
+ * 端口以持久计数或其它可靠来源初始化；不能用32位tick、UART会话号或设备UID代替。
+ * 未声明能力的既有端口明确返回UNAVAILABLE，不要求补充实现。
+ * @{
+ */
+/** @brief 启动身份初始化结果；只有OK时可使用输出。 */
+typedef enum {
+    DP_HAL_BOOT_IDENTITY_OK = 0,                 ///< 已取得本次启动的非零身份。
+    DP_HAL_BOOT_IDENTITY_INVALID_ARGUMENT = -1,  ///< 输出指针为空。
+    DP_HAL_BOOT_IDENTITY_UNAVAILABLE = -2,       ///< 所选端口不支持或身份尚未就绪。
+} dp_hal_boot_identity_status_t;
+
+#if defined(DP_HAL_PORT_HAS_BOOT_IDENTITY) && DP_HAL_PORT_HAS_BOOT_IDENTITY
+/** @brief 已选端口的幂等初始化叶函数；公共调用方使用dp_hal_init_boot_identity。
+ * @param[out] out 成功时写出非零64位身份，失败时保持原值。
+ * @return 参数/可用性结果；可在首次调用持久化启动计数，不创建通信会话。
+ */
+dp_hal_boot_identity_status_t dp_hal_port_init_boot_identity(uint64_t *out);
+#endif
+
+/** @brief 查询所选端口是否声明启动身份能力，不保证初始化已经成功。
+ * @return 1表示有正式端口实现，0表示本次配置不支持。
+ */
+static inline int dp_hal_has_boot_identity(void) {
+#if defined(DP_HAL_PORT_HAS_BOOT_IDENTITY) && DP_HAL_PORT_HAS_BOOT_IDENTITY
+    return 1;
+#else
+    return 0;
+#endif
+}
+
+/** @brief 幂等初始化并取得本设备本次启动身份；它不是时间戳、认证或使能许可。
+ * @param[out] out 调用期间有效的64位输出，不能为NULL；失败保持原值。
+ * @return OK、INVALID_ARGUMENT或UNAVAILABLE，不静默生成替代身份。
+ * @note 必须在业务消息发布前由单一线程串行调用，不适用于ISR或控制热路径。
+ * 首次调用可能执行持久化及有界Flash等待；重复成功调用返回本次启动缓存而不递增。
+ * 端口可缓存首次失败，此时本次启动后续调用仍返回UNAVAILABLE，不能假定会重试Flash。
+ * 无堆分配；不支持能力及空指针分支没有初始化副作用。
+ */
+static inline dp_hal_boot_identity_status_t dp_hal_init_boot_identity(uint64_t *out) {
+    if (out == 0) return DP_HAL_BOOT_IDENTITY_INVALID_ARGUMENT;
+#if defined(DP_HAL_PORT_HAS_BOOT_IDENTITY) && DP_HAL_PORT_HAS_BOOT_IDENTITY
+    return dp_hal_port_init_boot_identity(out);
+#else
+    return DP_HAL_BOOT_IDENTITY_UNAVAILABLE;
+#endif
+}
+
+/** @} */
 
 /**
  * @brief 获取平台单调递增的微秒计时值，用于计算时间差。

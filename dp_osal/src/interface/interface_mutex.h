@@ -29,7 +29,8 @@ public:
         if (Measurement::enabled()) {
             const auto started = detail::measurementNow();
             const bool result = impl().doLock();
-            detail::MeasurementAccess::recordWait(SynchronizationKind::kLock, started, detail::measurementNow(), result);
+            detail::MeasurementAccess::recordWait(SynchronizationKind::kLock, started, detail::measurementNow(),
+                                                  result);
             return result;
         }
 #endif
@@ -49,7 +50,8 @@ public:
         if (Measurement::enabled()) {
             const auto started = detail::measurementNow();
             const bool result = impl().doTryLock();
-            detail::MeasurementAccess::recordWait(SynchronizationKind::kLock, started, detail::measurementNow(), result);
+            detail::MeasurementAccess::recordWait(SynchronizationKind::kLock, started, detail::measurementNow(),
+                                                  result);
             return result;
         }
 #endif
@@ -57,7 +59,7 @@ public:
     }
     /**
      * @brief 按后端约定的相对超时获取锁，记录结果与总调用耗时。
-     * @param timeout POSIX 当前按毫秒解释，CMSIS 直接传作内核 tick；本层不转换。
+     * @param timeout POSIX/ESP 当前按毫秒解释，CMSIS直接传作内核tick；旧接口保持此约定，本层不转换。
      * @return 在后端规则下成功获取时为 true，否则 false。
      * @note 不可跨后端盲目复用同一个数值作为相同物理时长。
      */
@@ -66,11 +68,31 @@ public:
         if (Measurement::enabled()) {
             const auto started = detail::measurementNow();
             const bool result = impl().doTryLockFor(timeout);
-            detail::MeasurementAccess::recordWait(SynchronizationKind::kLock, started, detail::measurementNow(), result);
+            detail::MeasurementAccess::recordWait(SynchronizationKind::kLock, started, detail::measurementNow(),
+                                                  result);
             return result;
         }
 #endif
         return impl().doTryLockFor(timeout);
+    }
+
+    /**
+     * @brief 按明确毫秒的有限相对期限获取锁，记录整个后端调用耗时。
+     * @param timeout_ms 任务上下文的毫秒等待请求；0仅尝试，不授权无限等待。
+     * @return 成功持有锁时为true；超时、非法上下文、时钟或范围不支持时为false。
+     * @note CMSIS向上取整为有限tick，不能表示时拒绝；实际恢复运行受调度影响，不承诺WCET。
+     */
+    DP_OSAL_COLD bool tryLockForMs(uint32_t timeout_ms) {
+#if DP_OSAL_ENABLE_MEASUREMENT
+        if (Measurement::enabled()) {
+            const auto started = detail::measurementNow();
+            const bool result = impl().doTryLockForMs(timeout_ms);
+            detail::MeasurementAccess::recordWait(SynchronizationKind::kLock, started, detail::measurementNow(),
+                                                  result);
+            return result;
+        }
+#endif
+        return impl().doTryLockForMs(timeout_ms);
     }
 
 protected:
@@ -92,6 +114,6 @@ private:
     const Impl &impl() const { return *static_cast<const Impl *>(this); }
 };
 
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif  // DP_OSAL_INTERFACE_MUTEX_H_

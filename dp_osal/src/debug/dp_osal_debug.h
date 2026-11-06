@@ -63,8 +63,9 @@ bool getIncludeFileFunction();
 void common_log(const char* prefix, const char* file, const char* function, int line, const char* format, va_list args)
     DP_OSAL_PRINTF_LIKE(5, 0);
 
-#define DECLARE_LOG_FUNCTION(logFuncName) \
-    void logFuncName(const char* file, const char* function, int line, const char* format, ...) DP_OSAL_PRINTF_LIKE(4, 5);
+#define DECLARE_LOG_FUNCTION(logFuncName)                                                       \
+    void logFuncName(const char* file, const char* function, int line, const char* format, ...) \
+        DP_OSAL_PRINTF_LIKE(4, 5);
 
 DECLARE_LOG_FUNCTION(DP_OSAL_LOG_)
 
@@ -81,13 +82,13 @@ DECLARE_LOG_FUNCTION(DP_OSAL_LOGD_)
 DECLARE_LOG_FUNCTION(DP_OSAL_LOGV_)
 
 // 宏定义，用于简化日志调用
-#define DP_OSAL_LOG(format, ...) DP_OSAL_LOG_(__FILE__, __FUNCTION__, __LINE__, format, ##__VA_ARGS__)
-#define DP_OSAL_LOGA(format, ...) DP_OSAL_LOGA_(__FILE__, __FUNCTION__, __LINE__, format, ##__VA_ARGS__)
-#define DP_OSAL_LOGE(format, ...) DP_OSAL_LOGE_(__FILE__, __FUNCTION__, __LINE__, format, ##__VA_ARGS__)
-#define DP_OSAL_LOGW(format, ...) DP_OSAL_LOGW_(__FILE__, __FUNCTION__, __LINE__, format, ##__VA_ARGS__)
-#define DP_OSAL_LOGI(format, ...) DP_OSAL_LOGI_(__FILE__, __FUNCTION__, __LINE__, format, ##__VA_ARGS__)
-#define DP_OSAL_LOGD(format, ...) DP_OSAL_LOGD_(__FILE__, __FUNCTION__, __LINE__, format, ##__VA_ARGS__)
-#define DP_OSAL_LOGV(format, ...) DP_OSAL_LOGV_(__FILE__, __FUNCTION__, __LINE__, format, ##__VA_ARGS__)
+#define DP_OSAL_LOG(...) DP_OSAL_LOG_(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#define DP_OSAL_LOGA(...) DP_OSAL_LOGA_(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#define DP_OSAL_LOGE(...) DP_OSAL_LOGE_(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#define DP_OSAL_LOGW(...) DP_OSAL_LOGW_(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#define DP_OSAL_LOGI(...) DP_OSAL_LOGI_(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#define DP_OSAL_LOGD(...) DP_OSAL_LOGD_(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
+#define DP_OSAL_LOGV(...) DP_OSAL_LOGV_(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__)
 
 }  // namespace dp::osal
 

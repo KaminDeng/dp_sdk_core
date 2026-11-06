@@ -28,7 +28,7 @@ cmake -B build -DPRODUCT=posix_demo -DASAN=OFF -DTSAN=ON && cmake --build build
 
 ## Running Tests
 
-Tests are compiled into static libraries and invoked from the host application task context (not standalone binaries). Entry points are extern "C" functions:
+Unified suites are compiled into explicit test libraries and invoked from the host application task context. Production `dp_osal` excludes GTest and test include paths; link `dp_osal_test` explicitly when using its test entry. Separate host contract targets also exist. Entry points are extern "C" functions:
 
 ```c
 extern "C" void dp_osal_test_main(void);     // OSAL GTest suites

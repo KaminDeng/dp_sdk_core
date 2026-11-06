@@ -114,7 +114,7 @@ osal    ->  POSIX / CMSIS-OS backend
 
 ---
 
-## Getting Started
+## 快速开始
 
 ### 1. 接入方式
 
@@ -129,6 +129,11 @@ target_link_libraries(my_app PRIVATE dp_osal)    # OS 抽象
 target_link_libraries(my_app PRIVATE dp_hal)     # 硬件抽象
 target_link_libraries(my_app PRIVATE dp_device)  # 设备管理
 ```
+
+生产`dp_osal`不依赖GTest，也不公开测试头路径。需要调用统一OSAL测试入口时，
+测试应用显式链接`dp_osal_test`并提供GTest；该目标默认不构建，不进入生产库。
+可选CAN FD Host 合同通过`DP_HAL_BUILD_CAN_FD_TESTS=ON`启用，入口由Core自身提供，
+不要求父工程提供通信库或产品测试 main。Host 合同不代替实际 CAN FD 外设验证。
 
 典型构建方式：
 
@@ -354,6 +359,6 @@ extern "C" void dp_device_test_main(void);
 
 ---
 
-## License
+## 许可证
 
 [MIT](./LICENSE)

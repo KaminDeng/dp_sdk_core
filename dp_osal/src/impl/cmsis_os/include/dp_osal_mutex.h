@@ -80,9 +80,19 @@ private:
         return true;
     }
 
+    /** @brief 仅新毫秒接口换算单位；旧tryLockFor仍按原生tick解释。 */
+    bool doTryLockForMs(uint32_t timeout_ms) {
+        if (timeout_ms == 0U) return doTryLock();
+        const auto frequency = osKernelGetTickFreq();
+        if (frequency == 0U) return false;
+        const uint64_t ticks = (uint64_t(timeout_ms) * frequency + 999ULL) / 1000ULL;
+        if (ticks == 0U || ticks >= uint64_t(osWaitForever)) return false;
+        return doTryLockFor(static_cast<uint32_t>(ticks));
+    }
+
     osMutexId_t mutex_;
 };
 
-} // namespace dp::osal
+}  // namespace dp::osal
 
 #endif  // DP_OSAL_CMSIS_MUTEX_H_

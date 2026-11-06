@@ -130,6 +130,12 @@ target_link_libraries(my_app PRIVATE dp_hal)     # hardware abstraction
 target_link_libraries(my_app PRIVATE dp_device)  # device management
 ```
 
+The production `dp_osal` target does not depend on GTest or expose test headers.
+Test applications that invoke the unified OSAL entry explicitly link
+`dp_osal_test` and provide GTest. This separate target is excluded from the
+default build. Optional CAN FD host contracts use `DP_HAL_BUILD_CAN_FD_TESTS=ON`
+and a Core-owned entry, without requiring a parent communication library.
+
 Typical build flow:
 
 ```sh
@@ -172,29 +178,29 @@ This workflow is well suited to validating on the host first and then landing on
 | `interface_system.h` | scheduler, sleep, critical sections, system info |
 | `dp_osal_virtual.h` | host-side virtual wrappers |
 
-### 正式接口与平台能力
+### Public interfaces and platform capabilities
 
-`Thread` 只空构造，禁止复制/移动，默认创建 joinable 线程；一个 owner 串行执行生命周期及挂起/恢复/优先级操作；仅 requestStop、stopRequested、joinable、isRunning 四项允许跨线程调用，仍须由 owner 保证包装对象寿命。推荐 `start(entry, context, attributes)`，也保留 `start(name, entry, context, priority, stack_bytes, stack)` 便捷形式。函数指针及可转换的无捕获 lambda 不为入口包装额外分配，捕获 callable 仍可能由 std::function 分配；不公开任务存储或线程自销毁回调。
+`Thread` is default-constructed, non-copyable, and non-movable. Threads are joinable by default. One owner serializes lifecycle, suspend/resume, and priority operations. Only `requestStop`, `stopRequested`, `joinable`, and `isRunning` may be called across threads; the owner must still guarantee the wrapper's lifetime. Prefer `start(entry, context, attributes)`; the convenience overload `start(name, entry, context, priority, stack_bytes, stack)` is also available. Function pointers and convertible captureless lambdas require no additional allocation for the entry wrapper; capturing callables may still allocate through `std::function`. Task storage and thread self-destruction callbacks are not exposed.
 
-`requestStop()` 幂等发布协作停止请求，业务循环显式查询 `stopRequested()` 并唤醒自身等待；请求不代表已停止。`join()` 成功才确认原生线程结束及资源回收，允许释放借用 context、栈与控制块。自然返回后 `joinable()` 仍为 true，`isRunning()==false` 不是释放屏障。已有回收责任时 start 返回 kBusy；join 失败/超时保留尚未完成的责任，禁止覆盖旧线程。原生线程已回收但同步资源清理失败时，后续 join 仅重试剩余清理，不能重复回收原生句柄；joinable 为 false 也不能抹掉已报告的清理失败。自身 join 返回 kWouldDeadlock。
+`requestStop()` idempotently publishes a cooperative stop request. The business loop must check `stopRequested()` and arrange to wake its own waits; a request does not mean the thread has stopped. Only a successful `join()` confirms native thread termination and resource reclamation, permitting borrowed context, stack, and control-block storage to be released. After natural return, `joinable()` remains true; `isRunning()==false` is not a release barrier. `start` returns `kBusy` while reclamation remains outstanding. Failed or timed-out joins preserve that responsibility and must not be followed by overwriting the old thread. If the native thread has been reclaimed but synchronization-resource cleanup fails, subsequent joins retry only the remaining cleanup, never native-handle reclamation. A false `joinable()` result does not erase a reported cleanup failure. Joining oneself returns `kWouldDeadlock`.
 
-析构前必须完成 join 和必要清理；违反约束在 Release 也终止进程/触发平台 fatal，不自动无限等待、不强杀、不静默分离。显式 `stop()` 是 requestStop 加无限 join 的便捷操作，可能一直等待业务退出，不能拿它实现有界关闭。所有后端 `detach()` 返回 kNotSupported。
+Complete `join` and any required cleanup before destruction. Violations terminate the process or trigger a platform fatal error even in Release builds; destruction does not wait indefinitely, forcibly terminate, or silently detach. The explicit `stop()` convenience operation combines `requestStop` with an unbounded join and may wait indefinitely for business code to exit; it is unsuitable for bounded shutdown. Every backend returns `kNotSupported` from `detach()`.
 
-有限等待通过 `supportsTimedJoin()`（后端 `kSupportsTimedJoin`）查询；`tryJoinFor(timeout_ms)` 使用毫秒相对期限，超时保留全部资源。当前 Linux/glibc >= 2.31 的 GNU 接口和 Zephyr 原生 join 支持，其他 POSIX、FreeRTOS、RT-Thread 与 ESP-IDF 明确返回 kNotSupported，不用“完成通知加无限回收”伪装有界 join。ThreadResult 用 ok()/status/native_error 检查；错误包括 Timeout、NotSupported、InvalidState、Busy、WouldDeadlock 和资源/原生错误。挂起/恢复/优先级是后端扩展，不是通用同步安全点。
+Query bounded-wait support through `supportsTimedJoin()` (backend constant `kSupportsTimedJoin`). `tryJoinFor(timeout_ms)` takes a relative timeout in milliseconds and retains all resources on timeout. Currently, the GNU interfaces on Linux/glibc >= 2.31 and native Zephyr join support this capability. Other POSIX environments, FreeRTOS, RT-Thread, and ESP-IDF explicitly return `kNotSupported`; a completion notification followed by unbounded reclamation is not presented as a bounded join. Check `ThreadResult` through `ok()`, `status`, and `native_error`. Errors include Timeout, NotSupported, InvalidState, Busy, WouldDeadlock, and resource/native failures. Suspend/resume and priority changes are backend extensions, not portable synchronization points.
 
-静态资源通过`ThreadResources`和后端资源存储表达，`supportsControlBlockStorage()` 反映实际能力；栈容量统一字节。完成通知不等于原生线程真正退出，借用资源须一直保留到成功 join。FreeRTOS/ESP 的 owner 回收与 SMP 在核运行状态由端口处理；不支持的资源配置显式拒绝。
+Static resources are expressed through `ThreadResources` and backend resource storage; `supportsControlBlockStorage()` reports actual support. Stack capacities are measured in bytes. Completion notification does not imply native thread exit: borrowed resources must remain alive until a successful join. Ports handle owner-side reclamation and SMP running-state checks for FreeRTOS/ESP. Unsupported resource configurations are explicitly rejected.
 
-`Semaphore`是唯一计数唤醒原语。`DeferredInit`构造不取得资源，open/release/close反馈错误，waitForMs区分kAcquired/kTimeout/kError，maxCount给出实际配置上限；close/init须在无并发使用者时执行。Linux后端使用原生sem与单调期限，其他POSIX维持可移植等待；CMSIS/ESP按实际内核能力实现。ISR资格与测量资格仍独立检查。
+`Semaphore` is the sole counting wake-up primitive. Construction with `DeferredInit` acquires no resources. `open`, `release`, and `close` report errors; `waitForMs` distinguishes `kAcquired`, `kTimeout`, and `kError`; `maxCount` reports the configured limit. Close and initialization require no concurrent users. Linux uses native semaphores and monotonic deadlines; other POSIX environments retain portable waiting. CMSIS/ESP implementations follow actual kernel capabilities. ISR eligibility and measurement validity are checked separately.
 
-`Chrono`的TimePoint仍为32位后端tick，绝对等待要求同域及半圈约束。steadyNs单独提供真实64位单调纳秒，失败返回0；wallTimeUs/threadCpuTimeUs以bool反馈读取结果，失败不覆盖输出。未具备可靠来源的后端报告不支持，不能通过tick乘常数伪造精度。原有频率、epoch和measurement有效性规则保持。
+`Chrono::TimePoint` remains a 32-bit backend tick value. Absolute waits require the same clock domain and the half-range constraint for wraparound. Separately, `steadyNs` provides a genuine 64-bit monotonic nanosecond value and returns zero on failure. `wallTimeUs` and `threadCpuTimeUs` report success through a boolean result and leave the output unchanged on failure. Backends without a reliable source report unsupported operation; multiplying ticks by a constant must not fabricate precision. Existing frequency, epoch, and measurement-validity rules remain in effect.
 
-字节输出、文件与文件系统分别使用`ByteOutput`、`File`、`FileSystem`，数量及IoResult一起检查；时钟不再属于I/O对象。描述符绑定、标准输入、信号与进程退出放在明确native port中，不进入通用接口。短写、背压和部分失败需要调用方处理；文件sync不等于同步父目录。
+Byte output, files, and filesystems use `ByteOutput`, `File`, and `FileSystem`, respectively. Check both the transferred count and `IoResult`; clocks no longer belong to I/O objects. Descriptor binding, standard input, signals, and process exit belong to explicit native ports, outside the generic interfaces. Callers handle short writes, backpressure, and partial failures. File synchronization does not synchronize the parent directory.
 
-`DP_OSAL_ENABLE_MEASUREMENT`默认OFF，通过唯一dp_osal_build_config传播0/1；同一进程所有对象配置一致，不在单TU手写宏。编译关闭时不读取采样时钟，诊断返回disabled/invalid；开启后仍检查时间域、频率、epoch、溢出与ISR覆盖。线程快照返回0表示本次无样本，不能解释为无线程或无界重试。
+`DP_OSAL_ENABLE_MEASUREMENT` defaults to OFF and propagates as 0/1 through the single `dp_osal_build_config` target. All objects in one process must use a consistent configuration; do not define it separately in individual translation units. When disabled at compile time, sampling clocks are not read and diagnostics report disabled/invalid results. When enabled, clock domain, frequency, epoch, overflow, and ISR coverage are still checked. A thread snapshot returning zero means no sample was obtained for that call; it does not prove that no threads exist or justify unbounded retries.
 
-CORE不保留旧实现切换、旧门面或旧头转发。HAL仅提供硬件机制；通信Profile/provider/会话身份合同由dp_comm_lite拥有。Device公开头使用OSAL Mutex，因此OSAL依赖公开传播；注册表保存借用指针，对象寿命和操作串行化由使用方保证。
+Core retains no legacy implementation switches, facades, or forwarding headers. HAL provides hardware mechanisms only. Communication Profile/provider and session-identity contracts belong to `dp_comm_lite`. Device public headers use OSAL Mutex, so the OSAL dependency propagates publicly. The registry stores borrowed pointers; callers guarantee object lifetime and serialize operations.
 
-详见[正式资源与I/O契约](dp_osal/docs/formal_contracts.md)。SDK分发者必须记录正式合同revision=3和measurement配置，拒绝旧前缀/旧归档混用；archive-only SDK不安装OSAL源码头。
+See the [formal resource and I/O contracts](dp_osal/docs/formal_contracts.md). SDK distributors must record formal contract revision 3 and the measurement configuration, and reject mixed old prefixes/archives. Archive-only SDKs do not install OSAL source headers.
 
 ### Backend model
 

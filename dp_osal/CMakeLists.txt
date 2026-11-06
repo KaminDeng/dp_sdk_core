@@ -1,7 +1,7 @@
 ##
 # @file CMakeLists.txt
 # @brief 从端口头选择OSAL实现、传播裁剪开关，并装配既有测试目标。
-# @details 此目录由父工程add_subdirectory消费，依赖父工程的dpsdk_library及gtest目标。
+# @details 此目录由父工程add_subdirectory消费，依赖父工程的dpsdk_library；只有显式测试消费者需要gtest目标。
 # 配置阶段依次处理功能option、端口路径、后端文本识别、源码/头路径、链接依赖与可选主机测试。
 # 下列option是构建/接口裁剪，不等于测试已经运行或具体后端已经实现该能力。
 # 修改注释不执行configure/build/test；实际配置值以父工程缓存与产品装配为准。
@@ -22,7 +22,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # ── OSAL 原语裁剪 ──────────────────────────────────────
 # ENABLE_*传播为明确0/1宏，供公共头及测试决定是否保留类型；默认ON不代表后端能力经过鉴定。
 # STATIC_ALLOC使用独立option名，后面映射到DP_OSAL_ENABLE_STATIC_ALLOC。
-# BUILD_HOST_TESTS只控制下方额外独立可执行目标，不会在此移除dp_osal库中的既有测试源。
+# BUILD_HOST_TESTS控制独立可执行目标；统一测试入口单独由dp_osal_test拥有。
 option(DP_OSAL_ENABLE_THREAD_POOL    "线程池"         ON)
 option(DP_OSAL_ENABLE_RW_LOCK        "读写锁"         ON)
 option(DP_OSAL_ENABLE_SPIN_LOCK      "自旋锁"         ON)
@@ -100,13 +100,11 @@ endforeach()
 message(STATUS "[dp_osal] Impl sources:   ${SYSTEM_IMPL_SOURCES}")
 
 # ── Library target ─────────────────────────────────────────────────────────────
-# 静态库列入debug、当前后端和统一测试入口；已由单TU入口包含的测试不再重复编译。
+# 生产静态库只列入debug与当前后端；测试单独装配，已由单TU入口包含的测试不重复编译。
 # GLOB只保留尚未归属入口的源，专用Host套件由独立可执行目标装配。
 add_library(dp_osal STATIC
     src/debug/dp_osal_debug.cpp
     ${SYSTEM_IMPL_SOURCES}
-    test/dp_osal_test_main.cpp
-    ${GTEST_SUITE_SOURCES}
 )
 
 # 同一进程的库、独立测试与消费者共享唯一0/1配置来源。
@@ -137,16 +135,26 @@ target_include_directories(dp_osal
         $<$<STREQUAL:${_osal_backend},esp_idf>:${DP_OSAL_PORT_DIR}>
         $<$<STREQUAL:${_osal_backend},cmsis_os>:${CMAKE_CURRENT_SOURCE_DIR}/src/impl/cmsis_os/include>
         $<$<STREQUAL:${_osal_backend},posix>:${CMAKE_CURRENT_SOURCE_DIR}/src/impl/posix/include>
-        "${CMAKE_CURRENT_SOURCE_DIR}/test"
-        "${CMAKE_CURRENT_SOURCE_DIR}/${GOOGLETEST_SUITE_PATH}"
 )
 
 # ── Dependencies ───────────────────────────────────────────────────────────────
-# gtest is always linked (test sources always compiled).
+# GTest is linked only by the explicit dp_osal_test and host-test targets.
 # For CMSIS-OS ports that depend on additional platform libraries, the user
 # must link them externally:
 #   target_link_libraries(dp_osal PUBLIC freertos_kernel cmsis_os2_impl)
-target_link_libraries(dp_osal PUBLIC gtest)
+# 测试入口是独立显式能力，不让生产OSAL依赖或公开GTest与测试头。
+add_library(dp_osal_test STATIC EXCLUDE_FROM_ALL
+    test/dp_osal_test_main.cpp ${GTEST_SUITE_SOURCES})
+target_include_directories(dp_osal_test PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/test"
+    "${CMAKE_CURRENT_SOURCE_DIR}/${GOOGLETEST_SUITE_PATH}")
+target_link_libraries(dp_osal_test PUBLIC dp_osal PRIVATE gtest)
+
+# 独立Host入口也直接包含suite源；测试路径只传播给这些显式目标。
+add_library(dp_osal_host_test_support INTERFACE)
+target_include_directories(dp_osal_host_test_support INTERFACE
+    "${CMAKE_CURRENT_SOURCE_DIR}/test"
+    "${CMAKE_CURRENT_SOURCE_DIR}/${GOOGLETEST_SUITE_PATH}")
 if(_osal_backend STREQUAL "posix")
     # 线程平台依赖由OSAL后端公开传递，不要求通信/应用反向猜测pthread。
     find_package(Threads REQUIRED)
@@ -165,7 +173,7 @@ if(DP_OSAL_BUILD_HOST_TESTS AND _osal_backend STREQUAL "posix")
         test/dp_osal_chrono_host_test_main.cpp
         test/dp_osal_host_console_stub.cpp
     )
-    target_link_libraries(dp_osal_chrono_host_tests PRIVATE dp_osal gtest)
+    target_link_libraries(dp_osal_chrono_host_tests PRIVATE dp_osal dp_osal_host_test_support gtest)
     target_compile_features(dp_osal_chrono_host_tests PRIVATE cxx_std_17)
     if(BUILD_TESTING)
         add_test(NAME dp_osal_chrono_host_tests COMMAND dp_osal_chrono_host_tests)
@@ -187,21 +195,21 @@ int main() { return puts(\"probe\") < 0; }" _osal_gnu_wrap_links)
     endif()
         add_executable(dp_osal_thread_host_tests
             test/dp_osal_thread_host_test_main.cpp test/dp_osal_host_console_stub.cpp)
-        target_link_libraries(dp_osal_thread_host_tests PRIVATE dp_osal gtest)
+        target_link_libraries(dp_osal_thread_host_tests PRIVATE dp_osal dp_osal_host_test_support gtest)
         if(BUILD_TESTING)
             add_test(NAME dp_osal_thread_host_tests COMMAND dp_osal_thread_host_tests)
         endif()
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
             add_executable(dp_osal_host_io_tests
                 test/dp_osal_host_io_test_main.cpp test/dp_osal_host_console_stub.cpp)
-            target_link_libraries(dp_osal_host_io_tests PRIVATE dp_osal gtest)
+            target_link_libraries(dp_osal_host_io_tests PRIVATE dp_osal dp_osal_host_test_support gtest)
             if(BUILD_TESTING)
                 add_test(NAME dp_osal_host_io_tests COMMAND dp_osal_host_io_tests)
             endif()
             if(DP_OSAL_HOST_HAS_GNU_WRAP)
                 add_executable(dp_osal_owned_thread_host_tests
                     test/dp_osal_owned_thread_host_tests.cpp test/dp_osal_host_console_stub.cpp)
-                target_link_libraries(dp_osal_owned_thread_host_tests PRIVATE dp_osal)
+                target_link_libraries(dp_osal_owned_thread_host_tests PRIVATE dp_osal dp_osal_host_test_support)
                 target_compile_options(dp_osal_owned_thread_host_tests PRIVATE -UNDEBUG -fno-exceptions -fno-rtti)
                 target_link_options(dp_osal_owned_thread_host_tests PRIVATE -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -Wl,--wrap=pthread_clockjoin_np)
                 if(BUILD_TESTING)
@@ -209,7 +217,7 @@ int main() { return puts(\"probe\") < 0; }" _osal_gnu_wrap_links)
                 endif()
                 add_executable(dp_osal_host_io_fault_tests
                     test/dp_osal_host_io_fault_tests.cpp test/dp_osal_host_console_stub.cpp)
-                target_link_libraries(dp_osal_host_io_fault_tests PRIVATE dp_osal gtest)
+                target_link_libraries(dp_osal_host_io_fault_tests PRIVATE dp_osal dp_osal_host_test_support gtest)
                 target_link_options(dp_osal_host_io_fault_tests PRIVATE
                     -Wl,--wrap=sem_init -Wl,--wrap=sem_destroy -Wl,--wrap=sem_clockwait
                     -Wl,--wrap=clock_gettime -Wl,--wrap=poll -Wl,--wrap=read -Wl,--wrap=signal
@@ -222,7 +230,7 @@ int main() { return puts(\"probe\") < 0; }" _osal_gnu_wrap_links)
                 # 同源异常开启对照，不继承no-exceptions目标的编译选项。
                 add_executable(dp_osal_owned_thread_exceptions_host_tests
                     test/dp_osal_owned_thread_host_tests.cpp test/dp_osal_host_console_stub.cpp)
-                target_link_libraries(dp_osal_owned_thread_exceptions_host_tests PRIVATE dp_osal)
+                target_link_libraries(dp_osal_owned_thread_exceptions_host_tests PRIVATE dp_osal dp_osal_host_test_support)
                 target_compile_options(dp_osal_owned_thread_exceptions_host_tests PRIVATE -UNDEBUG -fexceptions)
                 target_link_options(dp_osal_owned_thread_exceptions_host_tests PRIVATE -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join -Wl,--wrap=pthread_clockjoin_np)
                 if(BUILD_TESTING)
@@ -232,14 +240,14 @@ int main() { return puts(\"probe\") < 0; }" _osal_gnu_wrap_links)
             endif()
         endif()
     add_executable(dp_osal_thread_interface_host_tests test/dp_osal_thread_interface_host_tests.cpp)
-    target_link_libraries(dp_osal_thread_interface_host_tests PRIVATE dp_osal)
+    target_link_libraries(dp_osal_thread_interface_host_tests PRIVATE dp_osal dp_osal_host_test_support)
     target_compile_options(dp_osal_thread_interface_host_tests PRIVATE -UNDEBUG)
     if(BUILD_TESTING)
         add_test(NAME dp_osal_thread_interface_host_tests COMMAND dp_osal_thread_interface_host_tests)
     endif()
     add_executable(dp_osal_contract_host_tests
         test/dp_osal_contract_host_test_main.cpp test/dp_osal_host_console_stub.cpp)
-    target_link_libraries(dp_osal_contract_host_tests PRIVATE dp_osal gtest)
+    target_link_libraries(dp_osal_contract_host_tests PRIVATE dp_osal dp_osal_host_test_support gtest)
     if(DP_OSAL_HOST_HAS_GNU_WRAP)
         target_compile_definitions(dp_osal_contract_host_tests PRIVATE DP_OSAL_TEST_PROC_WRAP=1)
         # 真实/proc失败与截断反例只在独立Host进程注入。
